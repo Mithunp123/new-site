@@ -81,7 +81,10 @@ const Hero = () => {
         
         {/* Slanted Tracks Container */}
         {/* w-[300vw] h-[300vh] ensures it completely covers the viewport even when rotated at -25deg */}
-        <div className="absolute w-[300vw] h-[300vh] flex flex-col justify-center items-center gap-4 md:gap-6 -rotate-[25deg] origin-center opacity-60">
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[250vw] h-[250vh] flex flex-col justify-center items-center gap-4 md:gap-6 -rotate-[25deg] origin-center opacity-60 will-change-transform"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
           <SlantedMarqueeRow images={row1Images} direction="left" speed={30} />
           <SlantedMarqueeRow images={row2Images} direction="right" speed={40} />
           <SlantedMarqueeRow images={row3Images} direction="left" speed={35} />

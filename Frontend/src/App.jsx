@@ -31,15 +31,31 @@ function App() {
   return (
     <div className="relative w-full bg-[var(--color-bg)]">
       <Navbar />
-      <main>
-        <Hero />
-        <MetricsSection />
-        <ProblemSolution />
-        <DualProp />
-        <BentoGrid />
-        <HowItWorks />
-        <FAQ />
-        <FinalCTA />
+      <main className="w-full overflow-x-hidden">
+        <section className="snap-start w-full h-screen">
+          <Hero />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <MetricsSection />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <ProblemSolution />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <DualProp />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <BentoGrid />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <HowItWorks />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+          <FAQ />
+        </section>
+        <section className="snap-start w-full min-h-screen flex items-center justify-center bg-[var(--color-bg-alt)]">
+          <FinalCTA />
+        </section>
       </main>
       <Footer />
     </div>

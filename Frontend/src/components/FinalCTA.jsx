@@ -71,7 +71,7 @@ const FinalCTA = () => {
   }, []);
 
   return (
-    <section ref={containerRef} className="relative py-32 bg-[var(--color-navy)] overflow-hidden flex items-center justify-center">
+    <section ref={containerRef} className="relative py-20 bg-[var(--color-navy)] overflow-hidden flex items-center justify-center w-full">
       <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none opacity-50"></canvas>
       
       {/* Background panels (blurred version of hero) */}

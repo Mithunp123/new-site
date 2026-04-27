@@ -28,7 +28,7 @@ const ProblemSolution = () => {
   }, []);
 
   return (
-    <section className="py-24 bg-[var(--color-bg-alt)] overflow-hidden">
+    <section className="py-24 bg-[var(--color-bg-alt)] overflow-hidden w-full">
       <div className="container mx-auto px-6 md:px-12 mb-16 text-center fade-up">
         <h2 className="text-4xl md:text-5xl text-[var(--color-navy)] mb-4 max-w-4xl mx-auto">
           End the Era of Unpaid Invoices and Ghosted Campaigns.

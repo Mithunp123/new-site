@@ -27,10 +27,16 @@
   --color-accent: #00D4FF;
 }
 
+html {
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--color-bg);
   color: var(--color-text);
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {

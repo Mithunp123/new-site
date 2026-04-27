@@ -1,147 +1,90 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Handshake, PlayCircle, BadgeCheck } from 'lucide-react';
-import processVideo from '../assets/videos/process.mp4';
-
-const ScatterStars = () => (
-  <div className="flex justify-center mb-6 relative w-16 h-12 mx-auto">
-    <svg width="100%" height="100%" viewBox="0 0 60 40" fill="none" className="text-white">
-      <path d="M 30,15 L 32,10 L 34,15 L 39,17 L 34,19 L 32,24 L 30,19 L 25,17 Z" fill="currentColor" />
-      <path d="M 15,8 L 16.5,5 L 18,8 L 21,9.5 L 18,11 L 16.5,14 L 15,11 L 12,9.5 Z" fill="currentColor" opacity="0.7" className="scale-75 origin-center" />
-      <path d="M 45,10 L 46.5,7 L 48,10 L 51,11.5 L 48,13 L 46.5,16 L 45,13 L 42,11.5 Z" fill="currentColor" opacity="0.6" className="scale-75 origin-center" />
-      <path d="M 22,30 L 23,28 L 24,30 L 26,31 L 24,32 L 23,34 L 22,32 L 20,31 Z" fill="currentColor" opacity="0.8" className="scale-50 origin-center" />
-      <path d="M 38,32 L 39,30 L 40,32 L 42,33 L 40,34 L 39,36 L 38,34 L 36,33 Z" fill="currentColor" opacity="0.5" className="scale-50 origin-center" />
-    </svg>
-  </div>
-);
+import { ShieldCheck, UserCheck, Zap, ArrowRight } from 'lucide-react';
 
 const HowItWorks = () => {
   const steps = [
     {
-      icon: <Handshake size={32} className="text-[var(--color-blue)]" />,
-      title: "Deal Locked",
-      desc: "Brand deposits funds into secure escrow. Creator starts work with peace of mind.",
-      active: true
+      icon: <UserCheck size={32} className="text-[var(--color-blue)]" />,
+      number: "01",
+      title: "Verified Onboarding",
+      desc: "Both creators and brands undergo a strict verification process to ensure authenticity and quality on the platform.",
+      color: "bg-blue-50"
     },
     {
-      icon: <PlayCircle size={32} className="text-[var(--color-blue)]" />,
-      title: "Content Goes Live",
-      desc: "Creator delivers content. Brand reviews and approves via the platform.",
-      active: false
+      icon: <ShieldCheck size={32} className="text-[var(--color-blue)]" />,
+      number: "02",
+      title: "Secure Escrow",
+      desc: "Once a deal is made, funds are deposited into our secure escrow vault, guaranteeing payment for creators upon delivery.",
+      color: "bg-indigo-50"
     },
     {
-      icon: <BadgeCheck size={32} className="text-[var(--color-blue)]" />,
-      title: "Payout Released",
-      desc: "Funds instantly transfer to the creator's account. Zero delays, zero fees.",
-      active: false
+      icon: <Zap size={32} className="text-[var(--color-blue)]" />,
+      number: "03",
+      title: "Instant Release",
+      desc: "Upon content approval, funds are instantly released to the creator. No more chasing invoices or delayed payouts.",
+      color: "bg-cyan-50"
     }
   ];
 
   return (
-    <section className="py-24 overflow-hidden relative">
-      {/* Background Video */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none"
-      >
-        <source src={processVideo} type="video/mp4" />
-      </video>
+    <section className="relative py-24 bg-white overflow-hidden w-full">
+      {/* Decorative background elements */}
+      <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-[var(--color-blue)]/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[var(--color-accent)]/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2" />
 
-      <div className="container mx-auto px-6 md:px-12 text-center mb-20 relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
-          <ScatterStars />
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 tracking-tight">
-            The Gradix Escrow Guarantee.
-          </h2>
-          <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto font-medium">
-            Three simple steps to secure every single collaboration.
-          </p>
-        </motion.div>
-      </div>
+      <div className="container mx-auto px-6 md:px-12 relative z-10 w-full">
+        <div className="text-center max-w-3xl mx-auto mb-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="text-[var(--color-blue)] font-bold tracking-[0.2em] text-xs uppercase mb-4 block">Process</span>
+            <h2 className="text-4xl md:text-5xl font-['Playfair_Display'] text-[var(--color-navy)] mb-6">
+              Simplifying Trust in Every Collaboration.
+            </h2>
+            <p className="text-lg text-[var(--color-text)]/70">
+              A streamlined, three-step workflow designed to protect your interests and let you focus on what you do best.
+            </p>
+          </motion.div>
+        </div>
 
-      <div id="timeline-container" className="container mx-auto px-6 md:px-12 max-w-5xl relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-16 md:gap-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl mx-auto">
           {steps.map((step, i) => (
-            <div key={i} className="relative flex flex-col items-center text-center">
-              
-              {/* Connector Lines */}
-              {i === 0 && (
-                <>
-                  {/* Intro Line */}
-                  <div className="hidden md:block absolute w-[50%] right-[50%] top-2 h-12 z-[-1] opacity-30">
-                    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <path d="M 0,0 Q 50,100 100,100" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
-                    </svg>
-                  </div>
-                  {/* Line from 1 to 2 */}
-                  <div className="hidden md:block absolute w-full left-[50%] top-14 h-12 z-[-1] opacity-30">
-                    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <path d="M 0,0 Q 50,100 100,0" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
-                    </svg>
-                  </div>
-                </>
-              )}
-              {i === 1 && (
-                /* Line from 2 to 3 */
-                <div className="hidden md:block absolute w-full left-[50%] top-2 h-12 z-[-1] opacity-30">
-                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <path d="M 0,100 Q 50,0 100,100" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
-                  </svg>
-                </div>
-              )}
-              {i === 2 && (
-                /* Outro Line */
-                <div className="hidden md:block absolute w-[50%] left-[50%] top-14 h-12 z-[-1] opacity-30">
-                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <path d="M 0,0 Q 50,100 100,100" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
-                  </svg>
-                </div>
-              )}
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: i * 0.2 }}
+              className="relative group p-10 bg-white border border-[var(--color-border)] rounded-[32px] hover:border-[var(--color-blue)] transition-all duration-300 hover:shadow-[0_20px_50px_rgba(26,107,255,0.08)]"
+            >
+              {/* Step Number Background */}
+              <div className="absolute top-8 right-8 text-8xl font-black text-slate-50 select-none group-hover:text-blue-50/50 transition-colors duration-300">
+                {step.number}
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: i * 0.2, type: 'spring' }}
-                className="relative mb-8"
-              >
-                {/* Number Badge */}
-                <div className="absolute -top-1 -left-1 w-8 h-8 bg-white rounded-full flex items-center justify-center text-[var(--color-navy)] font-bold text-sm shadow-md z-20">
-                  {i + 1}
+              <div className="relative z-10 h-full flex flex-col">
+                <div className={`w-16 h-16 ${step.color} rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300`}>
+                  {step.icon}
                 </div>
-
-                {/* Circle */}
-                <div className={`w-28 h-28 rounded-full flex items-center justify-center relative z-10 bg-white transition-all duration-300 ${
-                  step.active 
-                    ? 'shadow-[0_15px_40px_-10px_rgba(0,0,0,0.15)]' 
-                    : 'border-2 border-dashed border-white/30'
-                }`}>
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center ${step.active ? 'bg-[var(--color-blue)]/10' : ''}`}>
-                    {step.icon}
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: i * 0.2 + 0.2 }}
-              >
-                <h3 className="text-xl font-bold text-white mb-3">{step.title}</h3>
-                <p className="text-white/80 text-sm leading-relaxed max-w-[240px] mx-auto">
+                
+                <h3 className="text-2xl font-bold text-[var(--color-navy)] mb-4">
+                  {step.title}
+                </h3>
+                
+                <p className="text-[var(--color-text)]/70 leading-relaxed mb-8 flex-grow">
                   {step.desc}
                 </p>
-              </motion.div>
-            </div>
+
+                <div className="flex items-center text-[var(--color-blue)] font-bold text-sm gap-2 group/btn cursor-pointer">
+                  Learn More 
+                  <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </motion.div>
           ))}
         </div>
       </div>
