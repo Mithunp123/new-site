@@ -32,30 +32,30 @@ function App() {
     <div className="relative w-full bg-[var(--color-bg)]">
       <Navbar />
       <main className="w-full overflow-x-hidden">
-        <section className="snap-start w-full h-screen">
+        <div className="snap-start w-full">
           <Hero />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <MetricsSection />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <ProblemSolution />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <DualProp />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <BentoGrid />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <HowItWorks />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center">
+        </div>
+        <div className="snap-start w-full">
           <FAQ />
-        </section>
-        <section className="snap-start w-full min-h-screen flex items-center justify-center bg-[var(--color-bg-alt)]">
+        </div>
+        <div className="snap-start w-full bg-[var(--color-bg-alt)]">
           <FinalCTA />
-        </section>
+        </div>
       </main>
       <Footer />
     </div>
