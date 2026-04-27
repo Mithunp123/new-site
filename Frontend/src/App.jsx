@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
-import Metrics from './components/Metrics';
+import MetricsSection from './components/MetricsSection';
 import ProblemSolution from './components/ProblemSolution';
 import DualProp from './components/DualProp';
 import BentoGrid from './components/BentoGrid';
@@ -33,7 +33,7 @@ function App() {
       <Navbar />
       <main>
         <Hero />
-        <Metrics />
+        <MetricsSection />
         <ProblemSolution />
         <DualProp />
         <BentoGrid />

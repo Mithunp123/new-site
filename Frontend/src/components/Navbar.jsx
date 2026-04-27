@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import logo from '../assets/logo.png';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -17,9 +18,12 @@ const Navbar = () => {
   return (
     <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/80 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-6'}`}>
       <div className="container mx-auto px-6 md:px-12 flex justify-between items-center">
-        <a href="/" className="flex items-center gap-1">
-          <span className={`text-2xl font-bold tracking-widest font-heading ${scrolled ? 'text-[var(--color-navy)]' : 'text-white'}`}>GRADIX</span>
-          <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] mb-3"></span>
+        <a href="/" className="flex items-center">
+          <img 
+            src={logo} 
+            alt="Gradix Logo" 
+            className={`h-8 object-contain transition-opacity duration-300 ${scrolled ? 'opacity-100' : 'opacity-90'}`} 
+          />
         </a>
 
         {/* Desktop Nav */}
