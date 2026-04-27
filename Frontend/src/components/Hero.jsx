@@ -2,25 +2,38 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 
+import imgFrame32 from '../assets/images/Frame-32.png';
+import imgFrame33 from '../assets/images/Frame-33.png';
+import imgFrame34 from '../assets/images/Frame-34.png';
+import imgFrame35 from '../assets/images/Frame-35.png';
+import imgFrame36 from '../assets/images/Frame-36.png';
+import imgFrame37 from '../assets/images/Frame-37.png';
+import imgScreenshot1 from '../assets/images/Screenshot-1.png';
+import imgScreenshot2 from '../assets/images/Screenshot-2.png';
+import imgScreenshot3 from '../assets/images/Screenshot-3.png';
+import imgScreenshotCopy from '../assets/images/Screenshot-copy.png';
+import imgScreenshot1Copy from '../assets/images/Screenshot-1-copy.png';
+import imgScreenshotCopy2 from '../assets/images/Screenshot-copy-2.png';
+
 const row1Images = [
-  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=1066&fit=crop&q=80",
+  imgFrame32,
+  imgFrame33,
+  imgFrame34,
+  imgFrame35,
 ];
 
 const row2Images = [
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&h=1066&fit=crop&q=80", 
-  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=600&h=1066&fit=crop&q=80",
+  imgFrame36,
+  imgFrame37,
+  imgScreenshot1,
+  imgScreenshot2,
 ];
 
 const row3Images = [
-  "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=1066&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&h=1066&fit=crop&q=80",
+  imgScreenshot3,
+  imgScreenshotCopy,
+  imgScreenshot1Copy,
+  imgScreenshotCopy2,
 ];
 
 const SlantedMarqueeRow = ({ images, direction = 'left', speed = 40 }) => {
@@ -69,9 +82,9 @@ const Hero = () => {
         {/* Slanted Tracks Container */}
         {/* w-[300vw] h-[300vh] ensures it completely covers the viewport even when rotated at -25deg */}
         <div className="absolute w-[300vw] h-[300vh] flex flex-col justify-center items-center gap-4 md:gap-6 -rotate-[25deg] origin-center opacity-60">
-          <SlantedMarqueeRow images={row1Images} direction="left" speed={60} />
-          <SlantedMarqueeRow images={row2Images} direction="right" speed={70} />
-          <SlantedMarqueeRow images={row3Images} direction="left" speed={65} />
+          <SlantedMarqueeRow images={row1Images} direction="left" speed={30} />
+          <SlantedMarqueeRow images={row2Images} direction="right" speed={40} />
+          <SlantedMarqueeRow images={row3Images} direction="left" speed={35} />
         </div>
 
         {/* Overlay for text readability */}
