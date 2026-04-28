@@ -3,7 +3,7 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import MetricsSection from './components/MetricsSection';
 import ProblemSolution from './components/ProblemSolution';
-import DualProp from './components/DualProp';
+import DualPropSection from './components/DualPropSection';
 import BentoGrid from './components/BentoGrid';
 import HowItWorks from './components/HowItWorks';
 import FAQ from './components/FAQ';
@@ -42,7 +42,7 @@ function App() {
           <ProblemSolution />
         </div>
         <div className="snap-start w-full">
-          <DualProp />
+          <DualPropSection />
         </div>
         <div className="snap-start w-full">
           <BentoGrid />
