@@ -42,7 +42,7 @@ const initNeuralAnimation = (canvas, section) => {
   const TUBE = 1;
   const RADIAL_SEGMENTS = 102;
   const TUBULAR_SEGMENTS = 180;
-  const POINT_COLORS = ['#1A6BFF', '#00D4FF'];
+  const POINT_COLOR = '#1A6BFF';
   const POINT_SIZE = 0.065;
   const SIZE_ATTENUATION = 190;
   const FOV = 60;
@@ -76,7 +76,7 @@ const initNeuralAnimation = (canvas, section) => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(CLEAR_COLOR, 1);
 
-    const createPointField = ({ color, x, y, z, scale = 1, rotationOffset = 0 }) => {
+    const createPointField = ({ color, x, y, z, scale = 1, rotationOffset = 0, travelX = 0, travelY = 0 }) => {
       const geometry = new THREE.TorusGeometry(RADIUS, TUBE, RADIAL_SEGMENTS, TUBULAR_SEGMENTS);
       const material = new THREE.ShaderMaterial({
         uniforms: {
@@ -113,12 +113,21 @@ const initNeuralAnimation = (canvas, section) => {
       field.position.set(x, y, z);
       field.rotation.set(0, degToRad(90) + rotationOffset, 0);
       field.scale.setScalar(scale);
+      field.userData = { baseX: x, baseY: y, travelX, travelY };
       scene.add(field);
       pointGroups.push(field);
     };
 
-    createPointField({ color: POINT_COLORS[0], x: -5.6, y: POS_Y, z: POS_Z, scale: 1.15, rotationOffset: -0.15 });
-    createPointField({ color: POINT_COLORS[1], x: 5.6, y: POS_Y - 0.2, z: POS_Z, scale: 1.08, rotationOffset: 0.15 });
+    createPointField({
+      color: POINT_COLOR,
+      x: -8.4,
+      y: POS_Y,
+      z: POS_Z,
+      scale: 1.45,
+      rotationOffset: -0.12,
+      travelX: 16.2,
+      travelY: -7.6,
+    });
 
     const resize = () => {
       const width = section.offsetWidth || window.innerWidth;
@@ -135,14 +144,15 @@ const initNeuralAnimation = (canvas, section) => {
       if (!prefersReducedMotion) {
         time += 0.005;
         const sinTime = Math.sin(time);
-        pointGroups.forEach((field, index) => {
-          const direction = index === 0 ? 1 : -1;
+        pointGroups.forEach((field) => {
+          const crossProgress = (time * 0.12) % 1;
           field.rotation.set(
-            ROT_CONFIG.centerX + ROT_CONFIG.rangeX * sinTime * direction,
-            ROT_CONFIG.centerY + ROT_CONFIG.rangeY * sinTime * direction,
-            -time * direction
+            ROT_CONFIG.centerX + ROT_CONFIG.rangeX * sinTime,
+            ROT_CONFIG.centerY + ROT_CONFIG.rangeY * sinTime,
+            -time
           );
-          field.position.y = POS_Y + (index === 0 ? 0.35 : -0.1) + 0.32 * sinTime * direction;
+          field.position.x = field.userData.baseX + field.userData.travelX * crossProgress;
+          field.position.y = field.userData.baseY + field.userData.travelY * crossProgress + 0.22 * sinTime;
         });
       }
 
