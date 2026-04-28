@@ -39,10 +39,12 @@ const MetricsSection = () => {
 
   const gridBackground = {
     backgroundImage: `
-      linear-gradient(to right, rgba(26,107,255,0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(26,107,255,0.05) 1px, transparent 1px)
+      radial-gradient(circle at 3% 0%, rgba(26,107,255,0.08), transparent 30%),
+      radial-gradient(circle at 92% 92%, rgba(0,212,255,0.11), transparent 28%),
+      linear-gradient(to right, rgba(26,107,255,0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(26,107,255,0.055) 1px, transparent 1px)
     `,
-    backgroundSize: '48px 48px'
+    backgroundSize: 'auto, auto, 96px 96px, 96px 96px'
   };
 
   const cardsData = [
@@ -88,35 +90,31 @@ const MetricsSection = () => {
   return (
     <section 
       ref={sectionRef}
-      className="relative w-full bg-[#FFFFFF] py-24 overflow-hidden" 
+      className="relative w-full bg-[#FFFFFF] py-24 md:py-36 overflow-hidden" 
       style={gridBackground}
     >
-      {/* Soft Radial Glow Orbs */}
-      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-[#1A6BFF] rounded-full blur-[150px] opacity-[0.07] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-[#00D4FF] rounded-full blur-[150px] opacity-[0.07] translate-x-1/2 translate-y-1/2 pointer-events-none" />
-
-      <div className="max-w-[1200px] mx-auto px-6 relative z-10">
+      <div className="max-w-[1280px] mx-auto px-6 sm:px-8 relative z-10">
         
         {/* TOP SECTION */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 md:mb-24 gap-10">
           <div>
-            <div className="inline-block border border-[rgba(26,107,255,0.3)] rounded-[20px] px-[14px] py-[6px] mb-[18px]">
-              <span className="text-[11px] tracking-[0.32em] uppercase text-[#1A6BFF] font-medium">
+            <div className="inline-block border border-[rgba(26,107,255,0.34)] rounded-full px-7 py-3 mb-10 bg-white/40">
+              <span className="text-[12px] tracking-[0.42em] uppercase text-[#1A6BFF] font-medium">
                 Platform Metrics
               </span>
             </div>
-            <h2 className="font-['Playfair_Display'] text-[54px] font-normal text-[#0A1628] leading-[1.1]">
+            <h2 className="font-['Playfair_Display'] text-[56px] sm:text-[72px] lg:text-[96px] font-normal text-[#0A1628] leading-[0.96] tracking-[-0.01em]">
               Built for Scale.<br/>
-              Backed by <span className="italic text-[#1A6BFF]">Trust.</span>
+              <span className="italic text-[#1A6BFF]">Backed by Trust.</span>
             </h2>
           </div>
-          <p className="max-w-[220px] text-left md:text-right text-[13px] text-[#8A96B0] leading-[1.7] pb-2">
+          <p className="max-w-[360px] text-left md:text-center text-[20px] md:text-[24px] text-[#8A96B0] leading-[1.9] pb-8">
             Real numbers from live campaigns running on Gradix today.
           </p>
         </div>
 
         {/* STATS CARDS ROW */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-2 w-full">
           {cardsData.map((card, idx) => {
             return (
               <div
@@ -124,7 +122,10 @@ const MetricsSection = () => {
                 className={`
                   relative overflow-hidden group
                   transition-all duration-300 ease-out
-                  bg-[#F8FAFF] border border-[#E0E8FF] rounded-[24px]
+                  bg-[#F8FAFF] border border-[#DCE6FF]
+                  rounded-[24px] lg:rounded-[4px]
+                  ${idx === 0 ? 'lg:rounded-l-[26px]' : ''}
+                  ${idx === cardsData.length - 1 ? 'lg:rounded-r-[26px]' : ''}
                   hover:bg-[#EEF4FF] hover:-translate-y-1 hover:border-[#1A6BFF]
                   hover:shadow-[0_4px_20px_rgba(26,107,255,0.1)] hover:z-10
                 `}
@@ -134,17 +135,17 @@ const MetricsSection = () => {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: 0.1 + idx * 0.15, ease: [0.22, 1, 0.36, 1] }}
-                  className="relative p-[40px_32px_36px] h-full flex flex-col"
+                  className="relative p-[36px_30px_40px] md:p-[48px_44px_52px] h-full flex flex-col"
                 >
                   {/* Top-right corner bracket */}
-                  <div className="absolute top-[32px] right-[32px] w-[26px] h-[26px] border-t-[2px] border-r-[2px] border-[#C8D8FF] opacity-50 group-hover:border-[#1A6BFF] transition-colors duration-300" />
+                  <div className="absolute top-[34px] right-[34px] md:top-[38px] md:right-[38px] w-[28px] h-[28px] md:w-[34px] md:h-[34px] border-t-[2px] border-r-[2px] border-[#C8D8FF] opacity-80 group-hover:border-[#1A6BFF] transition-colors duration-300" />
 
-                  <div className="relative z-10 flex flex-col h-full min-h-[260px]">
-                    <h3 className="text-[11px] tracking-[0.24em] uppercase text-[#8A96B0] mb-8 whitespace-pre-line leading-[1.6]">
+                  <div className="relative z-10 flex flex-col h-full min-h-[320px] md:min-h-[440px]">
+                    <h3 className="text-[13px] md:text-[21px] tracking-[0.3em] md:tracking-[0.34em] uppercase text-[#8A96B0] mb-12 md:mb-16 whitespace-pre-line leading-[1.25] md:leading-[1.15]">
                       {card.label}
                     </h3>
                     
-                    <div className="font-['Playfair_Display'] text-[56px] font-normal leading-[1] mb-5 tracking-tight flex flex-col items-start">
+                    <div className="font-['Playfair_Display'] text-[76px] sm:text-[84px] lg:text-[98px] font-normal leading-[1] mb-7 tracking-tight flex flex-col items-start">
                       <div className="flex items-baseline">
                         <span 
                           className="transition-colors duration-300" 
@@ -168,7 +169,7 @@ const MetricsSection = () => {
                       )}
                     </div>
 
-                    <p className="text-[13px] text-[#5A6480] leading-[1.6]">
+                    <p className="text-[15px] md:text-[22px] text-[#5A6480] leading-[1.65]">
                       {card.desc}
                     </p>
                   </div>
@@ -182,10 +183,10 @@ const MetricsSection = () => {
         </div>
 
         {/* BOTTOM BAR */}
-        <div className="mt-12 flex flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#1A6BFF] animate-pulse shadow-[0_0_8px_rgba(26,107,255,0.6)]" />
-            <span className="text-[11px] tracking-[0.2em] uppercase text-[#8A96B0] font-medium">Live Data</span>
+        <div className="mt-16 md:mt-24 flex flex-row items-center justify-between gap-3 md:gap-6">
+          <div className="flex items-center gap-2 md:gap-4 whitespace-nowrap">
+            <span className="w-1.5 h-1.5 md:w-3 md:h-3 rounded-full bg-[#1A6BFF] animate-pulse shadow-[0_0_8px_rgba(26,107,255,0.6)]" />
+            <span className="text-[10px] sm:text-[12px] md:text-[18px] tracking-[0.18em] md:tracking-[0.22em] uppercase text-[#8A96B0] font-medium">Live Data</span>
           </div>
           
           <div className="flex-grow h-[2px] bg-[#E0E8FF] rounded-[2px] overflow-hidden">
@@ -193,13 +194,13 @@ const MetricsSection = () => {
               initial={{ width: '0%' }}
               animate={inView ? { width: '78%' } : { width: '0%' }}
               transition={{ duration: 2, ease: [0.22, 1, 0.36, 1], delay: 0.8 }}
-              className="h-full bg-[#1A6BFF]"
+              className="h-full bg-gradient-to-r from-[#1A6BFF] to-[#00D4FF]"
             />
           </div>
 
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#1A6BFF] animate-pulse shadow-[0_0_8px_rgba(26,107,255,0.6)]" />
-            <span className="text-[11px] tracking-[0.2em] uppercase text-[#8A96B0] font-medium">Updated Now</span>
+          <div className="flex items-center gap-2 md:gap-4 whitespace-nowrap">
+            <span className="w-1.5 h-1.5 md:w-3 md:h-3 rounded-full bg-[#1A6BFF] animate-pulse shadow-[0_0_8px_rgba(26,107,255,0.6)]" />
+            <span className="text-[10px] sm:text-[12px] md:text-[18px] tracking-[0.18em] md:tracking-[0.22em] uppercase text-[#8A96B0] font-medium">Updated Now</span>
           </div>
         </div>
 
