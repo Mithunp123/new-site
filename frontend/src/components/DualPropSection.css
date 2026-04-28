@@ -28,11 +28,23 @@
 }
 
 /* ===== Canvas ===== */
-#dpbg {
+.dp-neural-canvas {
   position: absolute;
   inset: 0;
   z-index: 0;
   display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.dp-neural-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.76) 31%, rgba(255, 255, 255, 0.24) 54%, transparent 76%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 20%, transparent 80%, rgba(255, 255, 255, 0.12));
 }
 
 /* ===== Header ===== */

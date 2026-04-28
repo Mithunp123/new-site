@@ -1,103 +1,203 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './DualPropSection.css';
 
-const PARTICLE_COUNT = 55;
-const CONNECT_DIST = 90;
+const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js';
 
-function createParticle(w, h) {
-  const colors = ['26,107,255', '0,212,255'];
-  return {
-    x: Math.random() * w,
-    y: Math.random() * h,
-    r: 1 + Math.random() * 2,
-    dx: (Math.random() - 0.5) * 0.4,
-    dy: (Math.random() - 0.5) * 0.4,
-    alpha: 0.04 + Math.random() * 0.18,
-    color: colors[Math.floor(Math.random() * colors.length)],
+const loadThree = () =>
+  new Promise((resolve, reject) => {
+    if (window.THREE) {
+      resolve(window.THREE);
+      return;
+    }
+
+    const existing = document.querySelector(`script[src="${THREE_CDN}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.THREE), { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = THREE_CDN;
+    script.async = true;
+    script.onload = () => resolve(window.THREE);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+
+const initNeuralAnimation = (canvas, section) => {
+  if (!canvas || !section) return () => {};
+
+  let scene;
+  let camera;
+  let renderer;
+  let pointGroups = [];
+  let frameId;
+  let time = 0;
+  let isVisible = false;
+  let observer;
+  let disposed = false;
+
+  const RADIUS = 3;
+  const TUBE = 1;
+  const RADIAL_SEGMENTS = 102;
+  const TUBULAR_SEGMENTS = 180;
+  const POINT_COLORS = ['#1A6BFF', '#00D4FF'];
+  const POINT_SIZE = 0.065;
+  const SIZE_ATTENUATION = 190;
+  const FOV = 60;
+  const CAMERA_Z = 15;
+  const CLEAR_COLOR = 0xDADADA;
+  const POS_Y = 2.6;
+  const POS_Z = 13.5;
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const degToRad = (deg) => (deg * Math.PI) / 180;
+  const ROT_CONFIG = {
+    centerX: 0,
+    rangeX: degToRad(20),
+    centerY: degToRad(90),
+    rangeY: degToRad(20),
   };
-}
 
-const DualPropSection = () => {
-  const canvasRef = useRef(null);
-  const gridRef = useRef(null);
-  const rafRef = useRef(null);
-  const particlesRef = useRef([]);
-  const [active, setActive] = useState(false);
+  const setup = async () => {
+    const THREE = await loadThree();
+    if (disposed || !THREE) return;
 
-  /* ── Canvas animation ── */
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 1000);
+    camera.position.z = CAMERA_Z;
+
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      powerPreference: 'high-performance',
+      alpha: false,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(CLEAR_COLOR, 1);
+
+    const createPointField = ({ color, x, y, z, scale = 1, rotationOffset = 0 }) => {
+      const geometry = new THREE.TorusGeometry(RADIUS, TUBE, RADIAL_SEGMENTS, TUBULAR_SEGMENTS);
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          color: { value: new THREE.Color(color) },
+          size: { value: POINT_SIZE },
+          sizeAttenuation: { value: SIZE_ATTENUATION },
+          opacity: { value: 0.95 },
+        },
+        vertexShader: `
+          uniform float size;
+          uniform float sizeAttenuation;
+          void main() {
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = size * (sizeAttenuation / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 color;
+          uniform float opacity;
+          void main() {
+            vec2 center = gl_PointCoord - vec2(0.5);
+            float dist = dot(center, center);
+            if (dist > 0.25) discard;
+            float softEdge = smoothstep(0.25, 0.05, dist);
+            gl_FragColor = vec4(color, opacity * softEdge);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+      });
+
+      const field = new THREE.Points(geometry, material);
+      field.position.set(x, y, z);
+      field.rotation.set(0, degToRad(90) + rotationOffset, 0);
+      field.scale.setScalar(scale);
+      scene.add(field);
+      pointGroups.push(field);
+    };
+
+    createPointField({ color: POINT_COLORS[0], x: -5.6, y: POS_Y, z: POS_Z, scale: 1.15, rotationOffset: -0.15 });
+    createPointField({ color: POINT_COLORS[1], x: 5.6, y: POS_Y - 0.2, z: POS_Z, scale: 1.08, rotationOffset: 0.15 });
 
     const resize = () => {
-      const section = canvas.parentElement;
-      canvas.width = section.offsetWidth;
-      canvas.height = section.offsetHeight;
-      // Re-init particles on resize
-      particlesRef.current = Array.from({ length: PARTICLE_COUNT }, () =>
-        createParticle(canvas.width, canvas.height)
-      );
+      const width = section.offsetWidth || window.innerWidth;
+      const height = section.offsetHeight || window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
     };
+
+    const animate = () => {
+      frameId = requestAnimationFrame(animate);
+      if (!isVisible || !renderer || pointGroups.length === 0) return;
+
+      if (!prefersReducedMotion) {
+        time += 0.005;
+        const sinTime = Math.sin(time);
+        pointGroups.forEach((field, index) => {
+          const direction = index === 0 ? 1 : -1;
+          field.rotation.set(
+            ROT_CONFIG.centerX + ROT_CONFIG.rangeX * sinTime * direction,
+            ROT_CONFIG.centerY + ROT_CONFIG.rangeY * sinTime * direction,
+            -time * direction
+          );
+          field.position.y = POS_Y + (index === 0 ? 0.35 : -0.1) + 0.32 * sinTime * direction;
+        });
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(section);
 
     resize();
-
-    const draw = () => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      const particles = particlesRef.current;
-
-      // Move & draw particles
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        p.x += p.dx;
-        p.y += p.dy;
-        if (p.x < 0 || p.x > w) p.dx *= -1;
-        if (p.y < 0 || p.y > h) p.dy *= -1;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
-        ctx.fill();
-      }
-
-      // Connection lines
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const a = particles[i];
-          const b = particles[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CONNECT_DIST) {
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(26,107,255,${0.04 * (1 - dist / CONNECT_DIST)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    rafRef.current = requestAnimationFrame(draw);
     window.addEventListener('resize', resize);
+    animate();
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
       window.removeEventListener('resize', resize);
     };
+  };
+
+  let removeResize = () => {};
+  setup().then((cleanup) => {
+    if (cleanup) removeResize = cleanup;
+  });
+
+  return () => {
+    disposed = true;
+    removeResize();
+    observer?.disconnect();
+    cancelAnimationFrame(frameId);
+    pointGroups.forEach((field) => {
+      field.geometry?.dispose();
+      field.material?.dispose();
+    });
+    pointGroups = [];
+    renderer?.dispose();
+  };
+};
+
+const DualPropSection = () => {
+  const sectionRef = useRef(null);
+  const canvasRef = useRef(null);
+  const gridRef = useRef(null);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    return initNeuralAnimation(canvasRef.current, sectionRef.current);
   }, []);
 
-  /* ── Intersection Observer ── */
   useEffect(() => {
     const grid = gridRef.current;
-    if (!grid) return;
+    if (!grid) return undefined;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -127,14 +227,13 @@ const DualPropSection = () => {
     'Real-time ROI & conversion reports',
   ];
 
-  const cardClass = (variant) =>
-    `dp-card dp-card--${variant}${active ? ' in' : ''}`;
+  const cardClass = (variant) => `dp-card dp-card--${variant}${active ? ' in' : ''}`;
 
   return (
-    <section className="dp">
-      <canvas ref={canvasRef} id="dpbg" />
+    <section className="dp" ref={sectionRef}>
+      <canvas ref={canvasRef} id="neural-canvas" className="dp-neural-canvas" />
+      <div className="dp-neural-vignette" />
 
-      {/* Header */}
       <div className="dp-header">
         <div className="dp-eyebrow-row">
           <span className="dp-eyebrow-line" />
@@ -151,13 +250,8 @@ const DualPropSection = () => {
         </p>
       </div>
 
-      {/* Cards Grid */}
       <div className="dp-grid" ref={gridRef}>
-        {/* ─── Creator Card ─── */}
         <div className={cardClass('creator')}>
-          <div className="dp-orb dp-orb--creator-1" />
-          <div className="dp-orb dp-orb--creator-2" />
-
           <span className="dp-tag dp-tag--creator">FOR CREATORS</span>
           <h3 className="dp-card-title">Your Digital Office.</h3>
           <p className="dp-card-subtitle">
@@ -197,10 +291,7 @@ const DualPropSection = () => {
           </button>
         </div>
 
-        {/* ─── Brand Card ─── */}
         <div className={cardClass('brand')}>
-          <div className="dp-orb dp-orb--brand" />
-
           <span className="dp-tag dp-tag--brand">FOR BRANDS</span>
           <h3 className="dp-card-title">Your ROI Command Center.</h3>
           <p className="dp-card-subtitle">
