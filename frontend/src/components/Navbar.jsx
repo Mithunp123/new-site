@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import logo from '../assets/logo.png';
+import logoWhite from '../assets/logo-white.png';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -20,9 +21,9 @@ const Navbar = () => {
       <div className="container mx-auto px-6 md:px-12 flex justify-between items-center">
         <a href="/" className="flex items-center">
           <img 
-            src={logo} 
+            src={scrolled ? logo : logoWhite} 
             alt="Gradix Logo" 
-            className={`h-8 object-contain transition-opacity duration-300 ${scrolled ? 'opacity-100' : 'opacity-90'}`} 
+            className={`object-contain transition-all duration-300 ${scrolled ? 'h-10 md:h-12' : 'h-20 md:h-28'} ${scrolled ? 'opacity-100' : 'opacity-100'}`} 
           />
         </a>
 
