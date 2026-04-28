@@ -1,77 +1,70 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 
 const faqs = [
-  {
-    q: "How does escrow work on Gradix?",
-    a: "When a brand and creator agree to terms, the brand deposits the full campaign budget into a secure Gradix escrow account. The funds are held there until the creator delivers the agreed-upon content. Once approved, funds are automatically released to the creator."
-  },
-  {
-    q: "What are the platform fees?",
-    a: "Gradix charges a flat 5% fee on transactions, split between the brand (3%) and the creator (2%). This covers escrow management, contract generation, and instant payouts. There are no monthly subscription fees to join."
-  },
-  {
-    q: "How fast are payouts processed?",
-    a: "Payouts are processed instantly upon brand approval. Depending on your connected payout method (Stripe, Bank Transfer, PayPal), funds typically arrive in your account within 24 hours."
-  },
-  {
-    q: "Is my data and payment info secure?",
-    a: "Absolutely. We use bank-level encryption and partner with industry-leading payment processors like Stripe. We never store your raw banking details on our servers."
-  },
-  {
-    q: "Can I use Gradix as both a brand and a creator?",
-    a: "Yes! You can manage both brand campaigns and creator collaborations from a single account using our unified dashboard."
-  }
+  ['How does escrow work on Gradix?', 'The brand deposits the campaign budget before production begins. Gradix holds the funds through delivery and releases payout when the agreed milestone is approved.'],
+  ['What are the platform fees?', 'Gradix uses a transaction-based model for escrow, workflow, contract, and payout infrastructure. Teams can start without a complex subscription motion.'],
+  ['How fast are payouts processed?', 'Approved work moves into payout immediately. Arrival time depends on the connected payout method, but the creator no longer has to chase an invoice manually.'],
+  ['Is payment and campaign data secure?', 'Gradix is structured around verified profiles, protected payment flows, and shared campaign records so both sides can work with confidence.'],
+  ['Can one account be both brand and creator?', 'Yes. A single account can support both modes, which is useful for agencies, founder-led brands, and creators who also run product collaborations.'],
 ];
 
 const FAQ = () => {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section className="py-24 bg-white">
-      <div className="container mx-auto px-6 md:px-12 max-w-4xl">
-        <div className="text-center mb-16 fade-up">
-          <h2 className="text-4xl md:text-5xl text-[var(--color-navy)]">
-            Frequently Asked Questions.
+    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-[#F7FAFF] py-24 md:py-28">
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,107,255,.055)_1px,transparent_1px),linear-gradient(rgba(26,107,255,.045)_1px,transparent_1px)] [background-size:88px_88px]" />
+      <div className="relative z-10 mx-auto grid max-w-[1180px] gap-12 px-6 sm:px-8 lg:grid-cols-[0.72fr_1.28fr]">
+        <motion.div
+          initial={{ opacity: 0, y: 34 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span className="mb-7 block text-xs font-semibold uppercase tracking-[0.34em] text-[#1A6BFF]">
+            Questions
+          </span>
+          <h2 className="font-['Playfair_Display'] text-[52px] leading-[0.98] text-[#0A1628] sm:text-[74px]">
+            Clear terms make better collaborations.
           </h2>
-        </div>
+        </motion.div>
 
-        <div className="space-y-4 fade-up">
-          {faqs.map((faq, i) => {
-            const isOpen = openIndex === i;
+        <div className="border-t border-[#C9D7F5]">
+          {faqs.map(([question, answer], index) => {
+            const isOpen = openIndex === index;
             return (
-              <div 
-                key={i} 
-                className={`border rounded-2xl overflow-hidden transition-all duration-300 ${isOpen ? 'border-[var(--color-blue)] shadow-md' : 'border-[var(--color-border)] hover:border-gray-300'}`}
+              <motion.div
+                key={question}
+                initial={{ opacity: 0, y: 22 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-80px' }}
+                transition={{ duration: 0.6, delay: index * 0.06 }}
+                className="border-b border-[#C9D7F5]"
               >
                 <button
-                  className="w-full px-8 py-6 text-left flex justify-between items-center bg-white"
-                  onClick={() => setOpenIndex(isOpen ? -1 : i)}
+                  className="flex w-full items-center justify-between gap-8 py-7 text-left"
+                  onClick={() => setOpenIndex(isOpen ? -1 : index)}
                 >
-                  <span className={`text-lg md:text-xl font-bold transition-colors ${isOpen ? 'text-[var(--color-blue)]' : 'text-[var(--color-navy)]'}`}>
-                    {faq.q}
+                  <span className={`text-2xl font-semibold transition-colors md:text-3xl ${isOpen ? 'text-[#1A6BFF]' : 'text-[#0A1628]'}`}>
+                    {question}
                   </span>
-                  <ChevronDown 
-                    className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-[var(--color-blue)]' : 'text-gray-400'}`} 
-                  />
+                  <ChevronDown className={`shrink-0 text-[#1A6BFF] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                   {isOpen && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
+                      transition={{ duration: 0.32, ease: 'easeOut' }}
                     >
-                      <div className="px-8 pb-6 text-[var(--color-text)]/80 text-lg leading-relaxed relative">
-                        <div className="absolute left-0 top-0 bottom-6 w-1 bg-[var(--color-blue)]"></div>
-                        {faq.a}
-                      </div>
+                      <p className="max-w-3xl pb-8 text-lg leading-8 text-[#5A6480]">{answer}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
+              </motion.div>
             );
           })}
         </div>

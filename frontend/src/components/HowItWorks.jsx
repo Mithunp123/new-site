@@ -1,89 +1,66 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { ShieldCheck, UserCheck, Zap, ArrowRight } from 'lucide-react';
+import { motion, useScroll, useTransform } from 'framer-motion';
+
+const steps = [
+  ['01', 'Match', 'Verified creators and brands enter the same opportunity graph.'],
+  ['02', 'Scope', 'The brief, deliverables, usage rights, and milestones become one agreement.'],
+  ['03', 'Secure', 'The budget is placed into escrow before production begins.'],
+  ['04', 'Release', 'Approval unlocks payout and closes the campaign record.'],
+];
 
 const HowItWorks = () => {
-  const steps = [
-    {
-      icon: <UserCheck size={32} className="text-[var(--color-blue)]" />,
-      number: "01",
-      title: "Verified Onboarding",
-      desc: "Both creators and brands undergo a strict verification process to ensure authenticity and quality on the platform.",
-      color: "bg-blue-50"
-    },
-    {
-      icon: <ShieldCheck size={32} className="text-[var(--color-blue)]" />,
-      number: "02",
-      title: "Secure Escrow",
-      desc: "Once a deal is made, funds are deposited into our secure escrow vault, guaranteeing payment for creators upon delivery.",
-      color: "bg-indigo-50"
-    },
-    {
-      icon: <Zap size={32} className="text-[var(--color-blue)]" />,
-      number: "03",
-      title: "Instant Release",
-      desc: "Upon content approval, funds are instantly released to the creator. No more chasing invoices or delayed payouts.",
-      color: "bg-cyan-50"
-    }
-  ];
+  const { scrollYProgress } = useScroll();
+  const lineScale = useTransform(scrollYProgress, [0.48, 0.72], [0, 1]);
 
   return (
-    <section className="relative py-24 bg-white overflow-hidden w-full">
-      {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-[var(--color-blue)]/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[var(--color-accent)]/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2" />
+    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-white py-24 md:py-28">
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,107,255,.05)_1px,transparent_1px),linear-gradient(rgba(26,107,255,.045)_1px,transparent_1px)] [background-size:92px_92px]" />
 
-      <div className="container mx-auto px-6 md:px-12 relative z-10 w-full">
-        <div className="text-center max-w-3xl mx-auto mb-20">
+      <div className="relative z-10 mx-auto max-w-[1280px] px-6 sm:px-8">
+        <div className="mb-16 grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           >
-            <span className="text-[var(--color-blue)] font-bold tracking-[0.2em] text-xs uppercase mb-4 block">Process</span>
-            <h2 className="text-4xl md:text-5xl font-['Playfair_Display'] text-[var(--color-navy)] mb-6">
-              Simplifying Trust in Every Collaboration.
+            <span className="mb-7 block text-xs font-semibold uppercase tracking-[0.34em] text-[#1A6BFF]">
+              How it moves
+            </span>
+            <h2 className="font-['Playfair_Display'] text-[52px] leading-[0.98] text-[#0A1628] sm:text-[74px] lg:text-[92px]">
+              One flow from match to money.
             </h2>
-            <p className="text-lg text-[var(--color-text)]/70">
-              A streamlined, three-step workflow designed to protect your interests and let you focus on what you do best.
-            </p>
           </motion.div>
+          <motion.p
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-2xl self-end text-xl leading-9 text-[#5A6480]"
+          >
+            The motion is deliberate: each stage reveals as a continuation of the previous
+            one, like a deal moving through a verified system.
+          </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl mx-auto">
-          {steps.map((step, i) => (
+        <div className="relative">
+          <div className="absolute left-[28px] top-0 hidden h-full w-px bg-[#DCE6FF] md:block" />
+          <motion.div
+            style={{ scaleY: lineScale }}
+            className="absolute left-[28px] top-0 hidden h-full w-px origin-top bg-[#1A6BFF] md:block"
+          />
+          {steps.map(([number, title, text], index) => (
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }}
+              key={title}
+              initial={{ opacity: 0, y: 42 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: i * 0.2 }}
-              className="relative group p-10 bg-white border border-[var(--color-border)] rounded-[32px] hover:border-[var(--color-blue)] transition-all duration-300 hover:shadow-[0_20px_50px_rgba(26,107,255,0.08)]"
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: 0.72, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className="grid gap-7 border-t border-[#DCE6FF] py-9 last:border-b md:grid-cols-[72px_0.65fr_1fr]"
             >
-              {/* Step Number Background */}
-              <div className="absolute top-8 right-8 text-8xl font-black text-slate-50 select-none group-hover:text-blue-50/50 transition-colors duration-300">
-                {step.number}
-              </div>
-
-              <div className="relative z-10 h-full flex flex-col">
-                <div className={`w-16 h-16 ${step.color} rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300`}>
-                  {step.icon}
-                </div>
-                
-                <h3 className="text-2xl font-bold text-[var(--color-navy)] mb-4">
-                  {step.title}
-                </h3>
-                
-                <p className="text-[var(--color-text)]/70 leading-relaxed mb-8 flex-grow">
-                  {step.desc}
-                </p>
-
-                <div className="flex items-center text-[var(--color-blue)] font-bold text-sm gap-2 group/btn cursor-pointer">
-                  Learn More 
-                  <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
-                </div>
-              </div>
+              <div className="font-['Playfair_Display'] text-5xl leading-none text-[#1A6BFF]">{number}</div>
+              <h3 className="text-3xl font-semibold text-[#0A1628] md:text-5xl">{title}</h3>
+              <p className="max-w-xl text-lg leading-8 text-[#5A6480]">{text}</p>
             </motion.div>
           ))}
         </div>
@@ -93,4 +70,3 @@ const HowItWorks = () => {
 };
 
 export default HowItWorks;
-
