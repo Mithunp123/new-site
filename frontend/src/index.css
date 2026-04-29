@@ -86,3 +86,16 @@ h1, h2, h3, h4, h5, h6 {
   animation: float 15s ease-in-out infinite;
   animation-delay: -2s;
 }
+
+/* 3D Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
