@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { motion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { Search, CheckCircle, Users, TrendingUp } from 'lucide-react';
+import GlitchText from './GlitchText';
 
 const steps = [
   {
@@ -102,7 +103,7 @@ const HowItWorks = () => {
 
 
       <div className="relative max-w-[1200px] mx-auto w-full flex flex-col items-center z-10">
-        <motion.p 
+        <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -186,10 +187,17 @@ const HowItWorks = () => {
                         transition={{ duration: 1, delay: 0.3 }}
                         className="relative w-full h-full flex items-center justify-center"
                       >
-                        {/* Large Ghost Number */}
-                        <span className="absolute text-[15rem] font-bold text-white/[0.03] select-none pointer-events-none font-mono">
-                          {step.number}
-                        </span>
+                        {/* Large Ghost Number with Glitch Effect */}
+                        <div className="absolute select-none pointer-events-none font-mono">
+                          <GlitchText
+                            speed={0.8}
+                            enableShadows={true}
+                            enableOnHover={false}
+                            className="!text-[15rem] !font-bold !opacity-40"
+                          >
+                            {step.number}
+                          </GlitchText>
+                        </div>
                       </motion.div>
                     </div>
                   </div>
