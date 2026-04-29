@@ -1,4 +1,5 @@
 import React from 'react';
+import CircularText from './CircularText';
 
 const Footer = () => {
   return (
@@ -6,14 +7,33 @@ const Footer = () => {
       {/* Animated top gradient line */}
       <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[var(--color-blue)] to-transparent opacity-50"></div>
 
-      <div className="container mx-auto px-6 md:px-12">
+      <div className="container mx-auto px-6 md:pl-32 md:pr-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           
           <div className="md:col-span-1">
-            <a href="/" className="flex items-center gap-1 mb-6">
-              <span className="text-2xl font-bold tracking-widest font-heading text-white">GRADIX</span>
-              <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] mb-3"></span>
-            </a>
+            <div className="relative flex items-center mb-6">
+              <div className="absolute right-full mr-4 hidden md:block">
+                <CircularText
+                  text="GRADIX • TRUSTED • SECURE • "
+                  onHover="speedUp"
+                  spinDuration={20}
+                  className="w-24 h-24"
+                />
+              </div>
+              {/* Mobile version or fallback if absolute is too much */}
+              <div className="md:hidden mr-3">
+                 <CircularText
+                  text="GRADIX • TRUSTED • SECURE • "
+                  onHover="speedUp"
+                  spinDuration={20}
+                  className="w-16 h-16"
+                />
+              </div>
+              <a href="/" className="flex items-center gap-1">
+                <span className="text-2xl font-bold tracking-widest font-heading text-white">GRADIX</span>
+                <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] mb-3"></span>
+              </a>
+            </div>
             <p className="text-white/60 text-sm leading-relaxed mb-6">
               The definitive trust layer for the creator economy. Secure payments, guaranteed workflows.
             </p>
