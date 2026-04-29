@@ -14,7 +14,7 @@ const FAQ = () => {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-[#F7FAFF] py-24 md:py-28">
+    <section className="relative flex min-h-screen items-center overflow-hidden bg-[#F7FAFF] py-24 md:py-28">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,107,255,.055)_1px,transparent_1px),linear-gradient(rgba(26,107,255,.045)_1px,transparent_1px)] [background-size:88px_88px]" />
       <div className="relative z-10 mx-auto grid max-w-[1180px] gap-12 px-6 sm:px-8 lg:grid-cols-[0.72fr_1.28fr]">
         <motion.div
@@ -26,7 +26,7 @@ const FAQ = () => {
           <span className="mb-7 block text-xs font-semibold uppercase tracking-[0.34em] text-[#1A6BFF]">
             Questions
           </span>
-          <h2 className="font-['Playfair_Display'] text-[52px] leading-[0.98] text-[#0A1628] sm:text-[74px]">
+          <h2 className="font-['Playfair_Display'] text-[38px] leading-[1.1] text-[#0A1628] sm:text-[54px] lg:text-[64px]">
             Clear terms make better collaborations.
           </h2>
         </motion.div>

@@ -80,7 +80,7 @@
 
 .dp-headline {
   font-family: 'Playfair Display', serif;
-  font-size: clamp(46px, 6vw, 82px);
+  font-size: clamp(38px, 5vw, 68px);
   font-weight: 400;
   color: #0A1628;
   line-height: 1.02;
@@ -262,7 +262,7 @@
 /* ===== Card Title ===== */
 .dp-card-title {
   font-family: 'Playfair Display', serif;
-  font-size: 50px;
+  font-size: 42px;
   font-weight: 400;
   line-height: 1.1;
   margin: 0 0 8px 0;
@@ -324,7 +324,7 @@
 
 .dp-stat-num {
   font-family: 'Playfair Display', serif;
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 400;
   line-height: 1;
 }

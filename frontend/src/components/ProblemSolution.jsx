@@ -134,11 +134,11 @@ const AutoSwappingReels = ({ images }) => {
 const ProblemSolution = () => {
 
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
+    <section className="relative flex min-h-screen items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,.07)_1px,transparent_1px),linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px)] [background-size:92px_92px]" />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
-      <div className="relative z-10 mx-auto grid max-w-[1440px] gap-16 px-6 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="relative z-10 mx-auto grid max-w-[1280px] gap-14 px-6 sm:px-8 lg:grid-cols-[1.02fr_0.98fr]">
         <div>
           <motion.span
             initial={{ opacity: 0, y: 16 }}
@@ -153,7 +153,7 @@ const ProblemSolution = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-120px' }}
             transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
-            className="font-['Playfair_Display'] text-[52px] leading-[0.98] sm:text-[74px] lg:text-[92px]"
+            className="font-['Playfair_Display'] text-[38px] leading-[1.1] sm:text-[54px] lg:text-[64px]"
           >
             Creators and brands need one shared source of truth.
           </motion.h2>
@@ -191,20 +191,16 @@ const ProblemSolution = () => {
           </div>
         </div>
 
-        <div className="relative flex min-h-[800px] items-center justify-end pr-8 perspective-1000">
+        <div className="relative flex min-h-[600px] items-center justify-center perspective-1000">
           <motion.div 
-            initial={{ rotateY: 15, rotateX: 5, x: 40 }}
-            animate={{ 
-              rotateY: [15, 10, 15], 
-              rotateX: [5, 8, 5],
-              x: [40, 50, 40]
-            }}
+            initial={{ rotateY: 15, rotateX: 5 }}
+            animate={{ rotateY: [15, 10, 15], rotateX: [5, 8, 5] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="relative h-[700px] w-[350px] preserve-3d"
+            className="relative h-[560px] w-[280px] preserve-3d"
           >
             {/* Main Phone Mockup */}
-            <div className="absolute inset-0 rounded-[52px] border-[10px] border-[#1A1A1A] bg-[#000] shadow-[0_0_0_2px_rgba(255,255,255,0.1),0_40px_100px_-20px_rgba(0,0,0,0.9)] overflow-hidden">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-7 w-36 rounded-b-2xl bg-[#1A1A1A] z-30" />
+            <div className="absolute inset-0 rounded-[40px] border-[6px] border-[#1A1A1A] bg-[#000] shadow-[0_0_0_2px_rgba(255,255,255,0.1),0_40px_80px_-20px_rgba(0,0,0,0.8)] overflow-hidden">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-5 w-24 rounded-b-xl bg-[#1A1A1A] z-30" />
               <AutoSwappingReels images={reelsImages} />
             </div>
 
@@ -213,7 +209,7 @@ const ProblemSolution = () => {
               initial={{ x: 100, opacity: 0 }}
               whileInView={{ x: 0, opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="absolute -right-24 top-16 z-40 w-60 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-2xl shadow-2xl"
+              className="absolute -right-32 top-12 z-40 w-56 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-2xl shadow-2xl"
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">

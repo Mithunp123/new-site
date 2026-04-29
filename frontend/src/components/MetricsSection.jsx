@@ -90,7 +90,7 @@ const MetricsSection = () => {
   return (
     <section 
       ref={sectionRef}
-      className="relative flex min-h-[100svh] w-full items-center bg-[#FFFFFF] py-20 md:py-28 overflow-hidden" 
+      className="relative flex min-h-screen w-full items-center bg-[#FFFFFF] py-20 md:py-28 overflow-hidden" 
       style={gridBackground}
     >
       <div className="max-w-[1280px] mx-auto px-6 sm:px-8 relative z-10">
@@ -103,7 +103,7 @@ const MetricsSection = () => {
                 Platform Metrics
               </span>
             </div>
-            <h2 className="font-['Playfair_Display'] text-[48px] sm:text-[62px] lg:text-[76px] font-normal text-[#0A1628] leading-[0.98] tracking-[-0.01em]">
+            <h2 className="font-['Playfair_Display'] text-[36px] sm:text-[48px] lg:text-[56px] font-normal text-[#0A1628] leading-[1.1] tracking-[-0.01em]">
               Built for Scale.<br/>
               <span className="italic text-[#1A6BFF]">Backed by Trust.</span>
             </h2>
@@ -145,7 +145,7 @@ const MetricsSection = () => {
                       {card.label}
                     </h3>
                     
-                    <div className="font-['Playfair_Display'] text-[68px] sm:text-[76px] lg:text-[82px] font-normal leading-[1] mb-6 tracking-tight flex flex-col items-start">
+                    <div className="font-['Playfair_Display'] text-[52px] sm:text-[62px] lg:text-[68px] font-normal leading-[1] mb-6 tracking-tight flex flex-col items-start">
                       <div className="flex items-baseline">
                         <span 
                           className="transition-colors duration-300" 

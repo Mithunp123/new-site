@@ -23,7 +23,7 @@ const focusAreas = [
 
 const BentoGrid = () => {
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-[#F7FAFF] py-24 md:py-28">
+    <section className="relative flex min-h-screen items-center overflow-hidden bg-[#F7FAFF] py-24 md:py-28">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,107,255,.06)_1px,transparent_1px),linear-gradient(rgba(26,107,255,.05)_1px,transparent_1px)] [background-size:88px_88px]" />
 
       <div className="relative z-10 mx-auto max-w-[1280px] px-6 sm:px-8">
@@ -37,7 +37,7 @@ const BentoGrid = () => {
             <span className="mb-7 block text-xs font-semibold uppercase tracking-[0.34em] text-[#1A6BFF]">
               Platform focus
             </span>
-            <h2 className="font-['Playfair_Display'] text-[52px] leading-[0.98] text-[#0A1628] sm:text-[74px] lg:text-[92px]">
+            <h2 className="font-['Playfair_Display'] text-[38px] leading-[1.1] text-[#0A1628] sm:text-[54px] lg:text-[64px]">
               Built for the full creator commerce loop.
             </h2>
           </motion.div>
@@ -56,8 +56,8 @@ const BentoGrid = () => {
                   0{index + 1}
                 </div>
                 <div>
-                  <h3 className="text-3xl font-semibold text-[#0A1628] md:text-4xl">{area.title}</h3>
-                  <p className="mt-4 max-w-2xl text-lg leading-8 text-[#5A6480]">{area.text}</p>
+                  <h3 className="text-2xl font-semibold text-[#0A1628] md:text-3xl">{area.title}</h3>
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-[#5A6480]">{area.text}</p>
                 </div>
                 <ArrowUpRight className="hidden self-start text-[#8A96B0] transition group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-[#1A6BFF] md:block" />
               </motion.div>

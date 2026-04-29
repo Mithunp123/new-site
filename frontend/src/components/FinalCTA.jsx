@@ -4,7 +4,7 @@ import { ArrowUpRight } from 'lucide-react';
 
 const FinalCTA = () => {
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
+    <section className="relative flex min-h-screen items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,.07)_1px,transparent_1px),linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px)] [background-size:92px_92px]" />
       <motion.div
         className="absolute left-1/2 top-1/2 h-[70vw] max-h-[760px] w-[70vw] max-w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"
@@ -31,7 +31,7 @@ const FinalCTA = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-120px' }}
           transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-6xl font-['Playfair_Display'] text-[58px] leading-[0.94] sm:text-[92px] lg:text-[126px]"
+          className="max-w-6xl font-['Playfair_Display'] text-[42px] leading-[1.1] sm:text-[64px] lg:text-[82px]"
         >
           Connect creators and brands with the confidence to move.
         </motion.h2>
