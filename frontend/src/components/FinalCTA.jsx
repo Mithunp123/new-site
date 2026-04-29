@@ -1,21 +1,27 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
+import MagicRings from './MagicRings';
 
 const FinalCTA = () => {
   return (
     <section className="relative flex min-h-screen items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,.07)_1px,transparent_1px),linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px)] [background-size:92px_92px]" />
-      <motion.div
-        className="absolute left-1/2 top-1/2 h-[70vw] max-h-[760px] w-[70vw] max-w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 34, repeat: Infinity, ease: 'linear' }}
-      />
-      <motion.div
-        className="absolute left-1/2 top-1/2 h-[46vw] max-h-[520px] w-[46vw] max-w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#1A6BFF]/28"
-        animate={{ rotate: -360 }}
-        transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
-      />
+      {/* Magic Rings Background */}
+      <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
+        <MagicRings
+          color="#3B82F6"
+          colorTwo="#A855F7"
+          ringCount={8}
+          speed={0.5}
+          attenuation={12}
+          lineThickness={1.5}
+          baseRadius={0.2}
+          radiusStep={0.08}
+          scaleRate={0.05}
+          noiseAmount={0.05}
+          blur={1}
+        />
+      </div>
 
       <div className="relative z-10 mx-auto max-w-[1280px] px-6 sm:px-8">
         <motion.span

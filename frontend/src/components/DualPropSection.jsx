@@ -247,7 +247,7 @@ const DualPropSection = () => {
       <div className="dp-header">
         <div className="dp-eyebrow-row">
           <span className="dp-eyebrow-line" />
-          <span className="dp-eyebrow-text">Dual Value Proposition</span>
+          <span className="dp-eyebrow-text">Start building trust</span>
           <span className="dp-eyebrow-line" />
         </div>
         <h2 className="dp-headline">

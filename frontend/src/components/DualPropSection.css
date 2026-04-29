@@ -175,7 +175,6 @@
   z-index: -1;
   background: linear-gradient(135deg, #1A6BFF, #00D4FF, #0A1628, #0A1628);
   background-size: 300% 300%;
-  animation: borderAnim 4s ease infinite;
 }
 
 @keyframes borderAnim {
