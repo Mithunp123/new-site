@@ -1,13 +1,13 @@
 /* ===== CSS Variables ===== */
 .dp {
-  --navy:       #0A1628;
-  --blue:       #1A6BFF;
-  --cyan:       #00D4FF;
-  --white:      #FFFFFF;
-  --card-bg:    #F8FAFF;
-  --border:     #E0E8FF;
+  --navy: #0A1628;
+  --blue: #1A6BFF;
+  --cyan: #00D4FF;
+  --white: #FFFFFF;
+  --card-bg: #F8FAFF;
+  --border: #E0E8FF;
   --text-muted: #5A6480;
-  --label-muted:#8A96B0;
+  --label-muted: #8A96B0;
 }
 
 /* ===== Section ===== */
@@ -147,6 +147,7 @@
     opacity: 0;
     transform: translateY(40px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -178,9 +179,17 @@
 }
 
 @keyframes borderAnim {
-  0%   { background-position: 0% 0%; }
-  50%  { background-position: 100% 100%; }
-  100% { background-position: 0% 0%; }
+  0% {
+    background-position: 0% 0%;
+  }
+
+  50% {
+    background-position: 100% 100%;
+  }
+
+  100% {
+    background-position: 0% 0%;
+  }
 }
 
 .dp-card--creator:hover {
@@ -266,7 +275,8 @@
   font-weight: 400;
   line-height: 1.1;
   margin: 0 0 8px 0;
-  min-height: 88px; /* Force 2-line height to align content below */
+  min-height: 88px;
+  /* Force 2-line height to align content below */
 }
 
 .dp-card--creator .dp-card-title {
@@ -393,14 +403,17 @@
   animation: itemIn 0.5s ease forwards;
   animation-delay: 0.5s;
 }
+
 .dp-card.in .dp-feature-item:nth-child(2) {
   animation: itemIn 0.5s ease forwards;
   animation-delay: 0.65s;
 }
+
 .dp-card.in .dp-feature-item:nth-child(3) {
   animation: itemIn 0.5s ease forwards;
   animation-delay: 0.8s;
 }
+
 .dp-card.in .dp-feature-item:nth-child(4) {
   animation: itemIn 0.5s ease forwards;
   animation-delay: 0.95s;
@@ -411,6 +424,7 @@
     opacity: 0;
     transform: translateX(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);

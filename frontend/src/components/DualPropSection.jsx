@@ -26,7 +26,7 @@ const loadThree = () =>
   });
 
 const initNeuralAnimation = (canvas, section) => {
-  if (!canvas || !section) return () => {};
+  if (!canvas || !section) return () => { };
 
   let scene;
   let camera;
@@ -176,7 +176,7 @@ const initNeuralAnimation = (canvas, section) => {
     };
   };
 
-  let removeResize = () => {};
+  let removeResize = () => { };
   setup().then((cleanup) => {
     if (cleanup) removeResize = cleanup;
   });
