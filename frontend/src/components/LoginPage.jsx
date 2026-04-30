@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 import { X, Apple, Mail, Eye, EyeOff } from 'lucide-react';
 import './LoginPage.css';
-import loginBg from '../assets/login-bg.png';
+import creatorBg from '../assets/login-bg.png';
+import brandBg from '../assets/brand-bg.png';
 
 const LoginPage = ({ onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [userType, setUserType] = useState('creator'); // 'creator' or 'brand'
+
+  const isBrand = userType === 'brand';
 
   return (
-    <div className="login-container">
-      {/* Left side with halftone background */}
-      <div className="login-left" style={{ backgroundImage: `url(${loginBg})` }}>
+    <div className={`login-container ${isBrand ? 'reversed brand-theme' : ''}`}>
+      {/* Dynamic side with halftone background */}
+      <div 
+        className="login-left" 
+        style={{ backgroundImage: `url(${isBrand ? brandBg : creatorBg})` }}
+      >
         <div className="brand-logo">
           <div className="logo-box">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -19,21 +26,40 @@ const LoginPage = ({ onClose }) => {
               <rect x="14" y="14" width="7" height="7" rx="2" fill="white"/>
             </svg>
           </div>
-          <span className="brand-name">Brand</span>
+          <span className="brand-name">Gradix</span>
         </div>
         <div className="login-left-content">
-          <h1>Your personal cloud & AI</h1>
+          <h1>
+            {isBrand 
+              ? "Scale your brand with top-tier creators" 
+              : "Your personal cloud & AI for growth"}
+          </h1>
         </div>
       </div>
 
-      {/* Right side with login form */}
+      {/* Form side */}
       <div className="login-right">
         <button className="close-btn" onClick={onClose}>
           <X size={24} />
         </button>
 
         <div className="login-form-container">
-          <h2>Sign in</h2>
+          <div className="user-toggle-container">
+            <button 
+              className={`toggle-btn ${!isBrand ? 'active' : ''}`}
+              onClick={() => setUserType('creator')}
+            >
+              Creator
+            </button>
+            <button 
+              className={`toggle-btn ${isBrand ? 'active' : ''}`}
+              onClick={() => setUserType('brand')}
+            >
+              Brand
+            </button>
+          </div>
+
+          <h2>Sign in as {isBrand ? 'Brand' : 'Creator'}</h2>
 
           <div className="social-login">
             <button className="social-btn">
