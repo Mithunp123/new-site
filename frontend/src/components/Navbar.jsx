@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import logo from '../assets/logo.png';
 import logoWhite from '../assets/logo-white.png';
 
-const Navbar = () => {
+const Navbar = ({ onLoginClick }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -36,7 +36,12 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-4">
-          <a href="#login" className={`text-sm font-medium hover:opacity-70 transition-opacity ${scrolled ? 'text-[var(--color-navy)]' : 'text-white'}`}>Log In</a>
+          <button 
+            onClick={onLoginClick}
+            className={`text-sm font-medium hover:opacity-70 transition-opacity cursor-pointer ${scrolled ? 'text-[var(--color-navy)]' : 'text-white'}`}
+          >
+            Log In
+          </button>
           <a href="#get-started" className="px-5 py-2.5 bg-[var(--color-blue)] text-white text-sm font-semibold rounded hover:bg-[var(--color-blue-light)] transition-colors">Get Started</a>
         </div>
 
@@ -60,7 +65,12 @@ const Navbar = () => {
             <a href="#pricing" className="text-lg text-[var(--color-text)] font-medium" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <a href="#about" className="text-lg text-[var(--color-text)] font-medium" onClick={() => setMobileMenuOpen(false)}>About</a>
             <div className="flex flex-col items-center gap-4 w-full px-6 mt-4">
-              <a href="#login" className="w-full text-center py-3 border border-[var(--color-border)] rounded text-[var(--color-navy)] font-medium" onClick={() => setMobileMenuOpen(false)}>Log In</a>
+              <button 
+                onClick={() => { onLoginClick(); setMobileMenuOpen(false); }}
+                className="w-full text-center py-3 border border-[var(--color-border)] rounded text-[var(--color-navy)] font-medium cursor-pointer"
+              >
+                Log In
+              </button>
               <a href="#get-started" className="w-full text-center py-3 bg-[var(--color-blue)] text-white rounded font-medium" onClick={() => setMobileMenuOpen(false)}>Get Started</a>
             </div>
           </motion.div>

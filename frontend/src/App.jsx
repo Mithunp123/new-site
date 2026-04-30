@@ -9,9 +9,12 @@ import HowItWorks from './components/HowItWorks';
 import FAQ from './components/FAQ';
 import FinalCTA from './components/FinalCTA';
 import Footer from './components/Footer';
+import LoginPage from './components/LoginPage';
 import { initScrollAnimations } from './utils/animations';
 
 function App() {
+  const [showLogin, setShowLogin] = React.useState(false);
+
   useEffect(() => {
     const cleanup = initScrollAnimations();
     
@@ -30,7 +33,7 @@ function App() {
 
   return (
     <div className="relative w-full bg-[var(--color-bg)]">
-      <Navbar />
+      <Navbar onLoginClick={() => setShowLogin(true)} />
       <main className="w-full overflow-x-hidden">
         <div className="snap-start w-full">
           <Hero />
@@ -58,6 +61,12 @@ function App() {
         </div>
       </main>
       <Footer />
+      
+      {showLogin && (
+        <div className="fixed inset-0 z-[100] bg-black overflow-auto">
+          <LoginPage onClose={() => setShowLogin(false)} />
+        </div>
+      )}
     </div>
   );
 }
