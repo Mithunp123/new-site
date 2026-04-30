@@ -17,7 +17,7 @@ function App() {
 
   useEffect(() => {
     const cleanup = initScrollAnimations();
-    
+
     // Refresh ScrollTrigger after a short delay to account for any layout shifts
     const timer = setTimeout(() => {
       import('gsap/ScrollTrigger').then(({ ScrollTrigger }) => {
@@ -61,7 +61,7 @@ function App() {
         </div>
       </main>
       <Footer />
-      
+
       {showLogin && (
         <div className="fixed inset-0 z-[100] bg-black overflow-auto">
           <LoginPage onClose={() => setShowLogin(false)} />
