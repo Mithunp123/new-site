@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import MagicRings from './MagicRings';
 
-const FinalCTA = () => {
+const FinalCTA = ({ onRegisterClick }) => {
   return (
     <section className="relative flex min-h-screen items-center overflow-hidden bg-[#07111F] py-24 text-white md:py-28">
       {/* Magic Rings Background */}
@@ -69,9 +69,13 @@ const FinalCTA = () => {
           transition={{ duration: 0.75, delay: 0.25 }}
           className="mt-12 flex flex-col gap-4 sm:flex-row"
         >
-          <button className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-8 py-4 font-semibold text-[#07111F] transition hover:-translate-y-1">
+          <button 
+            onClick={onRegisterClick}
+            className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-8 py-4 font-semibold text-[#07111F] transition hover:-translate-y-1"
+          >
             Create Free Account <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
           </button>
+
           <button className="group inline-flex items-center justify-center gap-3 rounded-full border border-white/18 px-8 py-4 font-semibold text-white transition hover:-translate-y-1 hover:border-[#00D4FF]">
             Talk to Sales <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
           </button>

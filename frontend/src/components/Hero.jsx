@@ -70,7 +70,7 @@ const SlantedMarqueeRow = ({ images, direction = 'left', speed = 40 }) => {
   );
 };
 
-const Hero = () => {
+const Hero = ({ onRegisterClick }) => {
   return (
     <section className="relative w-full h-screen overflow-hidden bg-[var(--color-navy)] flex items-center justify-center">
       
@@ -130,9 +130,13 @@ const Hero = () => {
           transition={{ duration: 0.6, delay: 0.8 }}
           className="flex flex-col sm:flex-row gap-4"
         >
-          <button className="px-8 py-4 bg-[var(--color-blue)] text-white font-semibold rounded hover:bg-[var(--color-blue-light)] transition-all hover:-translate-y-1 shadow-[0_10px_20px_rgba(0,0,0,0.2)]">
+          <button 
+            onClick={onRegisterClick}
+            className="px-8 py-4 bg-[var(--color-blue)] text-white font-semibold rounded hover:bg-[var(--color-blue-light)] transition-all hover:-translate-y-1 shadow-[0_10px_20px_rgba(0,0,0,0.2)]"
+          >
             Create Free Account
           </button>
+
           <button className="px-8 py-4 border border-white/30 text-white font-semibold rounded backdrop-blur-sm hover:bg-white/10 transition-all hover:-translate-y-1 shadow-[0_10px_20px_rgba(0,0,0,0.1)]">
             Watch Demo
           </button>

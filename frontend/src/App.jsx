@@ -12,6 +12,8 @@ import EarningsPage from './pages/EarningsPage';
 import PerformanceAnalyticsPage from './pages/PerformanceAnalyticsPage';
 import LeadManagementPage from './pages/LeadManagementPage';
 import SettingsPage from './pages/SettingsPage';
+import LandingPage from './pages/LandingPage';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,7 +39,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+
           <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
           
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -50,7 +54,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+          <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
