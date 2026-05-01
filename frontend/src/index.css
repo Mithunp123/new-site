@@ -14,8 +14,17 @@
   --color-text-secondary: #64748B;
   --color-text-muted: #94A3B8;
 
-  --font-heading: "Plus Jakarta Sans", sans-serif;
-  --font-body: "DM Sans", sans-serif;
+  --color-bg: #FFFFFF;
+  --color-bg-alt: #F0F4FF;
+  --color-navy: #0A1628;
+  --color-blue: #1A6BFF;
+  --color-blue-light: #4D8FFF;
+  --color-black: #080808;
+  --color-text: #1A1A2E;
+  --color-accent: #00D4FF;
+
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -23,12 +32,21 @@
 }
 
 :root {
-  --color-navy: #07111F;
+  --color-bg: #FFFFFF;
+  --color-bg-alt: #F0F4FF;
+  --color-navy: #0A1628;
   --color-blue: #1A6BFF;
-  --color-blue-light: #4D8BFF;
-  --color-accent: #00D4FF;
-  --color-text: #0F172A;
+  --color-blue-light: #4D8FFF;
+  --color-black: #080808;
+  --color-text: #1A1A2E;
   --color-border: #E2E8F0;
+  --color-accent: #00D4FF;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+  scroll-padding-top: 0;
 }
 
 
