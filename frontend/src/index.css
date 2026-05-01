@@ -91,6 +91,12 @@ html {
   .btn-outline {
     @apply border border-brand-blue text-brand-blue hover:bg-brand-blue-light font-medium rounded-lg px-4 py-2 transition-all active:scale-95;
   }
+
+  .text-gradient {
+    background: linear-gradient(90deg, var(--color-blue), var(--color-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 /* Custom Scrollbar */

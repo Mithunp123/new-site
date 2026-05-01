@@ -37,7 +37,7 @@ const FinalCTA = ({ onRegisterClick }) => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-120px' }}
           transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-6xl font-['Playfair_Display'] text-[42px] leading-[1.1] sm:text-[64px] lg:text-[82px]"
+          className="max-w-6xl font-['Playfair_Display'] text-[42px] leading-[1.1] sm:text-[64px] lg:text-[82px] text-gradient"
         >
           Connect creators and brands with the confidence to move.
         </motion.h2>
@@ -48,7 +48,7 @@ const FinalCTA = ({ onRegisterClick }) => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.75, delay: 0.12 }}
-            className="max-w-xl text-xl leading-9 text-white/62"
+            className="max-w-xl text-xl leading-9 text-white/85"
           >
             Gradix gives both sides the structure to discover, agree, deliver, approve,
             and pay without losing trust between steps.
