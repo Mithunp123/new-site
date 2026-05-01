@@ -1,74 +1,64 @@
-import React, { useEffect } from 'react';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import MetricsSection from './components/MetricsSection';
-import ProblemSolution from './components/ProblemSolution';
-import DualPropSection from './components/DualPropSection';
-import BentoGrid from './components/BentoGrid';
-import HowItWorks from './components/HowItWorks';
-import FAQ from './components/FAQ';
-import FinalCTA from './components/FinalCTA';
-import Footer from './components/Footer';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import useAuthStore from './store/authStore';
+import Layout from './components/layout/Layout';
 import LoginPage from './components/LoginPage';
-import { initScrollAnimations } from './utils/animations';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import IncomingRequestsPage from './pages/IncomingRequestsPage';
+import MyCampaignsPage from './pages/MyCampaignsPage';
+import EarningsPage from './pages/EarningsPage';
+import PerformanceAnalyticsPage from './pages/PerformanceAnalyticsPage';
+import LeadManagementPage from './pages/LeadManagementPage';
+import SettingsPage from './pages/SettingsPage';
 
-function App() {
-  const [showLogin, setShowLogin] = React.useState(false);
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
-  useEffect(() => {
-    const cleanup = initScrollAnimations();
-
-    // Refresh ScrollTrigger after a short delay to account for any layout shifts
-    const timer = setTimeout(() => {
-      import('gsap/ScrollTrigger').then(({ ScrollTrigger }) => {
-        ScrollTrigger.refresh();
-      });
-    }, 500);
-
-    return () => {
-      cleanup();
-      clearTimeout(timer);
-    };
-  }, []);
-
-  return (
-    <div className="relative w-full bg-[var(--color-bg)]">
-      <Navbar onLoginClick={() => setShowLogin(true)} />
-      <main className="w-full overflow-x-hidden">
-        <div className="snap-start w-full">
-          <Hero />
-        </div>
-        <div className="snap-start w-full">
-          <MetricsSection />
-        </div>
-        <div className="snap-start w-full">
-          <ProblemSolution />
-        </div>
-        <div className="snap-start w-full">
-          <DualPropSection />
-        </div>
-        <div className="snap-start w-full">
-          <BentoGrid />
-        </div>
-        <div className="snap-start w-full">
-          <HowItWorks />
-        </div>
-        <div className="snap-start w-full">
-          <FAQ />
-        </div>
-        <div className="snap-start w-full bg-[var(--color-bg-alt)]">
-          <FinalCTA />
-        </div>
-      </main>
-      <Footer />
-
-      {showLogin && (
-        <div className="fixed inset-0 z-[100] bg-black overflow-auto">
-          <LoginPage onClose={() => setShowLogin(false)} />
-        </div>
-      )}
-    </div>
-  );
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuthStore();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
 
-export default App;
+export default function App() {
+  const { isAuthenticated } = useAuthStore();
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const isGoogleConfigured = googleClientId && googleClientId !== 'your_google_client_id_here';
+
+  const content = (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+          <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+          
+          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/requests" element={<IncomingRequestsPage />} />
+            <Route path="/campaigns" element={<MyCampaignsPage />} />
+            <Route path="/earnings" element={<EarningsPage />} />
+            <Route path="/analytics" element={<PerformanceAnalyticsPage />} />
+            <Route path="/leads" element={<LeadManagementPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+
+  return isGoogleConfigured ? (
+    <GoogleOAuthProvider clientId={googleClientId}>
+      {content}
+    </GoogleOAuthProvider>
+  ) : content;
+}

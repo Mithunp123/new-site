@@ -1,120 +1,77 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #FFFFFF;
-  --color-bg-alt: #F0F4FF;
-  --color-navy: #0A1628;
-  --color-blue: #1A6BFF;
-  --color-blue-light: #4D8FFF;
-  --color-black: #080808;
-  --color-text: #1A1A2E;
-  --color-border: #E0E8FF;
-  --color-accent: #00D4FF;
+  --color-brand-blue: #2563EB;
+  --color-brand-blue-dark: #1D4ED8;
+  --color-brand-blue-light: #EFF6FF;
+  --color-accent-green: #10B981;
+  --color-accent-orange: #F59E0B;
+  --color-accent-red: #EF4444;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #F8FAFC;
+  --color-border: #E2E8F0;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
 
-  --font-heading: 'Playfair Display', serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-heading: "Plus Jakarta Sans", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-:root {
-  --color-bg: #FFFFFF;
-  --color-bg-alt: #F0F4FF;
-  --color-navy: #0A1628;
-  --color-blue: #1A6BFF;
-  --color-blue-light: #4D8FFF;
-  --color-black: #080808;
-  --color-text: #1A1A2E;
-  --color-border: #E0E8FF;
-  --color-accent: #00D4FF;
+/* ═══════════════════════════════════
+   GLOBAL BASE STYLES
+   ═══════════════════════════════════ */
+
+@layer base {
+  body {
+    @apply font-body bg-surface-secondary text-text-primary antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold text-text-primary leading-tight;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-  scroll-snap-type: y proximity;
-  scroll-padding-top: 0;
-}
+/* ═══════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════ */
 
-body {
-  font-family: var(--font-body);
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  overflow-x: hidden;
-}
+@layer utilities {
+  .gradient-blue {
+    background: linear-gradient(135deg, #2563EB 0%, #60A5FA 100%);
+  }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-heading);
-}
+  .gradient-dark-blue {
+    background: linear-gradient(135deg, #1E3A5F 0%, #1E293B 100%);
+  }
 
-.text-gradient {
-  background: linear-gradient(90deg, var(--color-blue), var(--color-accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl;
+  }
+
+  .card-premium {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm transition-all duration-200 hover:shadow-md;
+  }
+
+  .btn-primary {
+    @apply bg-brand-blue hover:bg-brand-blue-dark text-white font-medium rounded-lg px-4 py-2 transition-all active:scale-95 disabled:opacity-50;
+  }
+
+  .btn-outline {
+    @apply border border-brand-blue text-brand-blue hover:bg-brand-blue-light font-medium rounded-lg px-4 py-2 transition-all active:scale-95;
+  }
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--color-bg);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-blue-light);
-}
-
-/* Animations */
-@keyframes float {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-
-  33% {
-    transform: translate(30px, -50px) scale(1.05);
-  }
-
-  66% {
-    transform: translate(-20px, 20px) scale(0.95);
-  }
-
-  100% {
-    transform: translate(0px, 0px) scale(1);
-  }
-}
-
-.animate-float {
-  animation: float 10s ease-in-out infinite;
-}
-
-.animate-float-delayed {
-  animation: float 12s ease-in-out infinite;
-  animation-delay: -5s;
-}
-
-.animate-float-slow {
-  animation: float 15s ease-in-out infinite;
-  animation-delay: -2s;
-}
-
-/* 3D Utilities */
-.perspective-1000 {
-  perspective: 1000px;
-}
-
-.preserve-3d {
-  transform-style: preserve-3d;
-}
-
-.backface-hidden {
-  backface-visibility: hidden;
+  @apply bg-slate-200 rounded-full hover:bg-slate-300;
 }

@@ -36,6 +36,17 @@
   z-index: 1;
 }
 
+.login-left::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #000 1px, transparent 1px);
+  background-size: 12px 12px;
+  opacity: 0.15;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .brand-logo {
   position: relative;
   z-index: 2;
@@ -126,6 +137,8 @@
   cursor: pointer;
   transition: color 0.2s;
   z-index: 10;
+  background: transparent;
+  border: none;
 }
 
 .close-btn:hover {
@@ -142,6 +155,7 @@
   font-weight: 700;
   margin-bottom: 24px;
   font-family: 'DM Sans', sans-serif;
+  color: #ffffff;
 }
 
 .login-container.brand-theme .submit-btn {
@@ -237,7 +251,8 @@
 
 .submit-btn {
   width: 100%;
-  padding: 14px;
+  height: 52px;
+  padding: 0 24px;
   background: #fff;
   color: #000;
   border: none;
@@ -247,6 +262,9 @@
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .submit-btn:hover {
@@ -282,8 +300,172 @@
   color: #fff;
 }
 
+
+/* Wizard Specific Styles */
+.wizard-progress {
+  position: relative;
+  width: 100%;
+}
+
+.progress-track {
+  height: 4px;
+  background: #1a1a1a;
+  border-radius: 2px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #fff;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.brand-theme .progress-bar {
+  background: #4a3aff;
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+  transition: all 0.3s ease;
+}
+
+.step-dot.active {
+  background: #fff;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+.brand-theme .step-dot.active {
+  background: #4a3aff;
+  box-shadow: 0 0 10px rgba(74, 58, 255, 0.3);
+}
+
+.step-description {
+  color: #aaaaaa;
+  font-size: 14px;
+  margin-top: -12px;
+  margin-bottom: 24px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  pointer-events: none;
+}
+
+.input-wrapper input.with-icon {
+  padding-left: 48px;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+  width: 100%;
+}
+
+.back-btn {
+  height: 52px;
+  padding: 0 24px;
+  background: #1a1a1a;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.wizard-actions .submit-btn {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.back-btn:hover {
+  background: #262626;
+  border-color: #444;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 16px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.category-item:hover {
+  border-color: #666;
+  color: #fff;
+}
+
+.category-item.active {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #fff;
+  color: #fff;
+}
+
+.brand-theme .category-item.active {
+  background: rgba(74, 58, 255, 0.1);
+  border-color: #4a3aff;
+  color: #fff;
+}
+
+.outline-btn {
+  background: transparent;
+  border: 1px solid #333;
+  color: #fff;
+}
+
+.outline-btn:hover {
+  background: #1a1a1a;
+  border-color: #666;
+}
+
+.wizard-step h2 {
+  margin-bottom: 8px !important;
+}
+
+.wizard-step .social-login {
+  margin-top: 32px;
+}
+
 @media (max-width: 900px) {
   .login-left {
     display: none;
+  }
+  .login-right {
+    padding: 20px;
   }
 }
