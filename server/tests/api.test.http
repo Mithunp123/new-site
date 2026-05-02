@@ -1,0 +1,114 @@
+@baseUrl = http://localhost:3000
+@creatorToken = (filled_after_login)
+@brandToken = (filled_after_login)
+@adminToken = (filled_after_login)
+@campaignId = (filled_after_creation)
+
+### 1. Creator Register
+POST {{baseUrl}}/api/auth/creator/register
+Content-Type: application/json
+
+{
+  "name": "Priya Sharma",
+  "email": "priya@test.com",
+  "phone": "9876543210",
+  "password": "Test@1234",
+  "location": "Mumbai",
+  "languages_known": ["Hindi", "English"]
+}
+
+### 2. Creator Login
+POST {{baseUrl}}/api/auth/creator/login
+Content-Type: application/json
+
+{
+  "email": "priya@test.com",
+  "password": "Test@1234"
+}
+
+### 3. Creator Get Me
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{creatorToken}}
+
+### 4. Creator Add Social Profile
+POST {{baseUrl}}/api/creator/social-profiles
+Authorization: Bearer {{creatorToken}}
+Content-Type: application/json
+
+{
+  "platform": "instagram",
+  "profile_url": "https://instagram.com/priyasharma",
+  "followers_count": 82400,
+  "avg_views": 12400,
+  "engagement_rate": 6.2,
+  "audience_location": "Mumbai"
+}
+
+### 5. Creator Add Niche Details
+POST {{baseUrl}}/api/creator/niche-details
+Authorization: Bearer {{creatorToken}}
+Content-Type: application/json
+
+{
+  "categories": ["Beauty", "Lifestyle", "Fashion"],
+  "subcategories": ["Skincare", "OOTD", "Makeup"],
+  "worked_with_brands": ["Swiggy", "boAt", "Myntra"],
+  "performance_metrics": "Average 6.2% ER, 82K followers",
+  "sample_links": ["https://instagram.com/p/sample1"],
+  "collaboration_preference": "paid"
+}
+
+### 6. Brand Register
+POST {{baseUrl}}/api/auth/brand/register
+Content-Type: application/json
+
+{
+  "name": "Nykaa Beauty",
+  "email": "brand@nykaa.com",
+  "phone": "9876500000",
+  "password": "Brand@1234",
+  "website": "https://nykaa.com",
+  "country": "India"
+}
+
+### 7. Brand Login
+POST {{baseUrl}}/api/auth/brand/login
+Content-Type: application/json
+
+{
+  "email": "brand@nykaa.com",
+  "password": "Brand@1234"
+}
+
+### 8. Brand Send Collaboration Request
+POST {{baseUrl}}/api/brand/collaboration/send-request
+Authorization: Bearer {{brandToken}}
+Content-Type: application/json
+
+{
+  "creator_id": 1,
+  "campaign_name": "Summer Glow — Priya Sharma",
+  "campaign_goal": "Sales / Conversions",
+  "campaign_brief": "Create a 60-90 second reel showcasing Summer Glow Serum.",
+  "platform": "instagram",
+  "content_type": "Reel (60-90s)",
+  "number_of_posts": "1 Reel + 2 Stories",
+  "start_date": "2026-03-20",
+  "end_date": "2026-04-20",
+  "budget_offer": 22000,
+  "tracking_link": "https://nykaa.com/track/summer2026",
+  "deliverables_required": "1. 1 Reel 60-90sec\n2. 2 Stories"
+}
+
+### 9. Admin Login
+POST {{baseUrl}}/api/auth/admin/login
+Content-Type: application/json
+
+{
+  "email": "admin@gradix.com",
+  "password": "admin123"
+}
+
+### 10. Admin Release Escrow
+PUT {{baseUrl}}/api/admin/campaign/{{campaignId}}/release-escrow
+Authorization: Bearer {{adminToken}}

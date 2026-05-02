@@ -32,10 +32,9 @@ export default function Sidebar() {
   };
 
   const navLinkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
-      isActive
-        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${isActive
+      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
     }`;
 
   const initials = user?.name

@@ -1,23 +1,41 @@
-import { Router } from 'express';
-import { verifyToken } from '../middleware/auth.js';
-import { upload } from '../middleware/upload.js';
-import {
-  addSocialProfile, addNicheDetails, addPortfolio,
-  getProfile, updateProfile, updateProfilePhoto,
-  updatePassword, deleteAccount, getDashboard
-} from '../controllers/creatorController.js';
+const express = require('express');
+const router = express.Router();
+const creatorController = require('../controllers/creatorController');
+const { verifyToken } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
-const router = Router();
 router.use(verifyToken);
 
-router.post('/social-profiles', addSocialProfile);
-router.post('/niche-details', upload.array('screenshots', 5), addNicheDetails);
-router.post('/portfolio', addPortfolio);
-router.get('/profile', getProfile);
-router.patch('/profile', updateProfile);
-router.patch('/profile/photo', upload.single('profile_photo'), updateProfilePhoto);
-router.patch('/password', updatePassword);
-router.delete('/account', deleteAccount);
-router.get('/dashboard', getDashboard);
+// Profile
+router.get('/profile', creatorController.getProfile);
+router.patch('/profile', creatorController.updateProfile);
+router.patch('/profile/photo', upload.single('profile_photo'), creatorController.updateProfilePhoto);
+router.patch('/password', creatorController.updatePassword);
+router.delete('/account', creatorController.deactivateAccount);
 
-export default router;
+// Social & Niche
+router.get('/social-profiles', creatorController.getSocialProfiles);
+router.post('/social-profiles', creatorController.upsertSocialProfile);
+router.get('/niche-details', creatorController.getNicheDetails);
+router.post('/niche-details', upload.multiple('screenshots', 5), creatorController.upsertNicheDetails);
+
+// Dashboard
+router.get('/dashboard', creatorController.getDashboard);
+
+// Requests & Campaigns
+router.get('/requests', creatorController.getRequests);
+router.get('/campaigns', creatorController.getCampaigns);
+
+// Earnings
+router.get('/earnings', creatorController.getEarnings);
+router.post('/earnings/withdraw', creatorController.withdrawEarnings);
+
+// Analytics & Leads
+router.get('/analytics', creatorController.getAnalytics);
+router.get('/leads', creatorController.getLeads);
+
+// Notifications
+router.get('/notifications', creatorController.getNotifications);
+router.patch('/notifications/:id/read', creatorController.markNotificationRead);
+
+module.exports = router;

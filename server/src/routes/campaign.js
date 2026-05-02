@@ -1,16 +1,16 @@
-import { Router } from 'express';
-import { verifyToken } from '../middleware/auth.js';
-import { upload } from '../middleware/upload.js';
-import { getRequests, acceptCampaign, declineCampaign, negotiateCampaign, getMyCampaigns, uploadContent } from '../controllers/campaignController.js';
+const express = require('express');
+const router = express.Router();
+const campaignController = require('../controllers/campaignController');
+const { verifyToken } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
-const router = Router();
 router.use(verifyToken);
 
-router.get('/requests', getRequests);
-router.get('/campaigns', getMyCampaigns);
-router.put('/:id/accept', acceptCampaign);
-router.put('/:id/decline', declineCampaign);
-router.put('/:id/negotiate', negotiateCampaign);
-router.put('/:id/upload-content', upload.single('content'), uploadContent);
+router.get('/:id', campaignController.getCampaignDetail);
+router.put('/:id/accept', campaignController.acceptCampaign);
+router.put('/:id/decline', campaignController.declineCampaign);
+router.put('/:id/upload-content', upload.single('content'), campaignController.uploadContent);
+router.get('/:id/analytics', campaignController.getAnalytics);
+router.post('/:id/dispute', campaignController.raiseDispute);
 
-export default router;
+module.exports = router;

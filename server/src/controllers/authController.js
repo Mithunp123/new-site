@@ -1,162 +1,144 @@
-import pool from '../config/db.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import { OAuth2Client } from 'google-auth-library';
+const pool = require('../config/db');
+const { hashPassword, comparePassword } = require('../helpers/bcrypt');
+const { signToken } = require('../helpers/jwt');
+const { success, created, error } = require('../helpers/response');
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-export async function register(req, res) {
+exports.registerCreator = async (req, res, next) => {
   try {
-    const { name, email, phone, password, location, languages_known, role, google_id } = req.body;
+    const { name, email, phone, password, location, languages_known } = req.body;
+    
+    const [existing] = await pool.query('SELECT id FROM creators WHERE email = ?', [email]);
+    if (existing.length > 0) return error(res, 'Email already registered', 400);
 
-    if (!name || !email || (!password && !google_id)) {
-      return res.status(400).json({ error: 'Name, email, and password (or google_id) are required.' });
-    }
-
-    // Check existing
-    const [existing] = await pool.execute('SELECT id FROM creators WHERE email = ?', [email]);
-    if (existing.length > 0) {
-      return res.status(400).json({ error: 'Email already registered.' });
-    }
-
-    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
-    const [result] = await pool.execute(
-      `INSERT INTO creators (name, email, phone, password_hash, display_name, location, languages_known, role, google_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, email, phone || null, passwordHash, name, location || null, languages_known ? JSON.stringify(languages_known) : null, role || 'creator', google_id || null]
+    const hashedPassword = await hashPassword(password);
+    const [result] = await pool.query(
+      'INSERT INTO creators (name, email, phone, password_hash, location, languages_known) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, phone, hashedPassword, location, JSON.stringify(languages_known || [])]
     );
 
-    const token = jwt.sign(
-      { id: result.insertId, email, role: role || 'creator' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const id = result.insertId;
+    const token = signToken({ id, email, role: 'creator' });
 
-    res.status(201).json({
-      token,
-      user: { id: result.insertId, name, email, is_verified: false, role: role || 'creator' }
-    });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed.' });
+    created(res, { token, creator: { id, name, email, is_verified: false, role: 'creator' } });
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-export async function login(req, res) {
+exports.loginCreator = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const [rows] = await pool.query('SELECT * FROM creators WHERE email = ? AND is_active = true', [email]);
+    
+    if (rows.length === 0) return error(res, 'Account not found', 404);
+    const creator = rows[0];
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
+    const isMatch = await comparePassword(password, creator.password_hash);
+    if (!isMatch) return error(res, 'Invalid credentials', 401);
 
-    const [users] = await pool.execute(
-      'SELECT id, name, email, password_hash, is_verified, role, is_active FROM creators WHERE email = ?',
-      [email]
-    );
-
-    if (users.length === 0) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
-
-    const user = users[0];
-    if (!user.is_active) {
-      return res.status(401).json({ error: 'Account has been deactivated.' });
-    }
-
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        is_verified: !!user.is_verified,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed.' });
+    const token = signToken({ id: creator.id, email: creator.email, role: 'creator' });
+    success(res, { token, creator: { id: creator.id, name: creator.name, email: creator.email, is_verified: creator.is_verified, role: 'creator' } });
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-export async function googleLogin(req, res) {
+exports.registerBrand = async (req, res, next) => {
   try {
-    const { credential, isAccessToken } = req.body;
-    let payload;
+    const { name, email, phone, password, website, country } = req.body;
+    
+    const [existing] = await pool.query('SELECT id FROM brands WHERE email = ?', [email]);
+    if (existing.length > 0) return error(res, 'Email already registered', 400);
 
-    if (isAccessToken) {
-      // If it's an access token, we fetch user info from Google's endpoint
-      const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${credential}`);
-      if (!response.ok) throw new Error('Invalid access token');
-      payload = await response.json();
-      // userinfo returns 'sub' instead of 'googleId'
-      payload.googleId = payload.sub;
-    } else {
-      // Standard ID Token verification
-      const ticket = await client.verifyIdToken({
-        idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      payload = ticket.getPayload();
-      payload.googleId = payload.sub;
-    }
-
-    const { email, name, picture, googleId } = payload;
-
-    // Check if user exists
-    const [users] = await pool.execute(
-      'SELECT id, name, email, role, is_active FROM creators WHERE email = ?',
-      [email]
+    const hashedPassword = await hashPassword(password);
+    const [result] = await pool.query(
+      'INSERT INTO brands (name, email, phone, password_hash, website, country) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, phone, hashedPassword, website, country]
     );
 
-    if (users.length > 0) {
-      const user = users[0];
-      if (!user.is_active) {
-        return res.status(401).json({ error: 'Account has been deactivated.' });
-      }
+    const id = result.insertId;
+    const token = signToken({ id, email, role: 'brand' });
 
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      return res.json({
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          picture
-        }
-      });
-    } else {
-      // User doesn't exist, return info to frontend to start wizard
-      return res.json({
-        isNewUser: true,
-        user: {
-          name,
-          email,
-          googleId,
-          picture
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Google login error:', error);
-    res.status(500).json({ error: 'Google authentication failed.' });
+    created(res, { token, brand: { id, name, email, role: 'brand' } });
+  } catch (err) {
+    next(err);
   }
-}
+};
+
+exports.loginBrand = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const [rows] = await pool.query('SELECT * FROM brands WHERE email = ? AND is_active = true', [email]);
+    
+    if (rows.length === 0) return error(res, 'Account not found', 404);
+    const brand = rows[0];
+
+    const isMatch = await comparePassword(password, brand.password_hash);
+    if (!isMatch) return error(res, 'Invalid credentials', 401);
+
+    const token = signToken({ id: brand.id, email: brand.email, role: 'brand' });
+    success(res, { token, brand: { id: brand.id, name: brand.name, email: brand.email, role: 'brand' } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    
+    // 1. Check Admins
+    let [rows] = await pool.query('SELECT * FROM admins WHERE email = ?', [email]);
+    if (rows.length > 0) {
+      const user = rows[0];
+      const isMatch = await comparePassword(password, user.password_hash);
+      if (isMatch) {
+        const token = signToken({ id: user.id, email: user.email, role: user.role });
+        return success(res, { token, user: { ...user, role: user.role }, role: user.role });
+      }
+    }
+
+    // 2. Check Brands (could be brand)
+    [rows] = await pool.query('SELECT * FROM brands WHERE email = ? AND is_active = true', [email]);
+    if (rows.length > 0) {
+      const user = rows[0];
+      const isMatch = await comparePassword(password, user.password_hash);
+      if (isMatch) {
+        const token = signToken({ id: user.id, email: user.email, role: user.role });
+        return success(res, { token, user: { ...user, role: user.role }, role: user.role });
+      }
+    }
+
+    // 3. Check Creators (could be creator)
+    [rows] = await pool.query('SELECT * FROM creators WHERE email = ? AND is_active = true', [email]);
+    if (rows.length > 0) {
+      const user = rows[0];
+      const isMatch = await comparePassword(password, user.password_hash);
+      if (isMatch) {
+        const token = signToken({ id: user.id, email: user.email, role: user.role });
+        return success(res, { token, user: { ...user, role: user.role }, role: user.role });
+      }
+    }
+
+    return error(res, 'Invalid email or password', 401);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getMe = async (req, res, next) => {
+  try {
+    let table = '';
+    if (req.user.role === 'creator') table = 'creators';
+    else if (req.user.role === 'brand') table = 'brands';
+    else if (req.user.role === 'admin') table = 'admins';
+
+    const [rows] = await pool.query(`SELECT * FROM ${table} WHERE id = ?`, [req.user.id]);
+    if (rows.length === 0) return error(res, 'User not found', 404);
+
+    const { password_hash, ...user } = rows[0];
+    success(res, user);
+  } catch (err) {
+    next(err);
+  }
+};

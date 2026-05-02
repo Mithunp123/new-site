@@ -1,0 +1,23 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const errorHandler = require('./src/middleware/errorHandler');
+
+const app = express();
+
+app.use(helmet());
+app.use(cors({ origin: '*', credentials: true }));
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static('uploads'));
+
+app.use('/api/auth',     require('./src/routes/auth'));
+app.use('/api/creator',  require('./src/routes/creator'));
+app.use('/api/brand',    require('./src/routes/brand'));
+app.use('/api/campaign', require('./src/routes/campaign'));
+app.use('/api/admin',    require('./src/routes/admin'));
+
+app.use(errorHandler);
+module.exports = app;

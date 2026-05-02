@@ -1,319 +1,392 @@
-import pool from '../config/db.js';
-import bcrypt from 'bcrypt';
+const pool = require('../config/db');
+const { success, created, error } = require('../helpers/response');
+const { hashPassword, comparePassword } = require('../helpers/bcrypt');
 
-export async function addSocialProfile(req, res) {
+// Social Profiles
+exports.upsertSocialProfile = async (req, res, next) => {
   try {
-    const creatorId = req.user.id;
+    const creator_id = req.user.id;
     const { platform, profile_url, followers_count, avg_views, engagement_rate, audience_location } = req.body;
 
-    await pool.execute(
-      `INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate, audience_location)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [creatorId, platform, profile_url, followers_count || 0, avg_views || 0, engagement_rate || 0, audience_location || null]
+    const [existing] = await pool.query(
+      'SELECT id FROM creator_social_profiles WHERE creator_id = ? AND platform = ?',
+      [creator_id, platform]
     );
 
-    res.status(201).json({ message: 'Social profile added successfully.' });
-  } catch (error) {
-    console.error('Add social profile error:', error);
-    res.status(500).json({ error: 'Failed to add social profile.' });
+    if (existing.length > 0) {
+      await pool.query(
+        'UPDATE creator_social_profiles SET profile_url = ?, followers_count = ?, avg_views = ?, engagement_rate = ?, audience_location = ? WHERE creator_id = ? AND platform = ?',
+        [profile_url, followers_count, avg_views, engagement_rate, audience_location, creator_id, platform]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate, audience_location) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [creator_id, platform, profile_url, followers_count, avg_views, engagement_rate, audience_location]
+      );
+    }
+    success(res, null, 'Social profile updated');
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-export async function addNicheDetails(req, res) {
+exports.getSocialProfiles = async (req, res, next) => {
   try {
-    const creatorId = req.user.id;
-    const { categories, subcategories, worked_with_brands, performance_metrics } = req.body;
+    const [rows] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id = ?', [req.user.id]);
+    success(res, rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Niche Details
+exports.upsertNicheDetails = async (req, res, next) => {
+  try {
+    const creator_id = req.user.id;
+    const { categories, subcategories, worked_with_brands, performance_metrics, sample_links, collaboration_preference } = req.body;
     const screenshots = req.files ? req.files.map(f => f.path) : [];
 
-    await pool.execute(
-      `INSERT INTO creator_niche_details (creator_id, categories, subcategories, worked_with_brands, performance_metrics, screenshots_testimonials)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE categories = VALUES(categories), subcategories = VALUES(subcategories),
-       worked_with_brands = VALUES(worked_with_brands), performance_metrics = VALUES(performance_metrics),
-       screenshots_testimonials = VALUES(screenshots_testimonials)`,
-      [
-        creatorId,
-        JSON.stringify(categories || []),
-        JSON.stringify(subcategories || []),
-        JSON.stringify(worked_with_brands || []),
-        JSON.stringify(performance_metrics || {}),
-        JSON.stringify(screenshots)
-      ]
-    );
+    const [existing] = await pool.query('SELECT id FROM creator_niche_details WHERE creator_id = ?', [creator_id]);
 
-    res.status(201).json({ message: 'Niche details saved successfully.' });
-  } catch (error) {
-    console.error('Add niche details error:', error);
-    res.status(500).json({ error: 'Failed to save niche details.' });
-  }
-}
-
-export async function addPortfolio(req, res) {
-  try {
-    const creatorId = req.user.id;
-    const { sample_links, collaboration_preference } = req.body;
-
-    await pool.execute(
-      `INSERT INTO creator_portfolio (creator_id, sample_links, collaboration_preference)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE sample_links = VALUES(sample_links), collaboration_preference = VALUES(collaboration_preference)`,
-      [creatorId, JSON.stringify(sample_links || []), collaboration_preference || 'paid']
-    );
-
-    res.status(201).json({ message: 'Portfolio saved successfully.' });
-  } catch (error) {
-    console.error('Add portfolio error:', error);
-    res.status(500).json({ error: 'Failed to save portfolio.' });
-  }
-}
-
-export async function getProfile(req, res) {
-  try {
-    const creatorId = req.user.id;
-
-    const [creators] = await pool.execute(
-      'SELECT id, name, email, phone, display_name, bio, location, languages_known, profile_photo, role, is_verified, created_at FROM creators WHERE id = ? AND is_active = true',
-      [creatorId]
-    );
-
-    if (creators.length === 0) {
-      return res.status(404).json({ error: 'Creator not found.' });
-    }
-
-    const [socialProfiles] = await pool.execute(
-      'SELECT * FROM creator_social_profiles WHERE creator_id = ?',
-      [creatorId]
-    );
-
-    const [nicheDetails] = await pool.execute(
-      'SELECT * FROM creator_niche_details WHERE creator_id = ?',
-      [creatorId]
-    );
-
-    const [portfolio] = await pool.execute(
-      'SELECT * FROM creator_portfolio WHERE creator_id = ?',
-      [creatorId]
-    );
-
-    res.json({
-      ...creators[0],
-      social_profiles: socialProfiles,
-      niche_details: nicheDetails[0] || null,
-      portfolio: portfolio[0] || null
-    });
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Failed to fetch profile.' });
-  }
-}
-
-export async function updateProfile(req, res) {
-  try {
-    const creatorId = req.user.id;
-    const { name, display_name, bio, location, languages_known, phone } = req.body;
-
-    await pool.execute(
-      `UPDATE creators SET name = COALESCE(?, name), display_name = COALESCE(?, display_name),
-       bio = COALESCE(?, bio), location = COALESCE(?, location),
-       languages_known = COALESCE(?, languages_known), phone = COALESCE(?, phone)
-       WHERE id = ?`,
-      [name, display_name, bio, location, languages_known ? JSON.stringify(languages_known) : null, phone, creatorId]
-    );
-
-    res.json({ message: 'Profile updated successfully.' });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ error: 'Failed to update profile.' });
-  }
-}
-
-export async function updateProfilePhoto(req, res) {
-  try {
-    const creatorId = req.user.id;
-    if (!req.file) {
-      return res.status(400).json({ error: 'No photo uploaded.' });
-    }
-
-    const photoPath = req.file.path;
-    await pool.execute('UPDATE creators SET profile_photo = ? WHERE id = ?', [photoPath, creatorId]);
-
-    res.json({ message: 'Profile photo updated.', profile_photo: photoPath });
-  } catch (error) {
-    console.error('Update photo error:', error);
-    res.status(500).json({ error: 'Failed to update profile photo.' });
-  }
-}
-
-export async function updatePassword(req, res) {
-  try {
-    const creatorId = req.user.id;
-    const { current_password, new_password } = req.body;
-
-    if (!current_password || !new_password) {
-      return res.status(400).json({ error: 'Both current and new password are required.' });
-    }
-
-    const [users] = await pool.execute('SELECT password_hash FROM creators WHERE id = ?', [creatorId]);
-    const valid = await bcrypt.compare(current_password, users[0].password_hash);
-
-    if (!valid) {
-      return res.status(401).json({ error: 'Current password is incorrect.' });
-    }
-
-    const newHash = await bcrypt.hash(new_password, 10);
-    await pool.execute('UPDATE creators SET password_hash = ? WHERE id = ?', [newHash, creatorId]);
-
-    res.json({ message: 'Password updated successfully.' });
-  } catch (error) {
-    console.error('Update password error:', error);
-    res.status(500).json({ error: 'Failed to update password.' });
-  }
-}
-
-export async function deleteAccount(req, res) {
-  try {
-    const creatorId = req.user.id;
-    await pool.execute('UPDATE creators SET is_active = false WHERE id = ?', [creatorId]);
-    res.json({ message: 'Account deactivated successfully.' });
-  } catch (error) {
-    console.error('Delete account error:', error);
-    res.status(500).json({ error: 'Failed to delete account.' });
-  }
-}
-
-export async function getDashboard(req, res) {
-  try {
-    const creatorId = req.user.id;
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-    const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-    // Earnings this month
-    const [thisMonthEarnings] = await pool.execute(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM earnings
-       WHERE creator_id = ? AND payment_status IN ('in_escrow', 'released')
-       AND MONTH(created_at) = ? AND YEAR(created_at) = ?`,
-      [creatorId, currentMonth, currentYear]
-    );
-
-    // Earnings last month
-    const [lastMonthEarnings] = await pool.execute(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM earnings
-       WHERE creator_id = ? AND payment_status IN ('in_escrow', 'released')
-       AND MONTH(created_at) = ? AND YEAR(created_at) = ?`,
-      [creatorId, lastMonth, lastMonthYear]
-    );
-
-    // Active campaigns
-    const [activeCampaigns] = await pool.execute(
-      `SELECT c.*, b.name as brand_name, b.logo_url as brand_logo FROM campaigns c
-       JOIN brands b ON c.brand_id = b.id
-       WHERE c.creator_id = ? AND c.status NOT IN ('campaign_closed', 'escrow_released')
-       ORDER BY c.deadline ASC LIMIT 5`,
-      [creatorId]
-    );
-
-    // Active campaigns count
-    const [activeCount] = await pool.execute(
-      `SELECT COUNT(*) as count FROM campaigns
-       WHERE creator_id = ? AND status NOT IN ('campaign_closed', 'escrow_released')`,
-      [creatorId]
-    );
-
-    // Deadline soon (within 7 days)
-    const [deadlineSoon] = await pool.execute(
-      `SELECT COUNT(*) as count FROM campaigns
-       WHERE creator_id = ? AND status NOT IN ('campaign_closed', 'escrow_released')
-       AND deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`,
-      [creatorId]
-    );
-
-    // Pending requests
-    const [pendingRequests] = await pool.execute(
-      `SELECT COUNT(*) as count FROM campaigns WHERE creator_id = ? AND status = 'request_sent'`,
-      [creatorId]
-    );
-
-    // Monthly earnings (last 7 months)
-    const monthlyEarnings = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(currentYear, currentMonth - 1 - i, 1);
-      const m = d.getMonth() + 1;
-      const y = d.getFullYear();
-      const [row] = await pool.execute(
-        `SELECT COALESCE(SUM(amount), 0) as total FROM earnings
-         WHERE creator_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?`,
-        [creatorId, m, y]
+    if (existing.length > 0) {
+      await pool.query(
+        'UPDATE creator_niche_details SET categories = ?, subcategories = ?, worked_with_brands = ?, performance_metrics = ?, screenshots_testimonials = ?, sample_links = ?, collaboration_preference = ? WHERE creator_id = ?',
+        [JSON.stringify(categories), JSON.stringify(subcategories), JSON.stringify(worked_with_brands), performance_metrics, JSON.stringify(screenshots), JSON.stringify(sample_links), collaboration_preference, creator_id]
       );
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      monthlyEarnings.push({ month: monthNames[m - 1], total: Number(row[0].total) });
+    } else {
+      await pool.query(
+        'INSERT INTO creator_niche_details (creator_id, categories, subcategories, worked_with_brands, performance_metrics, screenshots_testimonials, sample_links, collaboration_preference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [creator_id, JSON.stringify(categories), JSON.stringify(subcategories), JSON.stringify(worked_with_brands), performance_metrics, JSON.stringify(screenshots), JSON.stringify(sample_links), collaboration_preference]
+      );
+    }
+    success(res, null, 'Niche details updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getNicheDetails = async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM creator_niche_details WHERE creator_id = ?', [req.user.id]);
+    const details = rows[0] || {};
+    // Parse JSON fields
+    ['categories', 'subcategories', 'worked_with_brands', 'screenshots_testimonials', 'sample_links'].forEach(field => {
+      if (details[field]) details[field] = typeof details[field] === 'string' ? JSON.parse(details[field]) : details[field];
+    });
+    success(res, details);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Profile
+exports.getProfile = async (req, res, next) => {
+  try {
+    const creator_id = req.user.id;
+    const [creatorRows] = await pool.query('SELECT * FROM creators WHERE id = ?', [creator_id]);
+    const [socialRows] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id = ?', [creator_id]);
+    const [nicheRows] = await pool.query('SELECT * FROM creator_niche_details WHERE creator_id = ?', [creator_id]);
+
+    const { password_hash, ...creator } = creatorRows[0];
+    const niche_details = nicheRows[0] || {};
+    ['categories', 'subcategories', 'worked_with_brands', 'screenshots_testimonials', 'sample_links'].forEach(field => {
+      if (niche_details[field]) niche_details[field] = typeof niche_details[field] === 'string' ? JSON.parse(niche_details[field]) : niche_details[field];
+    });
+
+    success(res, {
+      ...creator,
+      social_profiles: socialRows,
+      niche_details
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const fields = {};
+    const body = req.body;
+    ['name', 'display_name', 'bio', 'location', 'phone'].forEach(f => {
+      if (body[f] !== undefined) fields[f] = body[f];
+    });
+    if (body.languages_known) fields.languages_known = JSON.stringify(body.languages_known);
+
+    if (!Object.keys(fields).length) return error(res, 'No fields to update');
+
+    const keys = Object.keys(fields).map(k => `${k} = ?`).join(', ');
+    const values = [...Object.values(fields), req.user.id];
+    
+    await pool.query(`UPDATE creators SET ${keys} WHERE id = ?`, values);
+    success(res, null, 'Profile updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateProfilePhoto = async (req, res, next) => {
+  try {
+    if (!req.file) return error(res, 'No photo uploaded');
+    await pool.query('UPDATE creators SET profile_photo = ? WHERE id = ?', [req.file.path, req.user.id]);
+    success(res, { profile_photo: req.file.path });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updatePassword = async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+    const [rows] = await pool.query('SELECT password_hash FROM creators WHERE id = ?', [req.user.id]);
+    const isMatch = await comparePassword(current_password, rows[0].password_hash);
+    if (!isMatch) return error(res, 'Current password is incorrect', 400);
+
+    const hashed = await hashPassword(new_password);
+    await pool.query('UPDATE creators SET password_hash = ? WHERE id = ?', [hashed, req.user.id]);
+    success(res, null, 'Password updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deactivateAccount = async (req, res, next) => {
+  try {
+    await pool.query('UPDATE creators SET is_active = false WHERE id = ?', [req.user.id]);
+    success(res, null, 'Account deactivated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Dashboard
+exports.getDashboard = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const [q1] = await pool.query('SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW())', [id]);
+    const [q2] = await pool.query('SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND MONTH(created_at) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH)) AND YEAR(created_at) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))', [id]);
+    const [q3] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status NOT IN ('campaign_closed','declined','escrow_released')", [id]);
+    const [q4] = await pool.query("SELECT c.*, b.name AS brand_name FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.status NOT IN ('campaign_closed','declined') ORDER BY c.deadline ASC LIMIT 5", [id]);
+    const [q5] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status = 'request_sent'", [id]);
+    const [q6] = await pool.query("SELECT c.*, b.name AS brand_name FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.status = 'request_sent' ORDER BY c.created_at DESC LIMIT 2", [id]);
+    const [q7] = await pool.query("SELECT DATE_FORMAT(created_at, '%b') AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 MONTH) GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY created_at ASC", [id]);
+    const [q8] = await pool.query("SELECT c.*, b.name AS brand_name, DATEDIFF(c.deadline, NOW()) AS days_remaining FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.deadline >= NOW() AND c.status NOT IN ('campaign_closed','declined') ORDER BY c.deadline ASC LIMIT 3", [id]);
+    const [q9] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND YEAR(created_at) = YEAR(NOW())", [id]);
+
+    const thisMonth = q1[0].total;
+    const lastMonth = q2[0].total;
+    const earnings_change_pct = lastMonth === 0 ? (thisMonth > 0 ? 100 : 0) : ((thisMonth - lastMonth) / lastMonth) * 100;
+
+    success(res, {
+      earnings_this_month: thisMonth,
+      earnings_change_pct,
+      active_campaigns_count: q3[0].count,
+      active_campaigns: q4,
+      pending_requests_count: q5[0].count,
+      new_requests: q6,
+      monthly_earnings: q7,
+      upcoming_deadlines: q8,
+      deadline_soon_count: q8.filter(d => d.days_remaining <= 7).length,
+      ytd_earnings: q9[0].total
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Requests & Campaigns
+exports.getRequests = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const { status = 'all', search = '', page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let where = 'WHERE c.creator_id = ?';
+    const params = [id];
+
+    if (status === 'pending') where += " AND c.status = 'request_sent'";
+    else if (status === 'accepted') where += " AND c.status IN ('creator_accepted','agreement_locked','content_uploaded','brand_approved','posted_live')";
+    else if (status === 'completed') where += " AND c.status IN ('campaign_closed','escrow_released')";
+
+    if (search) {
+      where += ' AND (b.name LIKE ? OR c.title LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
     }
 
-    // New requests
-    const [newRequests] = await pool.execute(
-      `SELECT c.id, c.title, c.deliverable, c.escrow_amount, c.respond_by, b.name as brand_name, b.logo_url
-       FROM campaigns c JOIN brands b ON c.brand_id = b.id
-       WHERE c.creator_id = ? AND c.status = 'request_sent'
-       ORDER BY c.created_at DESC LIMIT 2`,
-      [creatorId]
-    );
+    const [campaigns] = await pool.query(`SELECT c.*, b.name AS brand_name, b.logo_url AS brand_logo FROM campaigns c JOIN brands b ON b.id = c.brand_id ${where} LIMIT ? OFFSET ?`, [...params, parseInt(limit), parseInt(offset)]);
+    const [countRow] = await pool.query(`SELECT COUNT(*) AS count FROM campaigns c JOIN brands b ON b.id = c.brand_id ${where}`, params);
 
-    // Upcoming deadlines
-    const [upcomingDeadlines] = await pool.execute(
-      `SELECT c.title as campaign_title, c.deliverable as description, c.deadline,
-              DATEDIFF(c.deadline, CURDATE()) as days_remaining, b.name as brand_name
-       FROM campaigns c JOIN brands b ON c.brand_id = b.id
-       WHERE c.creator_id = ? AND c.status NOT IN ('campaign_closed', 'escrow_released')
-       AND c.deadline >= CURDATE()
-       ORDER BY c.deadline ASC LIMIT 3`,
-      [creatorId]
-    );
+    const [total] = await pool.query('SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ?', [id]);
+    const [pending] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status = 'request_sent'", [id]);
+    const [accepted] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status IN ('creator_accepted','agreement_locked','content_uploaded','brand_approved','posted_live')", [id]);
+    const [completed] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status IN ('campaign_closed','escrow_released')", [id]);
 
-    const earningsThisMonth = Number(thisMonthEarnings[0].total);
-    const earningsLastMonth = Number(lastMonthEarnings[0].total);
-    const changePercent = earningsLastMonth > 0
-      ? Math.round(((earningsThisMonth - earningsLastMonth) / earningsLastMonth) * 100)
-      : 0;
-
-    res.json({
-      earnings_this_month: earningsThisMonth,
-      earnings_last_month: earningsLastMonth,
-      earnings_change_pct: changePercent,
-      active_campaigns_count: activeCount[0].count,
-      active_campaigns_deadline_soon: deadlineSoon[0].count,
-      pending_requests_count: pendingRequests[0].count,
-      profile_views_7d: 128,
-      active_campaigns: activeCampaigns.map(c => ({
-        id: c.id,
-        brand_name: c.brand_name,
-        brand_logo: c.brand_logo,
-        title: c.title,
-        deliverable: c.deliverable,
-        due_date: c.deadline,
-        amount: Number(c.escrow_amount),
-        status: c.status
-      })),
-      monthly_earnings: monthlyEarnings,
-      new_requests: newRequests.map(r => ({
-        id: r.id,
-        brand_name: r.brand_name,
-        brand_logo: r.logo_url,
-        campaign_type: r.deliverable,
-        amount: Number(r.escrow_amount),
-        respond_by: r.respond_by
-      })),
-      upcoming_deadlines: upcomingDeadlines.map(d => ({
-        brand_name: d.brand_name,
-        campaign_title: d.campaign_title,
-        description: d.description,
-        deadline: d.deadline,
-        days_remaining: d.days_remaining
-      }))
+    success(res, {
+      counts: { total: total[0].count, pending: pending[0].count, accepted: accepted[0].count, completed: completed[0].count },
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total_records: countRow[0].count,
+      campaigns
     });
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard data.' });
+  } catch (err) {
+    next(err);
   }
-}
+};
+
+exports.getCampaigns = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const { status = 'all' } = req.query;
+    let where = 'WHERE c.creator_id = ?';
+    if (status === 'active') where += " AND c.status NOT IN ('campaign_closed','declined','escrow_released')";
+    else if (status === 'completed') where += " AND c.status IN ('campaign_closed','escrow_released')";
+
+    const [campaigns] = await pool.query(`
+      SELECT c.*, b.name AS brand_name, b.logo_url AS brand_logo, e.payment_status AS escrow_status
+      FROM campaigns c
+      JOIN brands b ON b.id = c.brand_id
+      LEFT JOIN earnings e ON e.campaign_id = c.id
+      ${where}
+    `, [id]);
+
+    const statusMap = {
+      'request_sent': 0, 'creator_accepted': 1, 'agreement_locked': 2,
+      'content_uploaded': 3, 'brand_approved': 4, 'posted_live': 5,
+      'analytics_collected': 6, 'escrow_released': 7, 'campaign_closed': 8
+    };
+
+    const results = campaigns.map(c => ({
+      ...c,
+      progress_step: statusMap[c.status] || 0
+    }));
+
+    const [active] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status NOT IN ('campaign_closed','declined','escrow_released')", [id]);
+    const [completed] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status IN ('campaign_closed','escrow_released')", [id]);
+
+    success(res, {
+      active_count: active[0].count,
+      completed_count: completed[0].count,
+      campaigns: results
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Earnings
+exports.getEarnings = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const [q1] = await pool.query('SELECT COALESCE(SUM(gross_amount),0) AS total FROM earnings WHERE creator_id=?', [id]);
+    const [q2] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id=? AND payment_status='released' AND withdrawn_at IS NULL", [id]);
+    const [q3] = await pool.query("SELECT COALESCE(SUM(gross_amount),0) AS total FROM earnings WHERE creator_id=? AND payment_status='in_escrow'", [id]);
+    const [q4] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id=? AND MONTH(created_at)=MONTH(NOW()) AND payment_status IN ('released','in_escrow')", [id]);
+    const [q5] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id=? AND MONTH(created_at)=MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH))", [id]);
+    const [q6] = await pool.query("SELECT c.id, b.name AS brand_name, c.title, e.gross_amount, e.payment_status FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? AND e.payment_status = 'in_escrow'", [id]);
+    const [q7] = await pool.query("SELECT e.*, b.name AS brand_name, c.title AS campaign_title FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? ORDER BY e.created_at DESC LIMIT 20", [id]);
+    const [q8] = await pool.query("SELECT DATE_FORMAT(created_at, '%b') AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY created_at DESC LIMIT 6", [id]);
+
+    success(res, {
+      total_all_time: q1[0].total,
+      available_to_withdraw: q2[0].total,
+      pending_release: q3[0].total,
+      this_month: q4[0].total,
+      last_month: q5[0].total,
+      escrow_campaigns: q6,
+      history: q7,
+      chart: q8.reverse()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.withdrawEarnings = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const { payout_method } = req.body;
+    const [row] = await pool.query("SELECT SUM(net_amount) AS total FROM earnings WHERE creator_id=? AND payment_status='released' AND withdrawn_at IS NULL", [id]);
+    if (!row[0].total) return error(res, 'No available balance', 400);
+
+    await pool.query("UPDATE earnings SET payment_status='withdrawn', withdrawn_at=NOW(), payout_method=? WHERE creator_id=? AND payment_status='released' AND withdrawn_at IS NULL", [payout_method, id]);
+    success(res, { amount_withdrawn: row[0].total, payout_method });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Analytics & Leads
+exports.getAnalytics = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const { period = '30d' } = req.query;
+    const days = parseInt(period) || 30;
+
+    const [current] = await pool.query(`
+      SELECT SUM(views) AS total_views, SUM(reach) AS total_reach, SUM(clicks) AS total_clicks, AVG(engagement_rate) AS avg_er, SUM(sales_generated) AS total_sales
+      FROM campaign_analytics ca JOIN campaigns c ON c.id = ca.campaign_id
+      WHERE c.creator_id = ? AND ca.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [id, days]);
+
+    const [prev] = await pool.query(`
+      SELECT SUM(views) AS total_views, SUM(reach) AS total_reach, SUM(clicks) AS total_clicks, AVG(engagement_rate) AS avg_er, SUM(sales_generated) AS total_sales
+      FROM campaign_analytics ca JOIN campaigns c ON c.id = ca.campaign_id
+      WHERE c.creator_id = ? AND ca.recorded_at < DATE_SUB(NOW(), INTERVAL ? DAY) AND ca.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [id, days, days * 2]);
+
+    const [platforms] = await pool.query(`
+      SELECT ca.platform, SUM(ca.views) AS views FROM campaign_analytics ca JOIN campaigns c ON c.id = ca.campaign_id
+      WHERE c.creator_id = ? AND ca.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY ca.platform
+    `, [id, days]);
+
+    const [campaigns] = await pool.query(`
+      SELECT c.title, ca.views, ca.reach, ca.clicks, ca.engagement_rate, ca.sales_generated
+      FROM campaign_analytics ca JOIN campaigns c ON c.id = ca.campaign_id
+      WHERE c.creator_id = ? ORDER BY ca.recorded_at DESC
+    `, [id]);
+
+    success(res, { totals: current[0], previous: prev[0], platforms, campaigns });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeads = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const [q1] = await pool.query('SELECT COUNT(*) AS total FROM leads WHERE creator_id=?', [id]);
+    const [q2] = await pool.query('SELECT COUNT(*) AS count FROM leads WHERE creator_id=? AND converted=true', [id]);
+    const [q3] = await pool.query('SELECT AVG(deal_value) AS avg FROM leads WHERE creator_id=?', [id]);
+    const [q4] = await pool.query('SELECT c.title, COUNT(l.id) AS lead_count FROM leads l JOIN campaigns c ON c.id = l.campaign_id WHERE l.creator_id = ? GROUP BY l.campaign_id ORDER BY lead_count DESC', [id]);
+    const [q5] = await pool.query('SELECT niche, COUNT(*) AS total, SUM(CASE WHEN converted=true THEN 1 ELSE 0 END) AS converted_count, ROUND(SUM(CASE WHEN converted=true THEN 1 ELSE 0 END)*100/COUNT(*),1) AS conversion_rate FROM leads WHERE creator_id=? GROUP BY niche ORDER BY conversion_rate DESC', [id]);
+
+    success(res, {
+      total_leads: q1[0].total,
+      conversion_rate: q1[0].total ? (q2[0].count / q1[0].total) * 100 : 0,
+      avg_deal_value: q3[0].avg,
+      by_campaign: q4,
+      by_niche: q5,
+      top_niche: q5[0]
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Notifications
+exports.getNotifications = async (req, res, next) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM notifications WHERE user_type='creator' AND user_id=? ORDER BY created_at DESC LIMIT 50", [req.user.id]);
+    success(res, rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.markNotificationRead = async (req, res, next) => {
+  try {
+    await pool.query("UPDATE notifications SET is_read=true WHERE id=? AND user_id=? AND user_type='creator'", [req.params.id, req.user.id]);
+    success(res, null, 'Notification marked as read');
+  } catch (err) {
+    next(err);
+  }
+};

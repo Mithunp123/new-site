@@ -1,24 +1,30 @@
-import jwt from 'jsonwebtoken';
+const { verifyJWT } = require('../helpers/jwt');
+const { error } = require('../helpers/response');
 
-export function verifyToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
-  }
-
-  const token = authHeader.split(' ')[1];
+exports.verifyToken = (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer '))
+    return error(res, 'Unauthorized', 401);
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = verifyJWT(auth.split(' ')[1]);
     next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token.' });
+  } catch {
+    return error(res, 'Invalid or expired token', 401);
   }
-}
+};
 
-export function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required.' });
-  }
-  next();
-}
+exports.verifyBrand = (req, res, next) => {
+  exports.verifyToken(req, res, () => {
+    if (req.user.role !== 'brand')
+      return error(res, 'Brand access only', 403);
+    next();
+  });
+};
+
+exports.verifyAdmin = (req, res, next) => {
+  exports.verifyToken(req, res, () => {
+    if (req.user.role !== 'admin')
+      return error(res, 'Admin access only', 403);
+    next();
+  });
+};

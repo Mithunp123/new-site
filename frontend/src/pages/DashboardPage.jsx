@@ -189,7 +189,7 @@ export default function DashboardPage() {
                 <p className="text-sm text-slate-500 font-medium mt-1">Growth analysis over the last 7 months</p>
               </div>
               <div className="text-right">
-                <span className="text-2xl font-extrabold text-slate-900 tracking-tight">₹1,18,500</span>
+                <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{formatCurrency(d.ytd_earnings)}</span>
                 <p className="text-xs text-accent-green font-bold flex items-center justify-end gap-1">
                   <TrendingUp size={12} /> ↑22% YTD
                 </p>

@@ -1,9 +1,17 @@
-import { Router } from 'express';
-import { register, login, googleLogin } from '../controllers/authController.js';
+const express = require('express');
+const router = express.Router();
+const authController = require('../controllers/authController');
+const { verifyToken } = require('../middleware/auth');
+const validate = require('../middleware/validate');
 
-const router = Router();
-router.post('/register', register);
-router.post('/login', login);
-router.post('/google-login', googleLogin);
+router.post('/creator/register', validate(['name', 'email', 'password']), authController.registerCreator);
+router.post('/creator/login', validate(['email', 'password']), authController.loginCreator);
 
-export default router;
+router.post('/brand/register', validate(['name', 'email', 'password']), authController.registerBrand);
+router.post('/brand/login', validate(['email', 'password']), authController.loginBrand);
+
+router.post('/login', validate(['email', 'password']), authController.login);
+
+router.get('/me', verifyToken, authController.getMe);
+
+module.exports = router;

@@ -1,8 +1,11 @@
 import api from './axios';
 
 // Auth
-export const loginUser = (data) => api.post('/api/auth/login', data);
-export const registerUser = (data) => api.post('/api/auth/register', data);
+export const login = (data) => api.post('/api/auth/creator/login', data);
+export const register = (data) => api.post('/api/auth/creator/register', data);
+export const unifiedLogin = (data) => api.post('/api/auth/login', data);
+export const loginUser = login; // Alias for compatibility
+export const registerUser = register; // Alias for compatibility
 export const googleLogin = (data) => api.post('/api/auth/google-login', data);
 
 // Creator
@@ -16,13 +19,13 @@ export const deleteAccount = () => api.delete('/api/creator/account');
 export const getDashboard = () => api.get('/api/creator/dashboard');
 
 // Requests
-export const getRequests = (params) => api.get('/api/campaign/requests', { params });
+export const getRequests = (params) => api.get('/api/creator/requests', { params });
 export const acceptCampaign = (id) => api.put(`/api/campaign/${id}/accept`);
 export const declineCampaign = (id) => api.put(`/api/campaign/${id}/decline`);
 export const negotiateCampaign = (id, data) => api.put(`/api/campaign/${id}/negotiate`, data);
 
 // Campaigns
-export const getMyCampaigns = (params) => api.get('/api/campaign/campaigns', { params });
+export const getMyCampaigns = (params) => api.get('/api/creator/campaigns', { params });
 export const uploadContent = (id, data) => api.put(`/api/campaign/${id}/upload-content`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
 
 // Earnings

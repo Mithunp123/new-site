@@ -1,33 +1,25 @@
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const creatorId = req.user?.id || 'unknown';
-    const uploadDir = path.join(process.env.UPLOAD_DIR || './uploads', String(creatorId));
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
+    const userId = req.user?.id || 'general';
+    const dir = path.join(process.env.UPLOAD_DIR, String(userId));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime', 'application/pdf'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('File type not supported'), false);
-  }
+  const allowed = /jpeg|jpg|png|gif|mp4|pdf/;
+  if (allowed.test(path.extname(file.originalname).toLowerCase())) cb(null, true);
+  else cb(new Error('File type not allowed'));
 };
 
-export const upload = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
-});
-
-export default upload;
+exports.single = (field) => multer({ storage, fileFilter }).single(field);
+exports.multiple = (field, max) => multer({ storage, fileFilter }).array(field, max);
