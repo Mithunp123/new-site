@@ -142,3 +142,62 @@ exports.getMe = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.googleLogin = async (req, res, next) => {
+  try {
+    const { access_token } = req.body;
+    if (!access_token) return error(res, 'Access token required', 400);
+
+    // Verify access token with Google
+    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`);
+    const googleUser = await googleRes.json();
+
+    if (!googleUser || !googleUser.email) {
+      return error(res, 'Invalid Google token', 401);
+    }
+
+    const email = googleUser.email;
+    let user = null;
+    let role = null;
+
+    // 1. Check Admins
+    let [rows] = await pool.query('SELECT * FROM admins WHERE email = ?', [email]);
+    if (rows.length > 0) {
+      user = rows[0];
+      role = user.role || 'admin';
+    } else {
+      // 2. Check Brands
+      [rows] = await pool.query('SELECT * FROM brands WHERE email = ?', [email]);
+      if (rows.length > 0) {
+        user = rows[0];
+        role = user.role || 'brand';
+      } else {
+        // 3. Check Creators
+        [rows] = await pool.query('SELECT * FROM creators WHERE email = ?', [email]);
+        if (rows.length > 0) {
+          user = rows[0];
+          role = user.role || 'creator';
+        }
+      }
+    }
+
+    if (user) {
+      const token = signToken({ id: user.id, email: user.email, role: role });
+      return success(res, { 
+        token, 
+        user: { 
+          id: user.id, 
+          name: user.name, 
+          email: user.email, 
+          role: role 
+        }, 
+        role: role 
+      });
+    }
+
+    // User not found - return user info so frontend can handle registration
+    return error(res, 'Account not found', 404, { googleUser });
+  } catch (err) {
+    next(err);
+  }
+};

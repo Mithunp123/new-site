@@ -115,7 +115,7 @@ export default function EarningsPage() {
 
             <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-2">Payout Method</p>
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-700 mb-4">
-              {d.payout_method || 'UPI — priya@paytm'}
+              {d.upi_id ? `UPI — ${d.upi_id}` : 'UPI — Not Set'}
             </div>
 
             <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition text-sm">

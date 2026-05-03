@@ -121,22 +121,22 @@ exports.getDashboard = async (req, res, next) => {
       SELECT c.id, c.title,
              COUNT(DISTINCT c.creator_id) AS creators_count,
              SUM(c.escrow_amount) AS spend,
-             rt.roi_percentage AS roi,
+             MAX(rt.roi_percentage) AS roi,
              c.status
       FROM campaigns c
       LEFT JOIN roi_tracking rt ON rt.campaign_id = c.id
       WHERE c.brand_id = ? AND c.status NOT IN ('campaign_closed','declined')
-      GROUP BY c.title
+      GROUP BY c.id, c.title, c.status
       ORDER BY c.created_at DESC LIMIT 5
     `, [id]);
 
     // Monthly Spend Chart
     const [qchart] = await pool.query(`
-      SELECT DATE_FORMAT(paid_at, '%b') AS month, SUM(amount) AS spend, AVG(rt.roi_percentage) AS roi
+      SELECT ANY_VALUE(DATE_FORMAT(paid_at, '%b')) AS month, SUM(amount) AS spend, AVG(rt.roi_percentage) AS roi
       FROM brand_payments bp
       LEFT JOIN roi_tracking rt ON rt.campaign_id = bp.campaign_id
       WHERE bp.brand_id=? AND bp.payment_status='completed' AND bp.paid_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-      GROUP BY YEAR(paid_at), MONTH(paid_at) ORDER BY paid_at ASC
+      GROUP BY YEAR(paid_at), MONTH(paid_at) ORDER BY MIN(paid_at) ASC
     `, [id]);
 
     // Sent Requests
@@ -168,7 +168,7 @@ exports.getDashboard = async (req, res, next) => {
     `, [id]);
 
     const [qbest] = await pool.query(`
-      SELECT cr.name, AVG(ca.engagement_rate) AS er
+      SELECT MAX(cr.name) AS name, AVG(ca.engagement_rate) AS er
       FROM campaigns c
       JOIN creators cr ON cr.id = c.creator_id
       JOIN campaign_analytics ca ON ca.campaign_id = c.id

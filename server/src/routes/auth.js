@@ -11,6 +11,7 @@ router.post('/brand/register', validate(['name', 'email', 'password']), authCont
 router.post('/brand/login', validate(['email', 'password']), authController.loginBrand);
 
 router.post('/login', validate(['email', 'password']), authController.login);
+router.post('/google-login', authController.googleLogin);
 
 router.get('/me', verifyToken, authController.getMe);
 

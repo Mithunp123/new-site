@@ -9,7 +9,7 @@ const menuItems = [
   { key: 'profile', label: 'Profile', icon: User },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'security', label: 'Security', icon: Shield },
-  { key: 'billing', label: 'Billing', icon: CreditCard },
+  { key: 'payout', label: 'Payout Method', icon: CreditCard },
   { key: 'integrations', label: 'Integrations', icon: Plug },
   { key: 'danger', label: 'Danger Zone', icon: AlertTriangle, danger: true },
 ];
@@ -32,6 +32,7 @@ export default function SettingsPage() {
         phone: data.phone || '',
         bio: data.bio || '',
         location: data.location || '',
+        upi_id: data.upi_id || '',
         languages_known: data.languages_known ? (Array.isArray(data.languages_known) ? data.languages_known.join(', ') : data.languages_known) : ''
       });
     }
@@ -211,7 +212,37 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {['notifications', 'billing', 'integrations'].includes(activeTab) && (
+          {activeTab === 'payout' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <h3 className="text-base font-bold font-heading text-slate-900 mb-6">Payout Details</h3>
+              <div className="space-y-6 max-w-lg">
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-1.5 block">UPI ID</label>
+                  <input value={form.upi_id || ''} 
+                    onChange={e => setForm({...form, upi_id: e.target.value})}
+                    placeholder="yourname@upi"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition" />
+                  <p className="text-xs text-slate-400 mt-2 italic">
+                    Your earnings will be transferred to this UPI ID when you request a withdrawal.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                  <div className="flex gap-3">
+                    <CreditCard className="text-blue-600 shrink-0" size={20} />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900">Important Note</p>
+                      <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">
+                        Please ensure your UPI ID is correct. Gradix is not responsible for transfers to incorrect IDs provided by users.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {['notifications', 'integrations'].includes(activeTab) && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
               <p className="text-slate-400 text-sm">Settings for {activeTab} coming soon</p>
             </div>

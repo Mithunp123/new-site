@@ -136,6 +136,30 @@ const useAuthStore = create((set) => ({
     }
   },
 
+  // Google Login
+  googleLogin: async (accessToken) => {
+    set({ loading: true, error: null });
+    try {
+      const res = await creatorApi.googleLogin({ access_token: accessToken });
+      const { token, user, role } = res.data.data;
+      localStorage.setItem('gradix_token', token);
+      localStorage.setItem('gradix_user', JSON.stringify(user));
+      localStorage.setItem('gradix_role', role);
+      set({
+        token,
+        user,
+        role,
+        isAuthenticated: true,
+        loading: false
+      });
+      return { user, role };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Google Login failed';
+      set({ error: errorMsg, loading: false });
+      throw err;
+    }
+  },
+
   // Admin Login (Legacy specific)
   loginAdmin: async (data) => {
     set({ loading: true, error: null });

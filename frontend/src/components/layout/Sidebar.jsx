@@ -8,7 +8,7 @@ import useAuthStore from '../../store/authStore';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/requests', icon: Inbox, label: 'Incoming Requests', badge: true },
+  { to: '/requests', icon: Inbox, label: 'Incoming Requests' },
   { to: '/campaigns', icon: Briefcase, label: 'My Campaigns' },
   { to: '/earnings', icon: DollarSign, label: 'Earnings' },
 ];

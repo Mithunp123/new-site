@@ -107,7 +107,7 @@ exports.updateProfile = async (req, res, next) => {
   try {
     const fields = {};
     const body = req.body;
-    ['name', 'display_name', 'bio', 'location', 'phone'].forEach(f => {
+    ['name', 'display_name', 'bio', 'location', 'phone', 'upi_id'].forEach(f => {
       if (body[f] !== undefined) fields[f] = body[f];
     });
     if (body.languages_known) fields.languages_known = JSON.stringify(body.languages_known);
@@ -168,7 +168,7 @@ exports.getDashboard = async (req, res, next) => {
     const [q4] = await pool.query("SELECT c.*, b.name AS brand_name FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.status NOT IN ('campaign_closed','declined') ORDER BY c.deadline ASC LIMIT 5", [id]);
     const [q5] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE creator_id = ? AND status = 'request_sent'", [id]);
     const [q6] = await pool.query("SELECT c.*, b.name AS brand_name FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.status = 'request_sent' ORDER BY c.created_at DESC LIMIT 2", [id]);
-    const [q7] = await pool.query("SELECT DATE_FORMAT(created_at, '%b') AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 MONTH) GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY created_at ASC", [id]);
+    const [q7] = await pool.query("SELECT ANY_VALUE(DATE_FORMAT(created_at, '%b')) AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 MONTH) GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY MIN(created_at) ASC", [id]);
     const [q8] = await pool.query("SELECT c.*, b.name AS brand_name, DATEDIFF(c.deadline, NOW()) AS days_remaining FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.creator_id = ? AND c.deadline >= NOW() AND c.status NOT IN ('campaign_closed','declined') ORDER BY c.deadline ASC LIMIT 3", [id]);
     const [q9] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? AND YEAR(created_at) = YEAR(NOW())", [id]);
 
@@ -283,7 +283,9 @@ exports.getEarnings = async (req, res, next) => {
     const [q5] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id=? AND MONTH(created_at)=MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH))", [id]);
     const [q6] = await pool.query("SELECT c.id, b.name AS brand_name, c.title, e.gross_amount, e.payment_status FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? AND e.payment_status = 'in_escrow'", [id]);
     const [q7] = await pool.query("SELECT e.*, b.name AS brand_name, c.title AS campaign_title FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? ORDER BY e.created_at DESC LIMIT 20", [id]);
-    const [q8] = await pool.query("SELECT DATE_FORMAT(created_at, '%b') AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY created_at DESC LIMIT 6", [id]);
+    const [q8] = await pool.query("SELECT ANY_VALUE(DATE_FORMAT(created_at, '%b')) AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY MIN(created_at) DESC LIMIT 6", [id]);
+    
+    const [creator] = await pool.query('SELECT upi_id FROM creators WHERE id = ?', [id]);
 
     success(res, {
       total_all_time: q1[0].total,
@@ -293,7 +295,8 @@ exports.getEarnings = async (req, res, next) => {
       last_month: q5[0].total,
       escrow_campaigns: q6,
       history: q7,
-      chart: q8.reverse()
+      chart: q8.reverse(),
+      upi_id: creator[0]?.upi_id || null
     });
   } catch (err) {
     next(err);
@@ -356,7 +359,7 @@ exports.getLeads = async (req, res, next) => {
     const [q1] = await pool.query('SELECT COUNT(*) AS total FROM leads WHERE creator_id=?', [id]);
     const [q2] = await pool.query('SELECT COUNT(*) AS count FROM leads WHERE creator_id=? AND converted=true', [id]);
     const [q3] = await pool.query('SELECT AVG(deal_value) AS avg FROM leads WHERE creator_id=?', [id]);
-    const [q4] = await pool.query('SELECT c.title, COUNT(l.id) AS lead_count FROM leads l JOIN campaigns c ON c.id = l.campaign_id WHERE l.creator_id = ? GROUP BY l.campaign_id ORDER BY lead_count DESC', [id]);
+    const [q4] = await pool.query('SELECT MAX(c.title) AS title, COUNT(l.id) AS lead_count FROM leads l JOIN campaigns c ON c.id = l.campaign_id WHERE l.creator_id = ? GROUP BY l.campaign_id ORDER BY lead_count DESC', [id]);
     const [q5] = await pool.query('SELECT niche, COUNT(*) AS total, SUM(CASE WHEN converted=true THEN 1 ELSE 0 END) AS converted_count, ROUND(SUM(CASE WHEN converted=true THEN 1 ELSE 0 END)*100/COUNT(*),1) AS conversion_rate FROM leads WHERE creator_id=? GROUP BY niche ORDER BY conversion_rate DESC', [id]);
 
     success(res, {
