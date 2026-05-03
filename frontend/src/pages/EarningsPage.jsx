@@ -5,11 +5,17 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getEarnings } from '../api/creatorApi';
 import StatCard from '../components/ui/StatCard';
 import Badge from '../components/ui/Badge';
+import useAuthStore from '../store/authStore';
 
 const fmt = (v) => `₹${(v || 0).toLocaleString('en-IN')}`;
 
 export default function EarningsPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['earnings'], queryFn: () => getEarnings().then(r => r.data) });
+  const { user } = useAuthStore();
+  const { data, isLoading } = useQuery({ 
+    queryKey: ['earnings', user?.id], 
+    queryFn: () => getEarnings().then(r => r.data.data),
+    staleTime: 0
+  });
 
   if (isLoading) {
     return (
@@ -115,7 +121,7 @@ export default function EarningsPage() {
 
             <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-2">Payout Method</p>
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-700 mb-4">
-              {d.upi_id ? `UPI — ${d.upi_id}` : 'UPI — Not Set'}
+              {(d.upi_id || user?.upi_id) ? `UPI — ${d.upi_id || user?.upi_id}` : 'UPI — Not Set'}
             </div>
 
             <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition text-sm">

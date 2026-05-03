@@ -20,7 +20,7 @@ export default function IncomingRequestsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests', activeTab, search],
-    queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data)
+    queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data.data)
   });
 
   const acceptMut = useMutation({

@@ -8,7 +8,7 @@ import ProgressStepper from '../components/ui/ProgressStepper';
 export default function MyCampaignsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['myCampaigns'],
-    queryFn: () => getMyCampaigns({}).then(r => r.data)
+    queryFn: () => getMyCampaigns({}).then(r => r.data.data)
   });
 
   if (isLoading) {

@@ -12,7 +12,7 @@ export default function PerformanceAnalyticsPage() {
   const [period, setPeriod] = useState('30d');
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', period],
-    queryFn: () => getAnalytics({ period }).then(r => r.data)
+    queryFn: () => getAnalytics({ period }).then(r => r.data.data)
   });
 
   if (isLoading) {

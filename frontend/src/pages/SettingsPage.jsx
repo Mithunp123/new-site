@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { User, Bell, Shield, CreditCard, Plug, AlertTriangle, Save, Upload, Camera } from 'lucide-react';
 import { getProfile, updateProfile, updatePassword, deleteAccount } from '../api/creatorApi';
@@ -15,6 +15,7 @@ const menuItems = [
 ];
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('profile');
   const { user } = useAuthStore();
   const [form, setForm] = useState({});
@@ -23,24 +24,32 @@ export default function SettingsPage() {
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
-    queryFn: () => getProfile().then(r => r.data),
-    onSuccess: (data) => {
+    queryFn: () => getProfile().then(r => r.data.data)
+  });
+
+  useEffect(() => {
+    if (profile) {
       setForm({
-        name: data.name || '',
-        display_name: data.display_name || '',
-        email: data.email || '',
-        phone: data.phone || '',
-        bio: data.bio || '',
-        location: data.location || '',
-        upi_id: data.upi_id || '',
-        languages_known: data.languages_known ? (Array.isArray(data.languages_known) ? data.languages_known.join(', ') : data.languages_known) : ''
+        name: profile.name || '',
+        display_name: profile.display_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+        bio: profile.bio || '',
+        location: profile.location || '',
+        upi_id: profile.upi_id || '',
+        languages_known: profile.languages_known ? (Array.isArray(profile.languages_known) ? profile.languages_known.join(', ') : profile.languages_known) : ''
       });
     }
-  });
+  }, [profile]);
 
   const updateMut = useMutation({
     mutationFn: (data) => updateProfile(data),
-    onSuccess: () => setMsg('Profile updated successfully!')
+    onSuccess: () => {
+      queryClient.invalidateQueries(['profile']);
+      queryClient.invalidateQueries(['earnings']);
+      setMsg('Profile updated successfully!');
+      setTimeout(() => setMsg(''), 3000);
+    }
   });
 
   const pwMut = useMutation({

@@ -7,7 +7,7 @@ import StatCard from '../components/ui/StatCard';
 const nicheEmojis = { Beauty: '💄', Fashion: '👗', Food: '🍕', Tech: '💻' };
 
 export default function LeadManagementPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['leads'], queryFn: () => getLeads().then(r => r.data) });
+  const { data, isLoading } = useQuery({ queryKey: ['leads'], queryFn: () => getLeads().then(r => r.data.data) });
 
   if (isLoading) {
     return (

@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const { data, isLoading, error } = useQuery({ 
     queryKey: ['dashboard'], 
-    queryFn: () => getDashboard().then(r => r.data),
+    queryFn: () => getDashboard().then(r => r.data.data),
     refetchInterval: 60000 // Refetch every minute
   });
 

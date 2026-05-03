@@ -88,6 +88,7 @@ exports.getProfile = async (req, res, next) => {
     const [nicheRows] = await pool.query('SELECT * FROM creator_niche_details WHERE creator_id = ?', [creator_id]);
 
     const { password_hash, ...creator } = creatorRows[0];
+    console.log(`[getProfile] Sending for ID: ${creator_id}, UPI: ${creator.upi_id}`);
     const niche_details = nicheRows[0] || {};
     ['categories', 'subcategories', 'worked_with_brands', 'screenshots_testimonials', 'sample_links'].forEach(field => {
       if (niche_details[field]) niche_details[field] = typeof niche_details[field] === 'string' ? JSON.parse(niche_details[field]) : niche_details[field];
@@ -286,19 +287,54 @@ exports.getEarnings = async (req, res, next) => {
     const [q8] = await pool.query("SELECT ANY_VALUE(DATE_FORMAT(created_at, '%b')) AS month, COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id = ? GROUP BY YEAR(created_at), MONTH(created_at) ORDER BY MIN(created_at) DESC LIMIT 6", [id]);
     
     const [creator] = await pool.query('SELECT upi_id FROM creators WHERE id = ?', [id]);
+    console.log('--- DEBUG EARNINGS ---');
+    console.log('User ID from token:', id);
+    console.log('Fetched UPI:', creator[0]?.upi_id);
+    
+    const escrow_total = q6.reduce((acc, curr) => acc + (curr.gross_amount || 0), 0);
+    const thisMonth = q4[0]?.total || 0;
+    const lastMonth = q5[0]?.total || 0;
+    
+    let earnings_change_pct = 0;
+    if (lastMonth > 0) {
+      earnings_change_pct = ((thisMonth - lastMonth) / lastMonth) * 100;
+    } else if (thisMonth > 0) {
+      earnings_change_pct = 100;
+    }
 
-    success(res, {
-      total_all_time: q1[0].total,
-      available_to_withdraw: q2[0].total,
-      pending_release: q3[0].total,
-      this_month: q4[0].total,
-      last_month: q5[0].total,
-      escrow_campaigns: q6,
-      history: q7,
-      chart: q8.reverse(),
-      upi_id: creator[0]?.upi_id || null
-    });
+
+    const responseData = {
+      total_earned_all_time: q1[0].total || 0,
+      available_to_withdraw: q2[0].total || 0,
+      pending_release: q3[0].total || 0,
+      this_month: q4[0].total || 0,
+      change_pct: earnings_change_pct || 0,
+      upi_id: creator[0]?.upi_id || null,
+      escrow_balance: {
+        total: escrow_total,
+        campaigns: (q6 || []).map(c => ({
+          brand: c.brand_name,
+          amount: c.gross_amount,
+          status: 'Active'
+        }))
+      },
+      transaction_history: (q7 || []).map(t => ({
+        date: t.created_at,
+        brand_name: t.brand_name,
+        campaign_title: t.campaign_title,
+        amount: t.net_amount,
+        payment_status: t.payment_status
+      })),
+      monthly_chart: (q8 || []).reverse().map(c => ({
+        month: c.month,
+        total: c.total
+      }))
+    };
+    
+    console.log('Final Payload upi_id:', responseData.upi_id);
+    success(res, responseData);
   } catch (err) {
+    console.error('Error in getEarnings:', err);
     next(err);
   }
 };
