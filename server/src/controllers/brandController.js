@@ -202,7 +202,7 @@ exports.discoverCreators = async (req, res, next) => {
     const { niche, platform, followers, min_er, location, budget_min, budget_max, language, search, page = 1, limit = 12 } = req.query;
     const offset = (page - 1) * limit;
     const params = [req.user.id];
-    let where = 'WHERE cr.is_active = true AND (ig.id IS NOT NULL OR yt.id IS NOT NULL)';
+    let where = 'WHERE cr.is_active = true AND cr.is_verified = true AND (ig.id IS NOT NULL OR yt.id IS NOT NULL)';
 
     if (followers) {
       let min = 0, max = 999999999;
@@ -235,9 +235,13 @@ exports.discoverCreators = async (req, res, next) => {
         nd.sample_links,
         COALESCE(ig.platform, yt.platform) AS primary_platform,
         COALESCE(ig.followers_count, yt.followers_count) AS followers_count,
+        ig.followers_count AS instagram_followers,
+        yt.followers_count AS youtube_subscribers,
         COALESCE(ig.avg_views, yt.avg_views) AS avg_views,
         COALESCE(ig.engagement_rate, yt.engagement_rate) AS engagement_rate,
         COALESCE(ig.profile_url, yt.profile_url) AS primary_profile_url,
+        CASE WHEN ig.id IS NOT NULL THEN true ELSE false END AS has_instagram,
+        CASE WHEN yt.id IS NOT NULL THEN true ELSE false END AS has_youtube,
         CASE WHEN bsc.id IS NOT NULL THEN true ELSE false END AS is_saved
       FROM creators cr
       LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
@@ -283,39 +287,61 @@ exports.sendCollaborationRequest = async (req, res, next) => {
   try {
     const { creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget_offer, tracking_link, deliverables_required } = req.body;
     
+    console.log('[DEBUG] sendCollaborationRequest received:', req.body);
+
     // Validations
-    if (!creator_id || !campaign_name || !campaign_goal || !campaign_brief || !platform || !content_type || !number_of_posts || !start_date || !end_date || !respond_by || !budget_offer || !deliverables_required) {
-      return error(res, 'All fields except tracking link are required', 400);
+    const requiredFields = [
+      'creator_id', 'campaign_name', 'campaign_goal', 'campaign_brief', 
+      'platform', 'content_type', 'number_of_posts', 'start_date', 
+      'end_date', 'respond_by', 'budget_offer', 'deliverables_required'
+    ];
+
+    const missingFields = requiredFields.filter(field => {
+      const val = req.body[field];
+      return val === undefined || val === null || val === '';
+    });
+
+    if (missingFields.length > 0) {
+      console.log('[DEBUG] Missing fields:', missingFields);
+      return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
-    if (budget_offer <= 0) return error(res, 'Budget offer must be greater than 0', 400);
-    if (new Date(end_date) <= new Date(start_date)) return error(res, 'End date must be after start date', 400);
+    
+    if (Number(budget_offer) <= 0) return error(res, 'Budget offer must be greater than 0', 400);
+    
+    // Robust date check
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+    if (end < start) return error(res, 'End date cannot be earlier than start date', 400);
 
     const [existingCampaigns] = await pool.query(`SELECT id FROM campaigns WHERE brand_id=? AND creator_id=? AND status NOT IN ('campaign_closed','declined')`, [req.user.id, creator_id]);
     if (existingCampaigns.length > 0) return error(res, 'You already have an active campaign with this creator', 400);
 
     const platform_fee_rate = parseFloat(process.env.PLATFORM_FEE_RATE) || 8.00;
-    const platform_fee = budget_offer * (platform_fee_rate / 100);
-    const total_to_escrow = budget_offer + platform_fee;
+    const budget = Number(budget_offer);
+    const platform_fee = budget * (platform_fee_rate / 100);
+    const total_to_escrow = budget + platform_fee;
 
     const [res_camp] = await pool.query(
       `INSERT INTO campaigns (brand_id, creator_id, title, campaign_goal, brief, platform, content_type, number_of_posts, start_date, deadline, respond_by, budget, escrow_amount, platform_fee, total_to_escrow, tracking_link, tracking_link_provided, deliverables_required, status, escrow_status, commission_rate)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.id, creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget_offer, total_to_escrow, platform_fee, total_to_escrow, tracking_link, tracking_link ? true : false, deliverables_required, 'request_sent', 'pending', 10.00]
+      [req.user.id, creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget, total_to_escrow, platform_fee, total_to_escrow, tracking_link, tracking_link ? true : false, deliverables_required, 'request_sent', 'pending', 10.00]
     );
     const campaign_id = res_camp.insertId;
 
     await pool.query('INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, ?, ?)', [campaign_id, 'request_sent', 'brand']);
     await pool.query('INSERT INTO brand_payments (brand_id, campaign_id, amount, payment_type, payment_status) VALUES (?, ?, ?, ?, ?)', [req.user.id, campaign_id, total_to_escrow, 'escrow', 'pending']);
     
-    const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [req.user.id]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', creator_id, 'New Campaign Request', `${brand[0].name} sent you a collaboration for "${campaign_name}"`]);
+    const [brandRows] = await pool.query('SELECT name FROM brands WHERE id=?', [req.user.id]);
+    const brandName = brandRows[0]?.name || 'A Brand';
+    
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', creator_id, 'New Campaign Request', `${brandName} sent you a collaboration for "${campaign_name}"`]);
 
     res.status(201).json({
       success: true,
       data: {
         campaign_id,
         creator_id,
-        budget_offer,
+        budget_offer: budget,
         platform_fee,
         total_to_escrow,
         status: 'request_sent',
@@ -323,6 +349,7 @@ exports.sendCollaborationRequest = async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.error('Error in sendCollaborationRequest:', err);
     next(err);
   }
 };

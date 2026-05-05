@@ -227,9 +227,9 @@ export default function BrandDiscoverPage() {
                   {/* Platform Stats */}
                   <div className="bg-slate-50 rounded-lg p-3 mb-4 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600">{creator.platform || 'N/A'}</span>
+                      <span className="text-slate-600 uppercase font-black tracking-tighter">{creator.primary_platform || 'N/A'}</span>
                       <span className="font-semibold text-slate-900">
-                        {(creator.followers_count / 1000).toFixed(0)}K followers
+                        {((creator.followers_count || 0) / 1000).toFixed(0)}K followers
                       </span>
                     </div>
                   </div>
@@ -237,22 +237,22 @@ export default function BrandDiscoverPage() {
                   {/* Stats Row */}
                   <div className="grid grid-cols-3 gap-2 mb-4 text-center">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{creator.followers_count}</p>
+                      <p className="text-sm font-bold text-slate-900">{(creator.followers_count || 0).toLocaleString()}</p>
                       <p className="text-xs text-slate-600">Followers</p>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{creator.avg_views}</p>
+                      <p className="text-sm font-bold text-slate-900">{(creator.avg_views || 0).toLocaleString()}</p>
                       <p className="text-xs text-slate-600">Avg Views</p>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{creator.engagement_rate.toFixed(1)}%</p>
+                      <p className="text-sm font-bold text-slate-900">{(creator.engagement_rate || 0).toFixed(1)}%</p>
                       <p className="text-xs text-slate-600">ER</p>
                     </div>
                   </div>
 
                   {/* Categories */}
                   <div className="flex flex-wrap gap-1 mb-4">
-                    {creator.categories.slice(0, 2).map((cat, idx) => (
+                    {Array.isArray(creator.categories) && creator.categories.slice(0, 2).map((cat, idx) => (
                       <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
                         {cat}
                       </span>

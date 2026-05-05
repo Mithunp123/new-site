@@ -21,7 +21,7 @@ export default function AdminCreatorsPage() {
     try {
       setLoading(true);
       const res = await adminApi.getCreators();
-      setCreators(res.data.creators || []);
+      setCreators(res.data.data.creators || []);
     } catch (err) {
       console.error('Failed to fetch creators:', err);
     } finally {
@@ -119,50 +119,78 @@ export default function AdminCreatorsPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-[10px] font-bold text-gray-400 tracking-widest uppercase border-b border-gray-50">
-                  <th className="px-8 py-5">Creator</th>
-                  <th className="px-8 py-5">Niche</th>
-                  <th className="px-8 py-5">Followers</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Actions</th>
+                  <th className="px-6 py-5 w-[30%]">Creator</th>
+                  <th className="px-6 py-5 w-[20%]">Niche</th>
+                  <th className="px-6 py-5 w-[15%]">Followers</th>
+                  <th className="px-6 py-5 w-[15%]">Status</th>
+                  <th className="px-6 py-5 w-[20%] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredCreators.map((creator) => (
                   <tr key={creator.id} className="group hover:bg-[#F8FAFC] transition-colors">
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-blue-50 border-2 border-white shadow-sm flex items-center justify-center text-blue-600 font-black text-xs overflow-hidden">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 border-2 border-white shadow-sm flex items-center justify-center text-blue-600 font-black text-xs overflow-hidden flex-shrink-0">
                           {creator.avatar ? (
                             <img src={creator.avatar} alt={creator.name} className="w-full h-full object-cover" />
                           ) : (
                             creator.name?.substring(0, 2).toUpperCase()
                           )}
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{creator.name}</p>
-                          <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">@{creator.handle}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{creator.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {creator.platforms?.map(p => (
+                              <span key={p} className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                                {p === 'instagram' ? (
+                                  <svg className="w-3 h-3 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                                ) : p === 'youtube' ? (
+                                  <svg className="w-3 h-3 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+                                ) : null}
+                                {p}
+                              </span>
+                            ))}
+                            {(!creator.platforms || creator.platforms.length === 0) && (
+                              <span className="text-[10px] font-bold text-gray-300 uppercase tracking-tighter italic">No profiles</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{creator.category || 'Niche'}</span>
+                    <td className="px-6 py-5">
+                      <span className="text-xs font-bold text-gray-600 bg-gray-50 px-2 py-1 rounded-lg uppercase tracking-tight">{creator.category || 'Niche'}</span>
                     </td>
-                    <td className="px-8 py-5">
-                      <span className="text-sm font-black text-gray-900">{creator.followers_count?.toLocaleString() || '0'}</span>
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between min-w-[120px]">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Instagram</span>
+                          <span className="text-xs font-black text-gray-900">{creator.instagram_followers?.toLocaleString() || '0'}</span>
+                        </div>
+                        <div className="flex items-center justify-between min-w-[120px]">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">YouTube</span>
+                          <span className="text-xs font-black text-gray-900">{creator.youtube_followers?.toLocaleString() || '0'}</span>
+                        </div>
+                        <div className="h-px bg-gray-50 my-0.5"></div>
+                        <div className="flex items-center justify-between min-w-[120px]">
+                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">Total</span>
+                          <span className="text-sm font-black text-blue-600">{(creator.instagram_followers + creator.youtube_followers)?.toLocaleString() || '0'}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         creator.verification_status === 'verified'
                           ? 'bg-green-50 text-green-600'
-                          : creator.verification_status === 'flagged'
+                          : creator.verification_status === 'flagged' || creator.verification_status === 'inactive'
                           ? 'bg-red-50 text-red-600'
                           : 'bg-orange-50 text-orange-600'
                       }`}>
                         {creator.verification_status || 'Pending'}
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         {creator.verification_status !== 'verified' && (
                           <button
                             onClick={() => {
@@ -173,7 +201,7 @@ export default function AdminCreatorsPage() {
                             className="p-2 hover:bg-green-50 text-green-600 rounded-xl transition-all"
                             title="Verify Profile"
                           >
-                            <CheckCircle size={20} />
+                            <CheckCircle size={18} />
                           </button>
                         )}
                         <button
@@ -185,11 +213,26 @@ export default function AdminCreatorsPage() {
                           className="p-2 hover:bg-red-50 text-red-400 rounded-xl transition-all"
                           title="Flag as Fake"
                         >
-                          <Flag size={20} />
+                          <Flag size={18} />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 text-gray-400 rounded-xl transition-all">
-                          <MoreVertical size={20} />
-                        </button>
+                        <div className="relative group/menu">
+                          <button className="p-2 hover:bg-gray-100 text-gray-400 rounded-xl transition-all">
+                            <MoreVertical size={18} />
+                          </button>
+                          {/* Submenu on hover or click - simplified here as a tooltip/info */}
+                          <div className="absolute right-0 bottom-full mb-2 hidden group-hover/menu:block w-32 bg-[#0F172A] text-white p-2 rounded-xl text-[10px] font-bold shadow-xl z-10">
+                            <button 
+                              onClick={() => {
+                                setSelectedCreator(creator);
+                                setActionType('deactivate');
+                                setShowActionModal(true);
+                              }}
+                              className="w-full text-left px-2 py-1.5 hover:bg-white/10 rounded-lg flex items-center gap-2"
+                            >
+                              <XCircle size={12} className="text-red-400" /> Deactivate
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>

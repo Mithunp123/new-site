@@ -7,6 +7,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 import * as adminApi from "../api/adminApi";
+import { formatCount } from "../utils/format";
 
 const StatCard = ({ label, value, subText, subValue, icon: Icon, isBlue }) => (
   <motion.div
@@ -48,6 +49,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [pendingCreators, setPendingCreators] = useState([]);
   const [disputes, setDisputes] = useState([]);
+  const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,8 +61,8 @@ export default function AdminDashboardPage() {
         ]);
         
         setDashboard(dashRes.data.data);
-        setPendingCreators(creatorsRes.data.creators || []);
-        setDisputes(disputesRes.data || []);
+        setPendingCreators(creatorsRes.data.data.creators || []);
+        setDisputes(disputesRes.data.data || []);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
@@ -155,27 +157,89 @@ export default function AdminDashboardPage() {
                   {pendingCreators.map((item) => (
                     <tr key={item.id} className="group hover:bg-gray-50 transition-colors">
                       <td className="py-5">
-                        <span className="text-sm font-bold text-gray-900">{item.name}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{item.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {item.platforms?.map(p => (
+                              <span key={p} className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                                {p === 'instagram' ? (
+                                  <svg className="w-2.5 h-2.5 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                                ) : p === 'youtube' ? (
+                                  <svg className="w-2.5 h-2.5 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+                                ) : null}
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </td>
                       <td className="py-5">
                         <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full uppercase">Creator</span>
                       </td>
                       <td className="py-5">
-                        <span className="text-xs text-gray-500 font-medium">{item.category || 'Niche'}</span>
+                        <span className="text-[10px] font-bold text-gray-600 bg-gray-50 px-2 py-1 rounded-lg uppercase tracking-tight">{item.category || 'Niche'}</span>
                       </td>
                       <td className="py-5">
-                        <span className="text-xs text-gray-500 font-bold">{item.followers_count?.toLocaleString() || '0'}</span>
+                        <div className="flex flex-col gap-0.5">
+                          {item.instagram_followers > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-pink-500 uppercase">IG</span>
+                              <span className="text-[11px] font-bold text-gray-700">{formatCount(Number(item.instagram_followers))}</span>
+                            </div>
+                          )}
+                          {item.youtube_followers > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-red-600 uppercase">YT</span>
+                              <span className="text-[11px] font-bold text-gray-700">{formatCount(Number(item.youtube_followers))}</span>
+                            </div>
+                          )}
+                          {!item.instagram_followers && !item.youtube_followers && (
+                            <span className="text-xs text-gray-400 font-bold">0</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-5">
                         <span className="text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</span>
                       </td>
                       <td className="py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button className="px-3 py-1.5 bg-[#2563EB] text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 transition-all">
-                            ✓ Approve
+                          <button 
+                            disabled={!!processingId}
+                            onClick={async () => {
+                              setProcessingId(item.id);
+                              try {
+                                await adminApi.verifyCreator(item.id);
+                                setPendingCreators(prev => prev.filter(p => p.id !== item.id));
+                              } catch (err) {
+                                console.error('Failed to verify:', err);
+                              } finally {
+                                setProcessingId(null);
+                              }
+                            }}
+                            className={`px-3 py-1.5 bg-[#2563EB] text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          >
+                            {processingId === item.id ? (
+                              <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            ) : '✓ Approve'}
                           </button>
-                          <button className="px-3 py-1.5 bg-white border border-red-100 text-red-500 text-[10px] font-bold rounded-lg hover:bg-red-50 transition-all">
-                            ✕ Reject
+                          <button 
+                            disabled={!!processingId}
+                            onClick={async () => {
+                              setProcessingId(item.id);
+                              try {
+                                await adminApi.deactivateCreator(item.id);
+                                setPendingCreators(prev => prev.filter(p => p.id !== item.id));
+                              } catch (err) {
+                                console.error('Failed to deactivate:', err);
+                              } finally {
+                                setProcessingId(null);
+                              }
+                            }}
+                            className={`px-3 py-1.5 bg-white border border-red-100 text-red-500 text-[10px] font-bold rounded-lg hover:bg-red-50 transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          >
+                            {processingId === item.id ? (
+                              <div className="w-3 h-3 border-2 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                            ) : '✕ Reject'}
                           </button>
                         </div>
                       </td>

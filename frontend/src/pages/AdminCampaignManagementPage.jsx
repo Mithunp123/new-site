@@ -32,7 +32,7 @@ export default function AdminCampaignManagementPage() {
     try {
       setLoading(true);
       const res = await adminApi.getCampaigns();
-      setCampaigns(res.data.campaigns || []);
+      setCampaigns(res.data.data.campaigns || []);
     } catch (err) {
       console.error('Failed to fetch campaigns:', err);
     } finally {

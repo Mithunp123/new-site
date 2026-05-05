@@ -1,14 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Inbox, Briefcase, DollarSign,
   BarChart3, Target, Settings, LogOut, CheckCircle2
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import { getRequests } from '../../api/creatorApi';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/requests', icon: Inbox, label: 'Incoming Requests' },
+  { to: '/requests', icon: Inbox, label: 'Incoming Requests', badge: true },
   { to: '/campaigns', icon: Briefcase, label: 'My Campaigns' },
   { to: '/earnings', icon: DollarSign, label: 'Earnings' },
 ];
@@ -25,6 +27,14 @@ const accountNav = [
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  const { data } = useQuery({
+    queryKey: ['requests', 'pending'],
+    queryFn: () => getRequests({ status: 'pending' }).then(r => r.data.data),
+    enabled: !!user
+  });
+
+  const pendingCount = data?.counts?.pending || 0;
 
   const handleLogout = () => {
     logout();
@@ -68,8 +78,10 @@ export default function Sidebar() {
               <NavLink key={item.to} to={item.to} className={navLinkClass}>
                 <item.icon size={18} />
                 <span>{item.label}</span>
-                {item.badge && (
-                  <span className="ml-auto bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">3</span>
+                {item.badge && pendingCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {pendingCount}
+                  </span>
                 )}
               </NavLink>
             ))}

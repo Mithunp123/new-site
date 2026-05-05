@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Search, Check, X, MessageSquare, Calendar, Link2, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Check, X, MessageSquare, Calendar, Link2, Lock, ChevronDown, ChevronUp, Bell, Inbox } from 'lucide-react';
 import { getRequests, acceptCampaign, declineCampaign } from '../api/creatorApi';
-import Badge from '../components/ui/Badge';
 
 const tabs = [
   { key: 'all', label: 'All' },
@@ -25,164 +24,220 @@ export default function IncomingRequestsPage() {
 
   const acceptMut = useMutation({
     mutationFn: (id) => acceptCampaign(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['requests'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
   });
 
   const declineMut = useMutation({
     mutationFn: (id) => declineCampaign(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['requests'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
   });
 
   const counts = data?.counts || { pending: 0, accepted: 0, completed: 0, total: 0 };
   const campaigns = data?.campaigns || [];
 
-  const borderColor = (status) => {
-    if (status === 'request_sent') return 'border-l-red-500';
-    if (['creator_accepted', 'agreement_locked'].includes(status)) return 'border-l-green-500';
-    if (['content_uploaded', 'brand_approved'].includes(status)) return 'border-l-orange-500';
-    return 'border-l-slate-300';
-  };
-
   if (isLoading) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-        <div className="h-8 w-64 bg-slate-200 rounded-lg animate-pulse"></div>
-        {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-white rounded-2xl animate-pulse"></div>)}
-      </motion.div>
+      <div className="page-content">
+        <div className="animate-pulse space-y-6">
+          <div className="h-10 w-64 bg-slate-200 rounded"></div>
+          <div className="h-40 w-full bg-white rounded-2xl"></div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="page-content" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 font-heading">Collaboration Requests</h1>
-          <p className="text-slate-500 text-sm mt-1">{counts.pending} new requests need your response within 48 hours</p>
+          <div className="text-[34px] font-[900] text-[#0f172a] tracking-tight uppercase leading-none mb-3" style={{ fontFamily: "'Inter', sans-serif", letterSpacing: '-0.05em' }}>
+            Collaboration Requests
+          </div>
+          <div className="text-[14px] text-slate-500 font-medium">
+            {counts.pending} new requests need your response within 48 hours
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">{counts.pending} Pending</span>
-          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">{counts.accepted} Accepted</span>
-          <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">{counts.completed} Completed</span>
-        </div>
-      </div>
-
-      {/* Tabs & Search */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-          {tabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {tab.label} ({tab.key === 'all' ? counts.total : counts[tab.key] || 0})
-            </button>
-          ))}
-        </div>
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search requests..."
-            className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <span className="badge" style={{ padding: '6px 12px', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.pending} Pending</span>
+          <span className="badge" style={{ padding: '6px 12px', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.accepted} Accepted</span>
+          <span className="badge" style={{ padding: '6px 12px', background: '#F3F4F6', color: '#4B5563', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.completed} Completed</span>
         </div>
       </div>
 
-      {/* Request Cards */}
-      <div className="space-y-4">
-        {campaigns.map((c, i) => {
-          const isExpanded = expandedId === c.campaign_id;
-          const respondDate = c.respond_by ? new Date(c.respond_by) : null;
-          const daysToRespond = respondDate ? Math.ceil((respondDate - new Date()) / (1000*60*60*24)) : null;
+      {/* Tabs Row */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {tabs.map(tab => (
+          <button 
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`btn btn-sm ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`}
+            style={{ 
+                padding: '8px 16px', 
+                borderRadius: '10px', 
+                fontSize: '13px', 
+                fontWeight: '700',
+                background: activeTab === tab.key ? 'var(--blue)' : 'white',
+                color: activeTab === tab.key ? 'white' : '#64748b',
+                border: activeTab === tab.key ? 'none' : '1px solid #e2e8f0'
+            }}
+          >
+            {tab.label} ({tab.key === 'all' ? counts.total : counts[tab.key] || 0})
+          </button>
+        ))}
+      </div>
 
-          return (
-            <motion.div key={c.campaign_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className={`bg-white rounded-xl border border-slate-100 shadow-sm border-l-4 ${borderColor(c.status)} overflow-hidden card-hover`}>
-              {/* Header row */}
-              <div className="flex items-center justify-between px-6 py-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-sm font-bold text-blue-600 font-heading">
-                    {c.brand_name?.slice(0,2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800 font-heading">{c.brand_name}</span>
-                      <span className="text-slate-400">—</span>
-                      <span className="text-slate-600">{c.title}</span>
+      {/* Campaigns List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {campaigns.length > 0 ? (
+          campaigns.map((c) => {
+            const isPending = c.status === 'request_sent';
+            const isExpanded = expandedId === c.campaign_id;
+            
+            const iconBg = c.platform === 'instagram' ? '#fff3e0' : '#fce4ec';
+            const iconColor = c.platform === 'instagram' ? '#e65100' : '#c2185b';
+            
+            // Border Left colors
+            let leftBorder = '4px solid #e2e8f0';
+            if (isPending) leftBorder = '4px solid #ef4444'; // Danger
+            else if (['creator_accepted', 'agreement_locked'].includes(c.status)) leftBorder = '4px solid #f59e0b'; // Warning/Accepted
+            else if (['content_uploaded', 'brand_approved', 'posted_live'].includes(c.status)) leftBorder = '4px solid #10b981'; // Success
+
+            return (
+              <div key={c.campaign_id} className="card" style={{ borderLeft: leftBorder, background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <div className="card-body" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '20px', paddingRight: '20px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' }}>
+                    {/* Brand Initial Circle */}
+                    <div style={{ 
+                      width: '44px', 
+                      height: '44px', 
+                      borderRadius: '12px', 
+                      background: iconBg, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontWeight: '800', 
+                      fontSize: '14px', 
+                      color: iconColor, 
+                      flexShrink: 0 
+                    }}>
+                      {c.brand_initials || 'BR'}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{c.deliverable}</p>
+
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      {/* Title & Price Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                        <div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-1)' }}>
+                            {c.brand_name} — {c.title}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                            {c.deliverable} · {c.content_type}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', fontWeight: '800', color: 'var(--blue)' }}>
+                            ₹{Number(c.amount).toLocaleString('en-IN')}
+                          </div>
+                          <span className={`badge ${isPending ? 'badge-red' : 'badge-orange'}`} style={{ gap: '6px' }}>
+                            <span style={{ 
+                              width: '6px', 
+                              height: '6px', 
+                              borderRadius: '50%', 
+                              background: isPending ? 'var(--red)' : 'var(--orange)',
+                              display: 'inline-block'
+                            }}></span>
+                            Respond by {new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Campaign Brief */}
+                      {(isPending || isExpanded) && (
+                        <div style={{ background: 'var(--bg-page)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', marginBottom: '6px', textTransform: 'uppercase' }}>CAMPAIGN BRIEF</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.6' }}>{c.brief}</div>
+                        </div>
+                      )}
+
+                      {/* Metadata Row */}
+                      {(isPending || isExpanded) && (
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>📅 Timeline: <strong>{c.timeline_label}</strong></div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>🔗 Tracking Link: <strong>{c.tracking_label}</strong></div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>💰 Escrow: <strong>{c.escrow_label}</strong></div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {isPending ? (
+                          <>
+                            <button 
+                              onClick={() => acceptMut.mutate(c.campaign_id)}
+                              className="btn btn-primary"
+                              disabled={acceptMut.isLoading}
+                              style={{ padding: '8px 20px' }}
+                            >
+                              ✓ {acceptMut.isLoading ? 'Accepting...' : 'Accept Collaboration'}
+                            </button>
+                            <button className="btn btn-outline" style={{ background: 'transparent' }}>
+                              Negotiate Rate
+                            </button>
+                            <button 
+                              onClick={() => declineMut.mutate(c.campaign_id)}
+                              className="btn btn-sm" 
+                              style={{ color: 'var(--red)', background: 'transparent', border: 'none', fontWeight: '700' }}
+                            >
+                              ✕ Decline
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              disabled 
+                              className="btn" 
+                              style={{ background: 'var(--green)', color: 'white', opacity: 1, cursor: 'default', boxShadow: 'none' }}
+                            >
+                              ✓ Accepted
+                            </button>
+                            <button 
+                              onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
+                              className="btn btn-outline"
+                              style={{ background: 'transparent' }}
+                            >
+                              {isExpanded ? 'Close Brief' : 'View Full Brief'}
+                            </button>
+                            <button 
+                              onClick={() => declineMut.mutate(c.campaign_id)}
+                              className="btn btn-sm" 
+                              style={{ color: 'var(--red)', background: 'transparent', border: 'none', fontWeight: '700' }}
+                            >
+                              ✕ Decline
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-lg font-bold text-blue-600 font-heading">₹{c.amount?.toLocaleString('en-IN')}</span>
-                  {respondDate && c.status === 'request_sent' && (
-                    <span className={`text-xs font-medium ${daysToRespond <= 2 ? 'text-red-500' : 'text-orange-500'}`}>
-                      Respond by {respondDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                    </span>
-                  )}
-                  <Badge status={c.status} />
-                  {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                 </div>
               </div>
-
-              {/* Expanded content */}
-              {isExpanded && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} transition={{ duration: 0.2 }}
-                  className="px-6 pb-6 border-t border-slate-100">
-                  <div className="pt-4">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Campaign Brief</h4>
-                    <p className="text-sm text-slate-600 leading-relaxed">{c.brief}</p>
-
-                    <div className="flex items-center gap-6 mt-4 pt-4 border-t border-slate-100">
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Calendar size={14} /> Deadline: {new Date(c.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Link2 size={14} /> Tracking Link: Provided
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Lock size={14} /> Escrow: {c.escrow_status === 'held' ? 'Secured' : c.escrow_status === 'pending' ? 'Pending' : 'Released'}
-                      </div>
-                    </div>
-
-                    {c.status === 'request_sent' && (
-                      <div className="flex items-center gap-3 mt-5">
-                        <button onClick={() => acceptMut.mutate(c.campaign_id)}
-                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition hover:scale-[1.02]">
-                          <Check size={14} /> Accept Collaboration
-                        </button>
-                        <button className="flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 px-5 py-2.5 rounded-lg font-medium text-sm transition">
-                          <MessageSquare size={14} /> Negotiate Rate
-                        </button>
-                        <button onClick={() => declineMut.mutate(c.campaign_id)}
-                          className="flex items-center gap-2 border border-red-400 text-red-400 hover:bg-red-50 px-5 py-2.5 rounded-lg font-medium text-sm transition">
-                          <X size={14} /> Decline
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Collapsed buttons */}
-              {!isExpanded && c.status === 'request_sent' && (
-                <div className="flex items-center gap-2 px-6 pb-4">
-                  <button onClick={(e) => { e.stopPropagation(); acceptMut.mutate(c.campaign_id); }}
-                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
-                    <Check size={12} /> Accept
-                  </button>
-                  <button onClick={() => setExpandedId(c.campaign_id)}
-                    className="flex items-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
-                    View Full Brief
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); declineMut.mutate(c.campaign_id); }}
-                    className="flex items-center gap-1.5 border border-red-300 text-red-400 hover:bg-red-50 px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
-                    <X size={12} /> Decline
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          );
-        })}
+            );
+          })
+        ) : (
+          <div style={{ background: 'white', borderRadius: '12px', padding: '60px 20px', textAlign: 'center', border: '2px dashed #e2e8f0' }}>
+            <Inbox size={40} className="text-slate-200 mx-auto mb-4" />
+            <div style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>No Requests Found</div>
+            <p style={{ color: '#94a3b8', marginTop: '4px' }}>We couldn't find any campaign requests in this category.</p>
+          </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }

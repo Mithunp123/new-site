@@ -18,15 +18,23 @@ const RegisterPage = () => {
   const googleUser = location.state?.googleUser;
   const initialUserType = location.state?.userType || 'creator';
 
+  console.log('RegisterPage: googleUser state:', googleUser);
+  console.log('RegisterPage: initialUserType:', initialUserType);
+
   const [step, setStep] = useState(1);
   const [userType, setUserType] = useState(initialUserType); // 'creator' or 'brand'
+
+  useEffect(() => {
+    // Keep it simple - Google users just follow the flow but with prefilled data
+  }, [googleUser, step]);
+
   const [loading, setLoading] = useState(false);
   const [isAutoFetchEnabled, setIsAutoFetchEnabled] = useState(true);
   const [fetchingIG, setFetchingIG] = useState(false);
   const [fetchingYT, setFetchingYT] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { setSession } = useAuthStore();
 
   const [formData, setFormData] = useState({
     name: googleUser?.name || '',
@@ -48,7 +56,8 @@ const RegisterPage = () => {
     website: '',
     target_audience: '',
     campaign_goal: '',
-    budget_range: ''
+    budget_range: '',
+    expected_budget: 0
   });
 
   const isBrand = userType === 'brand';
@@ -152,11 +161,16 @@ const RegisterPage = () => {
       }
     }
     setError('');
-    if (step < 4) setStep(step + 1);
+    
+    if (step < 4) {
+      setStep(step + 1);
+    }
   };
 
   const handleBack = () => {
-    if (step > 1) setStep(step - 1);
+    if (step > 1) {
+      setStep(step - 1);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -169,8 +183,9 @@ const RegisterPage = () => {
     setError('');
     setLoading(true);
     try {
+      // 1. Initial Registration
       const registrationFn = isBrand ? brandRegister : registerUser;
-      const { data } = await registrationFn({
+      const res = await registrationFn({
         name: formData.name,
         email: formData.email,
         password: googleUser ? 'GOOGLE_AUTH_USER' : formData.password,
@@ -179,6 +194,12 @@ const RegisterPage = () => {
         role: userType
       });
 
+      const { token, user } = res.data.data;
+      
+      // 2. Set Session IMMEDIATELY so subsequent API calls (updateProfile) are authenticated
+      setSession(token, user);
+
+      // 3. Complete Profile Details
       if (isBrand) {
         await setBrandDetails({
           brand_name: formData.name,
@@ -209,10 +230,10 @@ const RegisterPage = () => {
           youtube_subscribers: parseInt(formData.youtube_subscribers) || 0,
           youtube_avg_views: parseInt(formData.youtube_avg_views) || 0,
           youtube_er: parseFloat(formData.youtube_er) || 0,
+          expected_budget: parseFloat(formData.expected_budget) || 0
         });
       }
 
-      login(data.token, data.user);
       navigate(isBrand ? '/brand/dashboard' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
@@ -305,6 +326,16 @@ const RegisterPage = () => {
 
           {/* Form Container */}
           <div className="bg-white rounded-[32px] p-10 shadow-xl shadow-slate-200/50 border border-white">
+            {googleUser?.email && (
+              <div className="mb-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Google Session Active</span>
+                </div>
+                <span className="text-[10px] font-bold text-blue-400">{googleUser.email}</span>
+              </div>
+            )}
+
             <AnimatePresence mode="wait">
               {step === 1 && (
                 <motion.div 
@@ -407,21 +438,28 @@ const RegisterPage = () => {
                       <input 
                         type="email" 
                         placeholder="Email Address"
-                        className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
+                        className={`w-full pl-12 pr-4 py-4 font-bold rounded-2xl border-none transition-all ${
+                          googleUser?.email 
+                          ? 'bg-blue-50/50 text-blue-600 cursor-not-allowed opacity-75' 
+                          : 'bg-[#F8FAFC] text-gray-900 focus:ring-2 focus:ring-blue-100'
+                        }`}
                         value={formData.email}
                         onChange={e => setFormData({...formData, email: e.target.value})}
+                        readOnly={!!googleUser?.email}
                       />
                     </div>
-                    <div className="relative">
-                      <Eye className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="password" 
-                        placeholder="Password"
-                        className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
-                        value={formData.password}
-                        onChange={e => setFormData({...formData, password: e.target.value})}
-                      />
-                    </div>
+                    {!googleUser?.email && (
+                      <div className="relative">
+                        <Eye className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input 
+                          type="password" 
+                          placeholder="Password"
+                          className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
+                          value={formData.password}
+                          onChange={e => setFormData({...formData, password: e.target.value})}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-4 pt-4">
@@ -543,6 +581,24 @@ const RegisterPage = () => {
                 >
                   <div className="text-center">
                     <h2 className="text-3xl font-black text-gray-900 mb-2">Final Details</h2>
+                    <p className="text-gray-500 font-bold mb-8">What is your expected budget per collab?</p>
+                  </div>
+
+                  {!isBrand && (
+                    <div className="relative mb-8">
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xl">₹</span>
+                      <input 
+                        type="number" 
+                        placeholder="Expected Budget per post (e.g. 5000)"
+                        className="w-full pl-12 pr-6 py-5 bg-[#F8FAFC] border-none text-gray-900 font-black text-xl rounded-3xl focus:ring-4 focus:ring-blue-100 transition-all shadow-inner"
+                        value={formData.expected_budget || ''}
+                        onChange={e => setFormData({...formData, expected_budget: e.target.value})}
+                      />
+                      <p className="mt-2 ml-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">Enter your average fee per collaboration</p>
+                    </div>
+                  )}
+
+                  <div className="text-center mb-6">
                     <p className="text-gray-500 font-bold">Pick your primary niche</p>
                   </div>
 

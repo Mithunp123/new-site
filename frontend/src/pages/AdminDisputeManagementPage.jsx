@@ -29,7 +29,7 @@ export default function AdminDisputeManagementPage() {
     try {
       setLoading(true);
       const res = await adminApi.getDisputes();
-      setDisputes(res.data.disputes || []);
+      setDisputes(res.data.data || []);
     } catch (err) {
       console.error('Failed to fetch disputes:', err);
     } finally {

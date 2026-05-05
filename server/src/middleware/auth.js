@@ -23,7 +23,7 @@ exports.verifyBrand = (req, res, next) => {
 
 exports.verifyAdmin = (req, res, next) => {
   exports.verifyToken(req, res, () => {
-    if (req.user.role !== 'admin')
+    if (!['admin', 'super_admin', 'moderator'].includes(req.user.role))
       return error(res, 'Admin access only', 403);
     next();
   });

@@ -28,15 +28,16 @@ export default function AdminAnalyticsPage() {
     try {
       setLoading(true);
       const res = await adminApi.getPlatformAnalytics();
+      const data = res.data.data;
       setAnalytics({
-        totalCreators: res.data.total_creators || 0,
-        totalBrands: res.data.total_brands || 0,
-        activeCampaigns: res.data.active_campaigns || 0,
-        totalVolume: res.data.total_volume || 0,
-        topNiches: res.data.top_niches || [],
-        topPlatforms: res.data.top_platforms || [],
-        monthlyTrend: res.data.monthly_trend || [],
-        commissionData: res.data.commission_data || [],
+        totalCreators: data.total_creators || 0,
+        totalBrands: data.total_brands || 0,
+        activeCampaigns: data.active_campaigns || 0,
+        totalVolume: data.total_volume || 0,
+        topNiches: data.top_niches || [],
+        topPlatforms: data.platform_distribution || [],
+        monthlyTrend: data.monthly_trend || [],
+        commissionData: data.commission_data || [],
       });
     } catch (err) {
       console.error('Failed to fetch analytics:', err);

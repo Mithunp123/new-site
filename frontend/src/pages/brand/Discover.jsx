@@ -50,20 +50,34 @@ const BrandDiscover = () => {
 
       {/* Filter Bar */}
       <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
-        <FilterSelect name="niche" value={filters.niche} onChange={handleFilterChange} label="All Niches" options={['Beauty', 'Lifestyle', 'Fashion', 'Tech', 'Food', 'Travel']} />
-        <FilterSelect name="platform" value={filters.platform} onChange={handleFilterChange} label="All Platforms" options={['Instagram', 'YouTube', 'TikTok', 'Twitter']} />
+        <FilterSelect 
+          name="niche" 
+          value={filters.niche} 
+          onChange={handleFilterChange} 
+          label="All Niches" 
+          options={['Fashion', 'Tech', 'Lifestyle', 'Gaming', 'Music', 'Food']} 
+        />
+        <FilterSelect name="platform" value={filters.platform} onChange={handleFilterChange} label="All Platforms" options={['Instagram', 'YouTube']} />
         <FilterSelect name="followers" value={filters.followers} onChange={handleFilterChange} label="Followers" options={['1K-10K', '10K-100K', '100K-1M', '1M+']} />
         <FilterSelect name="min_er" value={filters.min_er} onChange={handleFilterChange} label="Min ER%" options={['3%', '5%', '8%', '10%']} />
-        <FilterSelect name="location" value={filters.location} onChange={handleFilterChange} label="Location" options={['Mumbai', 'Delhi', 'Bangalore', 'Pan India']} />
-        <FilterSelect name="budget" value={filters.budget} onChange={handleFilterChange} label="Budget" options={['₹5K-₹25K', '₹25K-₹1L', '₹1L+']} />
-        <FilterSelect name="language" value={filters.language} onChange={handleFilterChange} label="Any Language" options={['Hindi', 'English', 'Tamil', 'Bengali']} />
+        <FilterSelect name="location" value={filters.location} onChange={handleFilterChange} label="Location" options={['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Pan India']} />
         
-        <button 
-          onClick={() => refetch()}
-          className="ml-auto px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all"
-        >
-          Apply Filters
-        </button>
+        <div className="flex gap-2 ml-auto">
+          <button 
+            onClick={() => setFilters({
+              niche: '', platform: '', followers: '', min_er: '', location: '', budget: '', language: ''
+            })}
+            className="px-6 py-2.5 bg-gray-50 text-gray-500 font-bold rounded-xl hover:bg-gray-100 transition-all"
+          >
+            Reset
+          </button>
+          <button 
+            onClick={() => refetch()}
+            className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+          >
+            Apply Filters
+          </button>
+        </div>
       </div>
 
       {/* Grid */}
@@ -130,9 +144,19 @@ const CreatorCard = ({ creator }) => {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-[15px] font-bold text-gray-900 truncate flex items-center gap-1">
-            {creator.name} {creator.is_verified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 inline" />}
-          </h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[15px] font-bold text-gray-900 truncate">
+              {creator.name}
+            </h3>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {creator.has_instagram && (
+                <svg className="w-3.5 h-3.5 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+              )}
+              {creator.has_youtube && (
+                <svg className="w-3.5 h-3.5 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+              )}
+            </div>
+          </div>
           <p className="text-xs text-gray-500 font-medium truncate">
             {creator.display_name} · {creator.location}
           </p>
@@ -150,16 +174,31 @@ const CreatorCard = ({ creator }) => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 border-t border-gray-50 pt-4">
-        <div className="text-center">
-          <p className="text-[14px] font-bold text-gray-900 leading-tight">{formatCount(creator.top_platform_stats.followers_count)}</p>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Followers</p>
+        <div className="text-center flex flex-col items-center justify-center gap-1">
+          {creator.instagram_followers > 0 && (
+            <div className="flex items-center gap-1">
+              <svg className="w-3 h-3 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+              <span className="text-[12px] font-bold text-gray-900">{formatCount(Number(creator.instagram_followers))}</span>
+            </div>
+          )}
+          {creator.youtube_subscribers > 0 && (
+            <div className="flex items-center gap-1">
+              <svg className="w-3 h-3 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+              <span className="text-[12px] font-bold text-gray-900">{formatCount(Number(creator.youtube_subscribers))}</span>
+            </div>
+          )}
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Followers</p>
         </div>
         <div className="text-center border-x border-gray-50">
-          <p className="text-[14px] font-bold text-green-600 leading-tight">{(creator.top_platform_stats.engagement_rate || 0).toFixed(1)}%</p>
+          <p className="text-[14px] font-bold text-green-600 leading-tight">
+            {Number(creator.top_platform_stats?.engagement_rate || 0).toFixed(1)}%
+          </p>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Eng. Rate</p>
         </div>
         <div className="text-center">
-          <p className="text-[14px] font-bold text-gray-900 leading-tight">{formatCount(creator.top_platform_stats.avg_views)}</p>
+          <p className="text-[14px] font-bold text-gray-900 leading-tight">
+            {formatCount(Number(creator.top_platform_stats?.avg_views || 0))}
+          </p>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Avg Views</p>
         </div>
       </div>

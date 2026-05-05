@@ -60,21 +60,42 @@ exports.getCreators = async (req, res, next) => {
     if (status === 'verified') where += ' AND is_verified=true AND is_active=true';
     else if (status === 'unverified') where += ' AND is_verified=false AND is_active=true';
     else if (status === 'inactive') where += ' AND is_active=false';
+    let statusFilter = '';
+
+    if (status === 'verified') statusFilter = 'is_verified=true AND is_active=true';
+    else if (status === 'unverified') statusFilter = 'is_verified=false AND is_active=true';
+    else if (status === 'inactive') statusFilter = 'is_active=false';
 
     if (search) {
       where += ' AND (name LIKE ? OR email LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    const [creators] = await pool.query(`
+    const query = `
       SELECT cr.id, cr.name, cr.email, cr.phone, cr.location, cr.is_verified, cr.is_active, cr.created_at,
-      (SELECT COUNT(*) FROM campaigns WHERE creator_id=cr.id) AS total_campaigns,
-      (SELECT COALESCE(SUM(net_amount),0) FROM earnings WHERE creator_id=cr.id) AS total_earned
-      FROM creators cr ${where} ORDER BY cr.created_at DESC LIMIT ? OFFSET ?
-    `, [...params, parseInt(limit), parseInt(offset)]);
+      nd.categories AS category,
+      COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram'), 0) AS instagram_followers,
+      COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='youtube'), 0) AS youtube_followers,
+      (SELECT GROUP_CONCAT(platform) FROM creator_social_profiles WHERE creator_id=cr.id) AS platforms
+      FROM creators cr
+      LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
+      ${where} ${statusFilter ? ` AND ${statusFilter}` : ''} ORDER BY cr.created_at DESC LIMIT ? OFFSET ?
+    `;
 
-    const [count] = await pool.query(`SELECT COUNT(*) AS total FROM creators ${where}`, params);
-    success(res, { total: count[0].total, page: parseInt(page), limit: parseInt(limit), creators });
+    const [creators] = await pool.query(query, [...params, parseInt(limit), parseInt(offset)]);
+
+    const formattedCreators = creators.map(r => ({
+      ...r,
+      category: r.category ? (typeof r.category === 'string' ? JSON.parse(r.category)[0] : r.category[0]) : 'Niche',
+      instagram_followers: parseInt(r.instagram_followers) || 0,
+      youtube_followers: parseInt(r.youtube_followers) || 0,
+      total_followers: (parseInt(r.instagram_followers) || 0) + (parseInt(r.youtube_followers) || 0),
+      platforms: r.platforms ? r.platforms.split(',') : [],
+      verification_status: r.is_active === 0 ? 'inactive' : (r.is_verified ? 'verified' : 'unverified')
+    }));
+
+    const [count] = await pool.query(`SELECT COUNT(*) AS total FROM creators cr LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id ${where} ${statusFilter ? ` AND ${statusFilter}` : ''}`, params);
+    success(res, { total: count[0].total, page: parseInt(page), limit: parseInt(limit), creators: formattedCreators });
   } catch (err) {
     next(err);
   }

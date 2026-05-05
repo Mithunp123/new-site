@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Zap, Briefcase, Inbox, Eye, UserPlus, ArrowRight, Check, X, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { getDashboard } from '../api/creatorApi';
+import { getDashboard, acceptCampaign, declineCampaign } from '../api/creatorApi';
 import useAuthStore from '../store/authStore';
 import StatCard from '../components/ui/StatCard';
 import Badge from '../components/ui/Badge';
@@ -30,10 +30,21 @@ const DashboardSkeleton = () => (
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({ 
     queryKey: ['dashboard'], 
     queryFn: () => getDashboard().then(r => r.data.data),
     refetchInterval: 60000 // Refetch every minute
+  });
+
+  const acceptMut = useMutation({
+    mutationFn: (id) => acceptCampaign(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  });
+
+  const declineMut = useMutation({
+    mutationFn: (id) => declineCampaign(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] })
   });
 
   if (isLoading) return <DashboardSkeleton />;
@@ -237,7 +248,7 @@ export default function DashboardPage() {
               {d.new_requests?.length > 0 ? (
                 d.new_requests.map((r, i) => (
                   <motion.div 
-                    key={r.id} 
+                    key={r.campaign_id} 
                     initial={{ opacity: 0, x: 20 }} 
                     animate={{ opacity: 1, x: 0 }} 
                     transition={{ delay: i * 0.1 }}
@@ -254,11 +265,19 @@ export default function DashboardPage() {
                       <span className="text-sm font-extrabold text-brand-blue">₹{r.amount?.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex gap-2">
-                      <button className="flex-1 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-brand-blue/20">
-                        <Check size={14} /> Accept
+                      <button 
+                        onClick={() => acceptMut.mutate(r.campaign_id)}
+                        disabled={acceptMut.isLoading}
+                        className="flex-1 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-brand-blue/20 disabled:opacity-50"
+                      >
+                        <Check size={14} /> {acceptMut.isLoading ? '...' : 'Accept'}
                       </button>
-                      <button className="flex-1 py-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
-                        <X size={14} /> Decline
+                      <button 
+                        onClick={() => declineMut.mutate(r.campaign_id)}
+                        disabled={declineMut.isLoading}
+                        className="flex-1 py-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <X size={14} /> {declineMut.isLoading ? '...' : 'Decline'}
                       </button>
                     </div>
                   </motion.div>

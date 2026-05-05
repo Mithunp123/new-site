@@ -21,7 +21,7 @@ export default function AdminBrandManagementPage() {
     try {
       setLoading(true);
       const res = await adminApi.getBrands();
-      setBrands(res.data.brands || []);
+      setBrands(res.data.data.brands || []);
     } catch (err) {
       console.error('Failed to fetch brands:', err);
     } finally {

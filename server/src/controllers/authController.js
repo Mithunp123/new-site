@@ -131,7 +131,7 @@ exports.getMe = async (req, res, next) => {
     let table = '';
     if (req.user.role === 'creator') table = 'creators';
     else if (req.user.role === 'brand') table = 'brands';
-    else if (req.user.role === 'admin') table = 'admins';
+    else if (['admin', 'super_admin', 'moderator'].includes(req.user.role)) table = 'admins';
 
     const [rows] = await pool.query(`SELECT * FROM ${table} WHERE id = ?`, [req.user.id]);
     if (rows.length === 0) return error(res, 'User not found', 404);

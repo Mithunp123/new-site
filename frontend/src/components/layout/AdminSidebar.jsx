@@ -6,6 +6,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import * as adminApi from '../../api/adminApi';
 import logo from '../../assets/logo.png';
 
 export default function AdminSidebar() {

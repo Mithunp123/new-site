@@ -5,7 +5,7 @@ import {
   Star, Briefcase, Zap, Users, TrendingUp, BarChart2 
 } from 'lucide-react';
 import api from '../../api/axios';
-import { formatINR, getAvatarColor, getInitials } from '../../utils/format';
+import { formatINR, formatCount, getAvatarColor, getInitials } from '../../utils/format';
 
 const SendRequest = () => {
   const navigate = useNavigate();
@@ -35,6 +35,7 @@ const SendRequest = () => {
   });
 
   const [fees, setFees] = useState({ fee: 0, total: 0 });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const offer = Number(formData.budget_offer) || 0;
@@ -49,12 +50,46 @@ const SendRequest = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('[DEBUG] Submitting form with data:', formData);
+    
+    // Client-side validation
+    const requiredFields = [
+      'campaign_name', 'campaign_goal', 'campaign_brief', 
+      'platform', 'content_type', 'number_of_posts', 'start_date', 
+      'end_date', 'respond_by', 'budget_offer', 'deliverables_required'
+    ];
+    
+    const missing = requiredFields.filter(f => {
+      if (f === 'budget_offer') return !formData[f] || Number(formData[f]) <= 0;
+      return !formData[f];
+    });
+
+    if (missing.length > 0) {
+      const msg = `Missing required fields: ${missing.join(', ').replace(/_/g, ' ')}`;
+      console.log('[DEBUG] Validation failed:', msg, formData);
+      alert(msg);
+      setSubmitting(false);
+      return;
+    }
+
+    if (!formData.creator_id) {
+      alert('Error: Creator information is missing. Please go back to the discovery page and click "Send Request" again.');
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await api.post('/api/brand/collaboration/send-request', formData);
+      const response = await api.post('/api/brand/collaboration/send-request', formData);
+      console.log('[DEBUG] Response success:', response.data);
       navigate('/brand/requests');
     } catch (err) {
-      console.error(err);
-      alert('Error sending request');
+      console.error('[DEBUG] Submission error:', err);
+      const data = err.response?.data;
+      const msg = data?.message || data?.error || 'Error sending request. Please ensure all fields are valid.';
+      alert(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -86,18 +121,21 @@ const SendRequest = () => {
             <h2 className="text-xl font-bold text-gray-900 font-jakarta">Campaign Brief</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormGroup label="Campaign Name" name="campaign_name" value={formData.campaign_name} onChange={handleChange} placeholder="e.g. Summer Glow 2026" />
+              <FormGroup label="Campaign Name" name="campaign_name" value={formData.campaign_name} onChange={handleChange} placeholder="e.g. Summer Glow 2026" required={true} />
               <FormSelect 
                 label="Campaign Goal" 
                 name="campaign_goal" 
                 value={formData.campaign_goal} 
                 onChange={handleChange} 
                 options={['Sales / Conversions', 'Brand Awareness', 'Engagement', 'Lead Generation', 'App Downloads', 'Website Traffic']} 
+                required={true}
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">Campaign Brief</label>
+              <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">
+                Campaign Brief <span className="text-red-500">*</span>
+              </label>
               <textarea 
                 name="campaign_brief"
                 value={formData.campaign_brief}
@@ -110,21 +148,22 @@ const SendRequest = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormSelect label="Platform" name="platform" value={formData.platform} onChange={handleChange} options={['Instagram', 'YouTube', 'TikTok', 'Twitter']} />
+              <FormSelect label="Platform" name="platform" value={formData.platform} onChange={handleChange} options={['Instagram', 'YouTube', 'TikTok', 'Twitter']} required={true} />
               <FormSelect 
                 label="Content Type" 
                 name="content_type" 
                 value={formData.content_type} 
                 onChange={handleChange} 
                 options={['Reel (60-90s)', 'Reel (30s)', 'Post', 'Story', 'YouTube Short', 'YouTube Long']} 
+                required={true}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <FormGroup label="Number of Posts" name="number_of_posts" value={formData.number_of_posts} onChange={handleChange} placeholder="1 Reel + 2 Stories" />
-              <FormGroup label="Start Date" name="start_date" type="date" value={formData.start_date} onChange={handleChange} />
-              <FormGroup label="End Date" name="end_date" type="date" value={formData.end_date} onChange={handleChange} />
-              <FormGroup label="Respond By" name="respond_by" type="date" value={formData.respond_by} onChange={handleChange} />
+              <FormGroup label="Number of Posts" name="number_of_posts" value={formData.number_of_posts} onChange={handleChange} placeholder="1 Reel + 2 Stories" required={true} />
+              <FormGroup label="Start Date" name="start_date" type="date" value={formData.start_date} onChange={handleChange} required={true} />
+              <FormGroup label="End Date" name="end_date" type="date" value={formData.end_date} onChange={handleChange} required={true} />
+              <FormGroup label="Respond By" name="respond_by" type="date" value={formData.respond_by} onChange={handleChange} required={true} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -136,7 +175,9 @@ const SendRequest = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">Deliverables Required</label>
+              <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">
+                Deliverables Required <span className="text-red-500">*</span>
+              </label>
               <textarea 
                 name="deliverables_required"
                 value={formData.deliverables_required}
@@ -149,11 +190,19 @@ const SendRequest = () => {
             </div>
 
             <div className="flex gap-4 pt-4">
-              <button type="submit" className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100">
-                <Zap className="w-5 h-5 fill-white" />
-                Send Collaboration Request
+              <button 
+                type="submit" 
+                disabled={submitting}
+                className={`flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 ${submitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                {submitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Zap className="w-5 h-5 fill-white" />
+                )}
+                {submitting ? 'Sending Request...' : 'Send Collaboration Request'}
               </button>
-              <button type="button" className="px-8 flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all">
+              <button type="button" disabled={submitting} className="px-8 flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all disabled:opacity-50">
                 <Save className="w-5 h-5" />
                 Save as Draft
               </button>
@@ -187,10 +236,10 @@ const SendRequest = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <StatMini label="Followers" value={creator.top_platform_stats?.followers_count || 'N/A'} icon={Users} />
-              <StatMini label="Eng. Rate" value={`${(creator.top_platform_stats?.engagement_rate || 0).toFixed(1)}%`} icon={TrendingUp} />
-              <StatMini label="Avg Views" value={creator.top_platform_stats?.avg_views || 'N/A'} icon={BarChart2} />
-              <StatMini label="Rating" value={`5.0⭐`} icon={Star} />
+              <StatMini label="Followers" value={formatCount(Number(creator.top_platform_stats?.followers_count || 0))} icon={Users} />
+              <StatMini label="Eng. Rate" value={`${Number(creator.top_platform_stats?.engagement_rate || 0).toFixed(1)}%`} icon={TrendingUp} />
+              <StatMini label="Avg Views" value={formatCount(Number(creator.top_platform_stats?.avg_views || 0))} icon={BarChart2} />
+              <StatMini label="Platform" value={creator.primary_platform || 'N/A'} icon={Zap} />
             </div>
 
             {creator.categories && creator.categories.length > 0 && (
@@ -234,7 +283,9 @@ const SendRequest = () => {
 
 const FormGroup = ({ label, name, type = 'text', value, onChange, placeholder, required }) => (
   <div className="space-y-2">
-    <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">{label}</label>
+    <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
     <input 
       type={type}
       name={name}
@@ -247,17 +298,25 @@ const FormGroup = ({ label, name, type = 'text', value, onChange, placeholder, r
   </div>
 );
 
-const FormSelect = ({ label, name, value, onChange, options }) => (
+const FormSelect = ({ label, name, value, onChange, options, required }) => (
   <div className="space-y-2">
-    <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">{label}</label>
-    <select 
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="w-full h-12 px-4 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-200 focus:ring-4 focus:ring-blue-50 transition-all text-sm font-bold outline-none appearance-none cursor-pointer"
-    >
-      {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-    </select>
+    <label className="text-sm font-bold text-gray-700 ml-1 uppercase tracking-wider text-[10px]">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <div className="relative">
+      <select 
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        className="w-full h-12 px-4 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-200 focus:ring-4 focus:ring-blue-50 transition-all text-sm font-bold outline-none appearance-none cursor-pointer"
+      >
+        {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
   </div>
 );
 
