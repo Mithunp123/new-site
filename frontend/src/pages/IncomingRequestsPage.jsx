@@ -89,15 +89,15 @@ export default function IncomingRequestsPage() {
       {/* Request Cards */}
       <div className="space-y-4">
         {campaigns.map((c, i) => {
-          const isExpanded = expandedId === c.id;
+          const isExpanded = expandedId === c.campaign_id;
           const respondDate = c.respond_by ? new Date(c.respond_by) : null;
           const daysToRespond = respondDate ? Math.ceil((respondDate - new Date()) / (1000*60*60*24)) : null;
 
           return (
-            <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+            <motion.div key={c.campaign_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className={`bg-white rounded-xl border border-slate-100 shadow-sm border-l-4 ${borderColor(c.status)} overflow-hidden card-hover`}>
               {/* Header row */}
-              <div className="flex items-center justify-between px-6 py-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.id)}>
+              <div className="flex items-center justify-between px-6 py-4 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}>
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-sm font-bold text-blue-600 font-heading">
                     {c.brand_name?.slice(0,2).toUpperCase()}
@@ -112,7 +112,7 @@ export default function IncomingRequestsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-lg font-bold text-blue-600 font-heading">₹{c.escrow_amount?.toLocaleString('en-IN')}</span>
+                  <span className="text-lg font-bold text-blue-600 font-heading">₹{c.amount?.toLocaleString('en-IN')}</span>
                   {respondDate && c.status === 'request_sent' && (
                     <span className={`text-xs font-medium ${daysToRespond <= 2 ? 'text-red-500' : 'text-orange-500'}`}>
                       Respond by {respondDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -145,14 +145,14 @@ export default function IncomingRequestsPage() {
 
                     {c.status === 'request_sent' && (
                       <div className="flex items-center gap-3 mt-5">
-                        <button onClick={() => acceptMut.mutate(c.id)}
+                        <button onClick={() => acceptMut.mutate(c.campaign_id)}
                           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition hover:scale-[1.02]">
                           <Check size={14} /> Accept Collaboration
                         </button>
                         <button className="flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 px-5 py-2.5 rounded-lg font-medium text-sm transition">
                           <MessageSquare size={14} /> Negotiate Rate
                         </button>
-                        <button onClick={() => declineMut.mutate(c.id)}
+                        <button onClick={() => declineMut.mutate(c.campaign_id)}
                           className="flex items-center gap-2 border border-red-400 text-red-400 hover:bg-red-50 px-5 py-2.5 rounded-lg font-medium text-sm transition">
                           <X size={14} /> Decline
                         </button>
@@ -165,15 +165,15 @@ export default function IncomingRequestsPage() {
               {/* Collapsed buttons */}
               {!isExpanded && c.status === 'request_sent' && (
                 <div className="flex items-center gap-2 px-6 pb-4">
-                  <button onClick={(e) => { e.stopPropagation(); acceptMut.mutate(c.id); }}
+                  <button onClick={(e) => { e.stopPropagation(); acceptMut.mutate(c.campaign_id); }}
                     className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
                     <Check size={12} /> Accept
                   </button>
-                  <button onClick={() => setExpandedId(c.id)}
+                  <button onClick={() => setExpandedId(c.campaign_id)}
                     className="flex items-center gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
                     View Full Brief
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); declineMut.mutate(c.id); }}
+                  <button onClick={(e) => { e.stopPropagation(); declineMut.mutate(c.campaign_id); }}
                     className="flex items-center gap-1.5 border border-red-300 text-red-400 hover:bg-red-50 px-3.5 py-1.5 rounded-lg font-medium text-xs transition">
                     <X size={12} /> Decline
                   </button>

@@ -24,7 +24,15 @@ router.get('/dashboard', creatorController.getDashboard);
 
 // Requests & Campaigns
 router.get('/requests', creatorController.getRequests);
+router.get('/requests/:campaignId', creatorController.getRequestById);
+router.put('/requests/:campaignId/accept', creatorController.acceptRequest);
+router.put('/requests/:campaignId/decline', creatorController.declineRequest);
+router.post('/requests/:campaignId/negotiate', creatorController.negotiateRequest);
+
 router.get('/campaigns', creatorController.getCampaigns);
+router.get('/campaigns/:campaignId', creatorController.getCampaignById);
+router.post('/campaigns/:campaignId/upload-content', upload.uploadContent, creatorController.uploadContent);
+router.get('/campaigns/:campaignId/submissions', creatorController.getCampaignSubmissions);
 
 // Earnings
 router.get('/earnings', creatorController.getEarnings);

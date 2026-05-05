@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
 import { 
@@ -10,6 +11,7 @@ import { formatINR, formatCount } from '../../utils/format';
 import { motion } from 'framer-motion';
 
 const CampaignTracking = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: tracking, isLoading } = useQuery({
     queryKey: ['campaign-tracking'],
@@ -50,8 +52,8 @@ const CampaignTracking = () => {
               className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-200 transition-all w-64"
             />
           </div>
-          <button className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-            + New Campaign
+          <button onClick={() => navigate('/brand/discover')} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+            + Discover Creators
           </button>
         </div>
       </header>

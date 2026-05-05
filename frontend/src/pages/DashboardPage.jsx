@@ -76,8 +76,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           label="Earnings This Month" 
-          value={formatCurrency(d.earnings_this_month)} 
-          change={d.earnings_change_pct} 
+          value={formatCurrency(d.earnings_this_month?.amount)} 
+          change={d.earnings_this_month?.change_pct} 
           changeLabel="vs last month" 
           icon={Zap} 
           variant="blue" 
@@ -85,21 +85,21 @@ export default function DashboardPage() {
         />
         <StatCard 
           label="Active Campaigns" 
-          value={d.active_campaigns_count} 
-          changeLabel={d.active_campaigns_deadline_soon > 0 ? `${d.active_campaigns_deadline_soon} deadline soon` : 'On track'} 
+          value={d.active_campaigns?.count || 0} 
+          changeLabel={d.active_campaigns?.deadline_soon_count > 0 ? `${d.active_campaigns.deadline_soon_count} deadline soon` : 'On track'} 
           icon={Briefcase} 
           index={1} 
         />
         <StatCard 
           label="Pending Requests" 
-          value={d.pending_requests_count} 
+          value={d.pending_requests?.count || 0} 
           changeLabel="Respond within 48 hrs" 
           icon={Inbox} 
           index={2} 
         />
         <StatCard 
           label="Profile Views (7d)" 
-          value={d.profile_views_7d} 
+          value={d.creator?.profile_views || 0} 
           change={8} 
           changeLabel="Growth this week" 
           icon={Eye} 
@@ -134,10 +134,10 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {d.active_campaigns?.length > 0 ? (
-                    d.active_campaigns.map((c, i) => (
+                  {d.active_campaigns_list?.length > 0 ? (
+                    d.active_campaigns_list.map((c, i) => (
                       <motion.tr 
-                        key={c.id} 
+                        key={c.campaign_id} 
                         initial={{ opacity: 0 }} 
                         animate={{ opacity: 1 }} 
                         transition={{ delay: i * 0.05 }}
@@ -156,7 +156,7 @@ export default function DashboardPage() {
                           <div className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">{c.deliverable}</div>
                         </td>
                         <td className="px-4 py-4 text-sm font-medium text-slate-600">
-                          {new Date(c.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {c.deadline ? new Date(c.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'N/A'}
                         </td>
                         <td className="px-4 py-4 text-sm font-bold text-slate-900">
                           {formatCurrency(c.amount)}
@@ -197,7 +197,7 @@ export default function DashboardPage() {
             </div>
             <div className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={d.monthly_earnings || []} barCategoryGap="25%">
+                <BarChart data={d.monthly_earnings_chart || []} barCategoryGap="25%">
                   <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#2563EB" stopOpacity={1} />
@@ -249,7 +249,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-bold text-slate-900">{r.brand_name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{r.campaign_type}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{r.deliverable}</p>
                       </div>
                       <span className="text-sm font-extrabold text-brand-blue">₹{r.amount?.toLocaleString('en-IN')}</span>
                     </div>
@@ -294,7 +294,7 @@ export default function DashboardPage() {
                     }`}></div>
                     <div className="flex-1">
                       <p className="text-sm font-bold text-slate-900">{dl.brand_name}</p>
-                      <p className="text-xs text-slate-500 line-clamp-1">{dl.campaign_title}</p>
+                      <p className="text-xs text-slate-500 line-clamp-1">{dl.title}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <span className={`text-[10px] font-extrabold uppercase px-2 py-1 rounded-md ${

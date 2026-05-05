@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Filter, Heart, Mail, MoreVertical } from 'lucide-react';
 import BrandLayout from "../components/layout/BrandLayout";
 import * as brandApi from "../api/brandApi";
 
 export default function BrandDiscoverPage() {
+  const navigate = useNavigate();
   const [creators, setCreators] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
@@ -259,8 +261,8 @@ export default function BrandDiscoverPage() {
 
                   {/* Buttons */}
                   <div className="flex gap-2">
-                    <button className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-                      View Profile
+                    <button onClick={() => navigate('/brand/send-request', { state: { creator } })} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer">
+                      Send Request
                     </button>
                     <button
                       onClick={() => handleSaveCreator(creator.id)}

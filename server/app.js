@@ -11,13 +11,19 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
+const path = require('path');
+
+app.use('/uploads', express.static(
+  path.join(__dirname, process.env.UPLOAD_DIR || 'uploads')
+));
 
 app.use('/api/auth',     require('./src/routes/auth'));
 app.use('/api/creator',  require('./src/routes/creator'));
 app.use('/api/brand',    require('./src/routes/brand'));
 app.use('/api/campaign', require('./src/routes/campaign'));
 app.use('/api/admin',    require('./src/routes/admin'));
+app.use('/api/content',  require('./src/routes/content'));
+app.use('/api/social',   require('./src/routes/social'));
 
 app.use(errorHandler);
 module.exports = app;

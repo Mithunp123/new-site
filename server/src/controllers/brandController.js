@@ -202,46 +202,67 @@ exports.discoverCreators = async (req, res, next) => {
     const { niche, platform, followers, min_er, location, budget_min, budget_max, language, search, page = 1, limit = 12 } = req.query;
     const offset = (page - 1) * limit;
     const params = [req.user.id];
-    let where = 'WHERE cr.is_active = true';
+    let where = 'WHERE cr.is_active = true AND (ig.id IS NOT NULL OR yt.id IS NOT NULL)';
 
-    // Follower range parsing
     if (followers) {
       let min = 0, max = 999999999;
       if (followers === '1K-10K') { min = 1000; max = 10000; }
       else if (followers === '10K-100K') { min = 10000; max = 100000; }
       else if (followers === '100K-1M') { min = 100000; max = 1000000; }
       else if (followers === '1M+') { min = 1000000; }
-      where += ' AND sp.followers_count >= ? AND sp.followers_count <= ?';
+      where += ' AND COALESCE(ig.followers_count, yt.followers_count) >= ? AND COALESCE(ig.followers_count, yt.followers_count) <= ?';
       params.push(min, max);
     }
 
+    if (search) { where += ' AND (cr.name LIKE ? OR cr.display_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     if (niche) { where += ' AND JSON_CONTAINS(nd.categories, JSON_QUOTE(?))'; params.push(niche); }
-    if (platform) { where += ' AND sp.platform = ?'; params.push(platform); }
-    if (min_er) { where += ' AND sp.engagement_rate >= ?'; params.push(min_er); }
+    if (platform) { where += ' AND (ig.platform = ? OR yt.platform = ?)'; params.push(platform, platform); }
+    if (min_er) { where += ' AND COALESCE(ig.engagement_rate, yt.engagement_rate) >= ?'; params.push(min_er); }
     if (location) { where += ' AND cr.location LIKE ?'; params.push(`%${location}%`); }
     if (language) { where += ' AND JSON_CONTAINS(cr.languages_known, JSON_QUOTE(?))'; params.push(language); }
-    if (budget_min) { where += ' AND nd.budget_min >= ?'; params.push(budget_min); } // Assuming niche_details might have budget? No, but let's stick to filters.
-    if (search) { where += ' AND (cr.name LIKE ? OR cr.display_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
 
-    const [creators] = await pool.query(`
-      SELECT DISTINCT cr.id, cr.name, cr.display_name, cr.profile_photo, cr.location, cr.is_verified, nd.categories, nd.collaboration_preference,
-      (SELECT platform FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS top_platform,
-      (SELECT followers_count FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS followers_count,
-      (SELECT engagement_rate FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS engagement_rate,
-      (SELECT avg_views FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS avg_views,
-      CASE WHEN bsc.id IS NOT NULL THEN true ELSE false END AS is_saved
+    const query = `
+      SELECT DISTINCT
+        cr.id,
+        cr.name,
+        cr.display_name,
+        cr.profile_photo,
+        cr.location,
+        cr.is_verified,
+        UPPER(LEFT(cr.name, 2)) AS initials,
+        nd.categories,
+        nd.collaboration_preference,
+        nd.sample_links,
+        COALESCE(ig.platform, yt.platform) AS primary_platform,
+        COALESCE(ig.followers_count, yt.followers_count) AS followers_count,
+        COALESCE(ig.avg_views, yt.avg_views) AS avg_views,
+        COALESCE(ig.engagement_rate, yt.engagement_rate) AS engagement_rate,
+        COALESCE(ig.profile_url, yt.profile_url) AS primary_profile_url,
+        CASE WHEN bsc.id IS NOT NULL THEN true ELSE false END AS is_saved
       FROM creators cr
       LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
-      LEFT JOIN creator_social_profiles sp ON sp.creator_id = cr.id
+      LEFT JOIN creator_social_profiles ig ON ig.creator_id = cr.id AND ig.platform = 'instagram'
+      LEFT JOIN creator_social_profiles yt ON yt.creator_id = cr.id AND yt.platform = 'youtube'
       LEFT JOIN brand_saved_creators bsc ON bsc.creator_id = cr.id AND bsc.brand_id = ?
       ${where}
-      ORDER BY cr.is_verified DESC, followers_count DESC
+      ORDER BY cr.is_verified DESC, COALESCE(ig.followers_count, yt.followers_count) DESC
       LIMIT ? OFFSET ?
-    `, [...params, parseInt(limit), parseInt(offset)]);
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT cr.id) AS count 
+      FROM creators cr
+      LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
+      LEFT JOIN creator_social_profiles ig ON ig.creator_id = cr.id AND ig.platform = 'instagram'
+      LEFT JOIN creator_social_profiles yt ON yt.creator_id = cr.id AND yt.platform = 'youtube'
+      ${where}
+    `;
+
+    const [creators] = await pool.query(query, [...params, parseInt(limit), parseInt(offset)]);
+    const [countRow] = await pool.query(countQuery, params.slice(1));
 
     const results = creators.map(c => ({
       ...c,
-      initials: getInitials(c.name),
       avatar_color: getAvatarColor(c.id),
       categories: typeof c.categories === 'string' ? JSON.parse(c.categories) : (c.categories || []),
       top_platform_stats: {
@@ -251,9 +272,7 @@ exports.discoverCreators = async (req, res, next) => {
       }
     }));
 
-    const [countRow] = await pool.query(`SELECT COUNT(DISTINCT cr.id) AS count FROM creators cr LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id LEFT JOIN creator_social_profiles sp ON sp.creator_id = cr.id ${where}`, params.slice(1));
-
-    success(res, { total: countRow[0].count, page: parseInt(page), limit: parseInt(limit), creators: results });
+    success(res, { total: countRow[0].count, page: parseInt(page), limit: parseInt(limit), total_pages: Math.ceil(countRow[0].count / limit), creators: results });
   } catch (err) {
     next(err);
   }
@@ -262,25 +281,47 @@ exports.discoverCreators = async (req, res, next) => {
 // Collaboration Requests (NEW)
 exports.sendCollaborationRequest = async (req, res, next) => {
   try {
-    const { creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, budget_offer, tracking_link, deliverables_required } = req.body;
+    const { creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget_offer, tracking_link, deliverables_required } = req.body;
     
-    const platform_fee_rate = 0.08;
-    const platform_fee = budget_offer * platform_fee_rate;
+    // Validations
+    if (!creator_id || !campaign_name || !campaign_goal || !campaign_brief || !platform || !content_type || !number_of_posts || !start_date || !end_date || !respond_by || !budget_offer || !deliverables_required) {
+      return error(res, 'All fields except tracking link are required', 400);
+    }
+    if (budget_offer <= 0) return error(res, 'Budget offer must be greater than 0', 400);
+    if (new Date(end_date) <= new Date(start_date)) return error(res, 'End date must be after start date', 400);
+
+    const [existingCampaigns] = await pool.query(`SELECT id FROM campaigns WHERE brand_id=? AND creator_id=? AND status NOT IN ('campaign_closed','declined')`, [req.user.id, creator_id]);
+    if (existingCampaigns.length > 0) return error(res, 'You already have an active campaign with this creator', 400);
+
+    const platform_fee_rate = parseFloat(process.env.PLATFORM_FEE_RATE) || 8.00;
+    const platform_fee = budget_offer * (platform_fee_rate / 100);
     const total_to_escrow = budget_offer + platform_fee;
 
     const [res_camp] = await pool.query(
-      'INSERT INTO campaigns (brand_id, creator_id, title, deliverable, brief, platform, budget, escrow_amount, tracking_link, tracking_link_provided, status, escrow_status, deadline, respond_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.id, creator_id, campaign_name, number_of_posts, campaign_brief, platform, budget_offer, total_to_escrow, tracking_link, tracking_link ? true : false, 'request_sent', 'pending', end_date, start_date]
+      `INSERT INTO campaigns (brand_id, creator_id, title, campaign_goal, brief, platform, content_type, number_of_posts, start_date, deadline, respond_by, budget, escrow_amount, platform_fee, total_to_escrow, tracking_link, tracking_link_provided, deliverables_required, status, escrow_status, commission_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget_offer, total_to_escrow, platform_fee, total_to_escrow, tracking_link, tracking_link ? true : false, deliverables_required, 'request_sent', 'pending', 10.00]
     );
     const campaign_id = res_camp.insertId;
 
-    await pool.query('INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, ?, ?, ?)', [campaign_id, 'request_sent', 'brand', `Goal: ${campaign_goal}. Deliverables: ${deliverables_required}`]);
+    await pool.query('INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, ?, ?)', [campaign_id, 'request_sent', 'brand']);
     await pool.query('INSERT INTO brand_payments (brand_id, campaign_id, amount, payment_type, payment_status) VALUES (?, ?, ?, ?, ?)', [req.user.id, campaign_id, total_to_escrow, 'escrow', 'pending']);
     
     const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [req.user.id]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', creator_id, 'New Collaboration Request', `${brand[0].name} sent you a request for ${campaign_name}`]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', creator_id, 'New Campaign Request', `${brand[0].name} sent you a collaboration for "${campaign_name}"`]);
 
-    created(res, { campaign_id, budget_offer, platform_fee, total_to_escrow, status: 'request_sent' });
+    res.status(201).json({
+      success: true,
+      data: {
+        campaign_id,
+        creator_id,
+        budget_offer,
+        platform_fee,
+        total_to_escrow,
+        status: 'request_sent',
+        message: 'Collaboration request sent successfully'
+      }
+    });
   } catch (err) {
     next(err);
   }
@@ -560,31 +601,54 @@ exports.getCampaigns = async (req, res, next) => {
 
 exports.approveContent = async (req, res, next) => {
   try {
-    const id = req.params.id;
-    const [camp] = await pool.query('SELECT brand_id, status, title, creator_id FROM campaigns WHERE id=?', [id]);
-    if (camp[0].brand_id !== req.user.id) return error(res, 'Unauthorized', 403);
-    if (camp[0].status !== 'content_uploaded') return error(res, 'Invalid campaign status', 400);
-    await pool.query("UPDATE campaigns SET status='brand_approved', updated_at=NOW() WHERE id=?", [id]);
+    const id = req.params.campaignId;
+    const brand_id = req.user.id;
+
+    const [camp] = await pool.query('SELECT * FROM campaigns WHERE id = ? AND brand_id = ?', [id, brand_id]);
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+    if (camp[0].status !== 'content_uploaded') return error(res, 'No content to approve', 400);
+
+    await pool.query("UPDATE campaigns SET status='brand_approved', updated_at=NOW() WHERE id=? AND brand_id=?", [id, brand_id]);
+
+    await pool.query(`
+      UPDATE content_submissions SET status='approved', reviewed_at=NOW()
+      WHERE campaign_id=? AND id = (SELECT max_id FROM (SELECT MAX(id) AS max_id FROM content_submissions WHERE campaign_id=?) AS tmp)
+    `, [id, id]);
+
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'brand_approved', 'brand')", [id]);
-    const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [req.user.id]);
+
+    const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Content Approved', `${brand[0].name} approved your content for ${camp[0].title}`]);
-    success(res, { status: 'brand_approved' });
+
+    success(res, { status: 'brand_approved', campaign_id: id });
   } catch (err) {
     next(err);
   }
 };
 
-exports.rejectContent = async (req, res, next) => {
+exports.requestRevision = async (req, res, next) => {
   try {
-    const { reason } = req.body;
-    const id = req.params.id;
-    const [camp] = await pool.query('SELECT brand_id, status, title, creator_id FROM campaigns WHERE id=?', [id]);
-    if (camp[0].brand_id !== req.user.id) return error(res, 'Unauthorized', 403);
-    if (camp[0].status !== 'content_uploaded') return error(res, 'Invalid campaign status', 400);
-    await pool.query('UPDATE campaigns SET rejection_reason=?, updated_at=NOW() WHERE id=?', [reason, id]);
-    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'content_rejected', 'brand', ?)", [id, reason]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Content Rejected', `Content for ${camp[0].title} needs changes: ${reason}`]);
-    success(res, null, 'Content rejected, creator notified');
+    const { revision_note } = req.body;
+    const id = req.params.campaignId;
+    const brand_id = req.user.id;
+
+    const [camp] = await pool.query('SELECT * FROM campaigns WHERE id = ? AND brand_id = ?', [id, brand_id]);
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+    if (camp[0].status !== 'content_uploaded') return error(res, 'No content to request revision for', 400);
+
+    await pool.query(`
+      UPDATE content_submissions SET status='revision_requested', rejection_note=?, reviewed_at=NOW()
+      WHERE campaign_id=? AND id = (SELECT max_id FROM (SELECT MAX(id) AS max_id FROM content_submissions WHERE campaign_id=?) AS tmp)
+    `, [revision_note, id, id]);
+
+    await pool.query('UPDATE campaigns SET brand_rejection_reason=?, updated_at=NOW() WHERE id=?', [revision_note, id]);
+
+    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'content_uploaded', 'brand', ?)", [id, 'Brand requested revision: ' + revision_note]);
+
+    const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Revision Requested', `${brand[0].name} requested changes to your content for "${camp[0].title}"`]);
+
+    success(res, { message: 'Revision requested', revision_note });
   } catch (err) {
     next(err);
   }
@@ -619,6 +683,356 @@ exports.markNotificationRead = async (req, res, next) => {
   try {
     await pool.query("UPDATE notifications SET is_read=true WHERE id=? AND user_id=? AND user_type='brand'", [req.params.id, req.user.id]);
     success(res, null, 'Notification marked as read');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createCampaign = async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const brand_id = req.user.id;
+    const {
+      group_title, campaign_goal, brief, platform,
+      content_type, number_of_posts, start_date,
+      end_date, respond_by, budget_per_creator,
+      tracking_link, deliverables_required,
+      targeting_type, creator_ids,
+      target_niches, target_platforms,
+      target_min_followers, target_max_followers,
+      target_min_er, target_location
+    } = req.body;
+
+    if (!group_title || !brief || !platform || !budget_per_creator || !end_date) {
+      await conn.rollback();
+      return error(res, 'Missing required fields', 400);
+    }
+
+    const platform_fee_rate = 8.00;
+    const platform_fee = budget_per_creator * (platform_fee_rate / 100);
+    const total_to_escrow = budget_per_creator + platform_fee;
+
+    const [groupResult] = await conn.query(
+      `INSERT INTO campaign_groups
+       (brand_id, group_title, campaign_goal, brief, platform,
+        content_type, number_of_posts, start_date, end_date,
+        respond_by, budget_per_creator, platform_fee_rate,
+        tracking_link, deliverables_required, targeting_type,
+        target_niches, target_platforms, target_min_followers,
+        target_max_followers, target_min_er, target_location)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        brand_id, group_title, campaign_goal, brief, platform,
+        content_type, number_of_posts, start_date, end_date,
+        respond_by, budget_per_creator, platform_fee_rate,
+        tracking_link, deliverables_required, targeting_type,
+        JSON.stringify(target_niches || []),
+        JSON.stringify(target_platforms || []),
+        target_min_followers || 0,
+        target_max_followers || 0,
+        target_min_er || 0,
+        target_location || null
+      ]
+    );
+    const campaign_group_id = groupResult.insertId;
+
+    let targetCreatorIds = [];
+
+    if (targeting_type === 'specific') {
+      if (!creator_ids || !creator_ids.length) {
+        await conn.rollback();
+        return error(res, 'creator_ids required for specific targeting', 400);
+      }
+      const placeholders = creator_ids.map(() => '?').join(',');
+      const [validCreators] = await conn.query(
+        `SELECT id FROM creators WHERE id IN (${placeholders}) AND is_active = true`,
+        creator_ids
+      );
+      targetCreatorIds = validCreators.map(c => c.id);
+
+    } else if (targeting_type === 'category') {
+      let matchQuery = `
+        SELECT DISTINCT cr.id
+        FROM creators cr
+        JOIN creator_social_profiles sp ON sp.creator_id = cr.id
+        LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
+        WHERE cr.is_active = true AND cr.is_verified = true
+      `;
+      const matchParams = [];
+
+      if (target_niches && target_niches.length) {
+        const nicheConditions = target_niches.map(() => `JSON_CONTAINS(nd.categories, JSON_QUOTE(?))`).join(' OR ');
+        matchQuery += ` AND (${nicheConditions})`;
+        matchParams.push(...target_niches);
+      }
+
+      if (platform) {
+        matchQuery += ` AND sp.platform = ?`;
+        matchParams.push(platform);
+      }
+
+      if (target_min_followers) {
+        matchQuery += ` AND sp.followers_count >= ?`;
+        matchParams.push(target_min_followers);
+      }
+
+      if (target_max_followers) {
+        matchQuery += ` AND sp.followers_count <= ?`;
+        matchParams.push(target_max_followers);
+      }
+
+      if (target_min_er) {
+        matchQuery += ` AND sp.engagement_rate >= ?`;
+        matchParams.push(target_min_er);
+      }
+
+      if (target_location) {
+        matchQuery += ` AND cr.location LIKE ?`;
+        matchParams.push(`%${target_location}%`);
+      }
+
+      matchQuery += `
+        AND cr.id NOT IN (
+          SELECT creator_id FROM campaigns
+          WHERE brand_id = ? AND status NOT IN ('campaign_closed','declined')
+        )
+      `;
+      matchParams.push(brand_id);
+
+      const [matchedCreators] = await conn.query(matchQuery, matchParams);
+      targetCreatorIds = matchedCreators.map(c => c.id);
+    }
+
+    if (!targetCreatorIds.length) {
+      await conn.rollback();
+      return error(res, 'No eligible creators found for this campaign', 404);
+    }
+
+    const campaignRows = [];
+    const [brandRow] = await conn.query(`SELECT name FROM brands WHERE id = ?`, [brand_id]);
+
+    for (const creator_id of targetCreatorIds) {
+      const [campResult] = await conn.query(
+        `INSERT INTO campaigns
+         (brand_id, creator_id, campaign_group_id, title,
+          campaign_goal, deliverable, brief, platform,
+          content_type, number_of_posts, start_date,
+          deadline, respond_by, budget, escrow_amount,
+          platform_fee, total_to_escrow, tracking_link,
+          tracking_link_provided, deliverables_required,
+          targeting_type, target_niches,
+          status, escrow_status, commission_rate)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          brand_id, creator_id, campaign_group_id, group_title, campaign_goal,
+          number_of_posts, brief, platform, content_type, number_of_posts, start_date,
+          end_date, respond_by, budget_per_creator, total_to_escrow, platform_fee,
+          total_to_escrow, tracking_link || null, tracking_link ? true : false,
+          deliverables_required, targeting_type, JSON.stringify(target_niches || []),
+          'request_sent', 'pending', 10.00
+        ]
+      );
+
+      await conn.query(
+        `INSERT INTO campaign_timeline (campaign_id, status, changed_by, note)
+         VALUES (?, 'request_sent', 'brand', 'Campaign request sent by brand')`,
+        [campResult.insertId]
+      );
+
+      await conn.query(
+        `INSERT INTO brand_payments (brand_id, campaign_id, amount, payment_type, payment_status)
+         VALUES (?, ?, ?, 'escrow', 'pending')`,
+        [brand_id, campResult.insertId, total_to_escrow]
+      );
+
+      await conn.query(
+        `INSERT INTO notifications (user_type, user_id, title, message)
+         VALUES ('creator', ?, ?, ?)`,
+        [creator_id, 'New Campaign Request', `${brandRow[0].name} sent you a collaboration request for "${group_title}"`]
+      );
+
+      campaignRows.push({ campaign_id: campResult.insertId, creator_id });
+    }
+
+    await conn.query(`UPDATE campaign_groups SET total_creators_targeted = ? WHERE id = ?`, [targetCreatorIds.length, campaign_group_id]);
+
+    await conn.commitTransaction();
+
+    return created(res, {
+      campaign_group_id, targeting_type, total_creators_targeted: targetCreatorIds.length,
+      budget_per_creator, platform_fee, total_to_escrow, campaigns: campaignRows
+    }, 'Campaign created and requests sent');
+
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+};
+
+exports.getMatchedCreators = async (req, res, next) => {
+  try {
+    const brand_id = req.user.id;
+    const { target_niches, platform, target_min_followers, target_max_followers, target_min_er, target_location } = req.query;
+    
+    let matchQuery = `
+      SELECT DISTINCT cr.id, cr.name, cr.display_name, cr.profile_photo,
+        cr.location, cr.is_verified, sp.platform AS top_platform, sp.followers_count, sp.avg_views, sp.engagement_rate, nd.categories
+      FROM creators cr
+      JOIN creator_social_profiles sp ON sp.creator_id = cr.id
+      LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
+      WHERE cr.is_active = true AND cr.is_verified = true
+    `;
+    const matchParams = [];
+
+    if (target_niches) {
+      const niches = Array.isArray(target_niches) ? target_niches : target_niches.split(',');
+      const nicheConditions = niches.map(() => `JSON_CONTAINS(nd.categories, JSON_QUOTE(?))`).join(' OR ');
+      matchQuery += ` AND (${nicheConditions})`;
+      matchParams.push(...niches);
+    }
+
+    if (platform) {
+      matchQuery += ` AND sp.platform = ?`;
+      matchParams.push(platform);
+    }
+    if (target_min_followers) {
+      matchQuery += ` AND sp.followers_count >= ?`;
+      matchParams.push(target_min_followers);
+    }
+    if (target_max_followers) {
+      matchQuery += ` AND sp.followers_count <= ?`;
+      matchParams.push(target_max_followers);
+    }
+    if (target_min_er) {
+      matchQuery += ` AND sp.engagement_rate >= ?`;
+      matchParams.push(target_min_er);
+    }
+    if (target_location) {
+      matchQuery += ` AND cr.location LIKE ?`;
+      matchParams.push(`%${target_location}%`);
+    }
+
+    matchQuery += `
+      AND cr.id NOT IN (
+        SELECT creator_id FROM campaigns WHERE brand_id = ? AND status NOT IN ('campaign_closed','declined')
+      )
+    `;
+    matchParams.push(brand_id);
+
+    const [matchedCreators] = await pool.query(matchQuery, matchParams);
+
+    const creators = matchedCreators.map(c => ({
+      ...c,
+      categories: typeof c.categories === 'string' ? JSON.parse(c.categories) : (c.categories || [])
+    }));
+
+    success(res, { total_matched: creators.length, creators });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getCampaignGroups = async (req, res, next) => {
+  try {
+    const brand_id = req.user.id;
+    const [groups] = await pool.query(`
+      SELECT
+        cg.id, cg.group_title, cg.platform, cg.campaign_goal, cg.budget_per_creator,
+        cg.total_creators_targeted, cg.total_creators_accepted, cg.status, cg.created_at, cg.end_date,
+        b.name AS brand_name,
+        COUNT(c.id) AS total_campaigns,
+        SUM(CASE WHEN c.status = 'request_sent' THEN 1 ELSE 0 END) AS pending_count,
+        SUM(CASE WHEN c.status IN (
+          'creator_accepted','agreement_locked','content_uploaded',
+          'brand_approved','posted_live','analytics_collected'
+        ) THEN 1 ELSE 0 END) AS active_count,
+        SUM(CASE WHEN c.status IN ('campaign_closed','escrow_released') THEN 1 ELSE 0 END) AS completed_count,
+        SUM(c.total_to_escrow) AS total_budget_committed
+      FROM campaign_groups cg
+      JOIN brands b ON b.id = cg.brand_id
+      LEFT JOIN campaigns c ON c.campaign_group_id = cg.id
+      WHERE cg.brand_id = ?
+      GROUP BY cg.id
+      ORDER BY cg.created_at DESC
+    `, [brand_id]);
+
+    success(res, { groups });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getCampaignGroupDetails = async (req, res, next) => {
+  try {
+    const brand_id = req.user.id;
+    const groupId = req.params.groupId;
+
+    const [groupResult] = await pool.query(`
+      SELECT cg.*, b.name AS brand_name, b.logo_url AS brand_logo
+      FROM campaign_groups cg
+      JOIN brands b ON b.id = cg.brand_id
+      WHERE cg.id = ? AND cg.brand_id = ?
+    `, [groupId, brand_id]);
+
+    if (!groupResult.length) return error(res, 'Campaign group not found', 404);
+
+    const [campaignsResult] = await pool.query(`
+      SELECT
+        c.id, c.creator_id, c.status, c.escrow_status,
+        c.budget, c.total_to_escrow, c.content_url,
+        c.created_at, c.updated_at,
+        cr.name AS creator_name, cr.display_name AS creator_handle,
+        cr.profile_photo AS creator_photo, cr.location AS creator_location,
+        cr.is_verified AS creator_verified,
+        (SELECT platform FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS top_platform,
+        (SELECT followers_count FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS followers_count,
+        (SELECT engagement_rate FROM creator_social_profiles WHERE creator_id = cr.id ORDER BY followers_count DESC LIMIT 1) AS engagement_rate,
+        ca.views, ca.reach, ca.clicks, ca.sales_generated
+      FROM campaigns c
+      JOIN creators cr ON cr.id = c.creator_id
+      LEFT JOIN campaign_analytics ca ON ca.campaign_id = c.id
+      WHERE c.campaign_group_id = ?
+      ORDER BY c.created_at ASC
+    `, [groupId]);
+
+    const statusMap = { 'request_sent': 0, 'creator_accepted': 1, 'agreement_locked': 2, 'content_uploaded': 3, 'brand_approved': 4, 'posted_live': 5, 'analytics_collected': 6, 'escrow_released': 7, 'campaign_closed': 8 };
+
+    const campaigns = campaignsResult.map(c => ({
+      ...c, progress_step: statusMap[c.status] || 0
+    }));
+
+    success(res, { group: groupResult[0], campaigns });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getCampaignSubmissions = async (req, res, next) => {
+  try {
+    const brand_id = req.user.id;
+    const campaignId = req.params.campaignId;
+
+    const [camp] = await pool.query('SELECT id FROM campaigns WHERE id = ? AND brand_id = ?', [campaignId, brand_id]);
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+
+    const [submissions] = await pool.query(`
+      SELECT
+        cs.id, cs.file_path, cs.file_name, cs.file_size,
+        cs.file_type, cs.caption, cs.submission_note,
+        cs.version, cs.status, cs.rejection_note,
+        cs.submitted_at, cs.reviewed_at,
+        cr.name AS creator_name, cr.profile_photo AS creator_photo
+      FROM content_submissions cs
+      JOIN creators cr ON cr.id = cs.creator_id
+      WHERE cs.campaign_id = ?
+      ORDER BY cs.version DESC
+    `, [campaignId]);
+
+    success(res, { submissions });
   } catch (err) {
     next(err);
   }

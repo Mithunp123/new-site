@@ -21,6 +21,9 @@ const RegisterPage = () => {
   const [step, setStep] = useState(1);
   const [userType, setUserType] = useState(initialUserType); // 'creator' or 'brand'
   const [loading, setLoading] = useState(false);
+  const [isAutoFetchEnabled, setIsAutoFetchEnabled] = useState(true);
+  const [fetchingIG, setFetchingIG] = useState(false);
+  const [fetchingYT, setFetchingYT] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { login } = useAuthStore();
@@ -32,8 +35,15 @@ const RegisterPage = () => {
     phone: '',
     location: '',
     category: '',
-    instagram: '',
-    youtube: '',
+    instagram_url: '',
+    instagram_followers: '',
+    instagram_avg_views: '',
+    instagram_er: '',
+    instagram_verified: false,
+    youtube_url: '',
+    youtube_subscribers: '',
+    youtube_avg_views: '',
+    youtube_er: '',
     twitter: '',
     website: '',
     target_audience: '',
@@ -43,7 +53,105 @@ const RegisterPage = () => {
 
   const isBrand = userType === 'brand';
 
+  const extractInstagramUsername = (url) => {
+    if (!url) return null;
+    const match = url.match(/(?:(?:http|https):\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([A-Za-z0-9_](?:(?:[A-Za-z0-9_]|(?:\.(?!\.))){0,28}(?:[A-Za-z0-9_]))?)/i);
+    return match ? match[1] : url.trim(); // Fallback to raw input if regex fails (user might type username directly)
+  };
+
+  const extractYouTubeIdentifier = (url) => {
+    if (!url) return { type: null, identifier: null };
+    const channelMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/channel\/([a-zA-Z0-9_-]+)/i);
+    if (channelMatch) return { type: 'channelId', identifier: channelMatch[1] };
+    
+    const userMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/user\/([a-zA-Z0-9_-]+)/i);
+    if (userMatch) return { type: 'username', identifier: userMatch[1] };
+    
+    const handleMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/@([a-zA-Z0-9_-]+)/i);
+    if (handleMatch) return { type: 'handle', identifier: handleMatch[1] };
+    
+    return { type: 'handle', identifier: url.trim().replace(/^@/, '') };
+  };
+
+  const fetchIGStats = async () => {
+    if (!isAutoFetchEnabled || !formData.instagram_url) return;
+    const username = extractInstagramUsername(formData.instagram_url);
+    if (!username) return;
+
+    setFetchingIG(true);
+    setError('');
+    try {
+      const res = await fetch(`http://localhost:3000/api/social/instagram?username=${username}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setFormData(prev => ({
+          ...prev,
+          instagram_followers: data.data.followers || prev.instagram_followers,
+          instagram_avg_views: data.data.avg_views || prev.instagram_avg_views,
+          instagram_er: data.data.engagement_rate || prev.instagram_er,
+          instagram_verified: data.data.is_verified || prev.instagram_verified
+        }));
+      } else {
+        // Silent fail for auto-fetch, let user manual enter
+        console.log('IG fetch failed:', data.message);
+      }
+    } catch (err) {
+      console.log('IG fetch error:', err);
+    } finally {
+      setFetchingIG(false);
+    }
+  };
+
+  const fetchYTStats = async () => {
+    if (!isAutoFetchEnabled || !formData.youtube_url) return;
+    const { type, identifier } = extractYouTubeIdentifier(formData.youtube_url);
+    if (!identifier) return;
+
+    setFetchingYT(true);
+    setError('');
+    try {
+      const res = await fetch(`http://localhost:3000/api/social/youtube?type=${type}&identifier=${identifier}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setFormData(prev => ({
+          ...prev,
+          youtube_subscribers: data.data.subscribers || prev.youtube_subscribers,
+          youtube_avg_views: data.data.avg_views || prev.youtube_avg_views,
+          youtube_er: data.data.engagement_rate || prev.youtube_er
+        }));
+      } else {
+        console.log('YT fetch failed:', data.message);
+      }
+    } catch (err) {
+      console.log('YT fetch error:', err);
+    } finally {
+      setFetchingYT(false);
+    }
+  };
+
+  // Debounce helpers for input changing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.instagram_url && isAutoFetchEnabled) fetchIGStats();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [formData.instagram_url, isAutoFetchEnabled]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.youtube_url && isAutoFetchEnabled) fetchYTStats();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [formData.youtube_url, isAutoFetchEnabled]);
+
   const handleNext = () => {
+    if (step === 3 && !isBrand) {
+      if (!formData.instagram_url && !formData.youtube_url) {
+        setError('Please provide at least one social media profile (Instagram or YouTube) to continue.');
+        return;
+      }
+    }
+    setError('');
     if (step < 4) setStep(step + 1);
   };
 
@@ -81,14 +189,26 @@ const RegisterPage = () => {
           budget_range: formData.budget_range
         });
       } else {
+        if (!formData.instagram_url && !formData.youtube_url) {
+          setError('At least one platform (Instagram or YouTube) is required');
+          setLoading(false);
+          setStep(3);
+          return;
+        }
+
         await updateProfile({
+          location: formData.location,
+          phone: formData.phone,
           category: formData.category,
-          social_links: JSON.stringify({
-            instagram: formData.instagram,
-            youtube: formData.youtube,
-            twitter: formData.twitter,
-            website: formData.website
-          })
+          instagram_url: formData.instagram_url,
+          instagram_followers: parseInt(formData.instagram_followers) || 0,
+          instagram_avg_views: parseInt(formData.instagram_avg_views) || 0,
+          instagram_er: parseFloat(formData.instagram_er) || 0,
+          instagram_verified: formData.instagram_verified,
+          youtube_url: formData.youtube_url,
+          youtube_subscribers: parseInt(formData.youtube_subscribers) || 0,
+          youtube_avg_views: parseInt(formData.youtube_avg_views) || 0,
+          youtube_er: parseFloat(formData.youtube_er) || 0,
         });
       }
 
@@ -348,14 +468,55 @@ const RegisterPage = () => {
                     
                     {!isBrand ? (
                       <>
-                        <div className="relative">
-                          <Camera className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                          <input type="text" placeholder="Instagram" className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
+                        <div className="col-span-2 flex items-center justify-between mb-2">
+                          <p className="text-sm font-bold text-gray-900">Instagram Stats</p>
+                          <label className="flex items-center gap-2 cursor-pointer bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:bg-blue-100">
+                            <input 
+                              type="checkbox" 
+                              checked={isAutoFetchEnabled} 
+                              onChange={e => setIsAutoFetchEnabled(e.target.checked)} 
+                              className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5" 
+                            />
+                            {isAutoFetchEnabled ? 'Auto-Fetch ON' : 'Manual Entry'}
+                          </label>
                         </div>
-                        <div className="relative">
-                          <Video className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                          <input type="text" placeholder="YouTube" className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
+                        <div className="col-span-2 space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="relative col-span-2">
+                              <Camera className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                              <input type="text" placeholder="Instagram URL (e.g. instagram.com/username)" value={formData.instagram_url} onChange={e => setFormData({...formData, instagram_url: e.target.value})} onBlur={() => {if(isAutoFetchEnabled && !formData.instagram_followers) fetchIGStats();}} className="w-full pl-12 pr-10 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
+                              {fetchingIG && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+                            </div>
+                            <input type="number" placeholder="Followers" value={formData.instagram_followers} onChange={e => setFormData({...formData, instagram_followers: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
+                            <input type="number" placeholder="Avg Views" value={formData.instagram_avg_views} onChange={e => setFormData({...formData, instagram_avg_views: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
+                            <input type="number" step="0.01" placeholder="Engagement Rate %" value={formData.instagram_er} onChange={e => setFormData({...formData, instagram_er: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
+                            <label className="flex items-center gap-2 px-4 py-3 bg-[#F8FAFC] rounded-2xl cursor-pointer">
+                              <input type="checkbox" checked={formData.instagram_verified} onChange={e => setFormData({...formData, instagram_verified: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500" />
+                              <span className="text-sm font-bold text-gray-900">Verified (Blue Tick)</span>
+                            </label>
+                          </div>
+                          {isAutoFetchEnabled && (formData.instagram_followers || formData.instagram_avg_views) && (
+                            <p className="text-[10px] text-blue-600 font-bold text-right">Data auto-fetched (approximate)</p>
+                          )}
                         </div>
+
+                        <div className="col-span-2 space-y-4 pt-4 border-t border-gray-100">
+                          <p className="text-sm font-bold text-gray-900">YouTube Stats</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="relative col-span-2">
+                              <Video className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                              <input type="text" placeholder="YouTube URL (e.g. youtube.com/@channel)" value={formData.youtube_url} onChange={e => setFormData({...formData, youtube_url: e.target.value})} onBlur={() => {if(isAutoFetchEnabled && !formData.youtube_subscribers) fetchYTStats();}} className="w-full pl-12 pr-10 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
+                              {fetchingYT && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>}
+                            </div>
+                            <input type="number" placeholder="Subscribers" value={formData.youtube_subscribers} onChange={e => setFormData({...formData, youtube_subscribers: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
+                            <input type="number" placeholder="Avg Views" value={formData.youtube_avg_views} onChange={e => setFormData({...formData, youtube_avg_views: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
+                            <input type="number" step="0.01" placeholder="Engagement Rate %" value={formData.youtube_er} onChange={e => setFormData({...formData, youtube_er: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
+                          </div>
+                          {isAutoFetchEnabled && (formData.youtube_subscribers || formData.youtube_avg_views) && (
+                            <p className="text-[10px] text-red-600 font-bold text-right">Data auto-fetched (approximate)</p>
+                          )}
+                        </div>
+                        {error && <p className="text-red-500 text-sm font-bold col-span-2 text-center">{error}</p>}
                       </>
                     ) : (
                       <div className="relative col-span-2">

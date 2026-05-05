@@ -22,6 +22,7 @@ import BrandLayout from './components/layout/BrandLayout';
 import BrandDashboard from './pages/brand/Dashboard';
 import BrandDiscover from './pages/brand/Discover';
 import CollaborationRequests from './pages/brand/CollaborationRequests';
+import SendRequest from './pages/brand/SendRequest';
 import CampaignTracking from './pages/brand/CampaignTracking';
 import RoiAnalytics from './pages/brand/RoiAnalytics';
 import LeadManagement from './pages/brand/LeadManagement';
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="/brand/dashboard" element={<BrandDashboard />} />
             <Route path="/brand/discover" element={<BrandDiscover />} />
             <Route path="/brand/requests" element={<CollaborationRequests />} />
+            <Route path="/brand/send-request" element={<SendRequest />} />
             <Route path="/brand/campaign-tracking" element={<CampaignTracking />} />
             <Route path="/brand/roi-analytics" element={<RoiAnalytics />} />
             <Route path="/brand/lead-management" element={<LeadManagement />} />

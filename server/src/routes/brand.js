@@ -31,14 +31,24 @@ router.post('/collaboration/send-request', brandController.sendCollaborationRequ
 router.get('/collaboration/requests', brandController.getCollaborationRequests);
 router.get('/campaigns/tracking', brandController.getCampaignTracking);
 
+// Brand Campaign Creation & Groups
+router.post('/campaign/create', brandController.createCampaign);
+router.get('/campaign/matched-creators', brandController.getMatchedCreators);
+router.get('/campaigns/groups', brandController.getCampaignGroups);
+router.get('/campaigns/group/:groupId', brandController.getCampaignGroupDetails);
+
+// Content Submissions & Approvals
+router.get('/campaign/:campaignId/submissions', brandController.getCampaignSubmissions);
+router.put('/campaign/:campaignId/approve-content', brandController.approveContent);
+router.put('/campaign/:campaignId/request-revision', brandController.requestRevision);
+
 // Analytics
 router.get('/roi-analytics', brandController.getROIAnalytics);
 router.get('/lead-management', brandController.getLeadManagement);
 
 // Legacy/Compatibility Routes
 router.get('/campaigns', brandController.getCampaigns);
-router.put('/campaign/:id/approve-content', brandController.approveContent);
-router.put('/campaign/:id/reject-content', brandController.rejectContent);
+// router.put('/campaign/:id/reject-content', brandController.rejectContent); // Replaced by request-revision
 router.post('/payments/fund-escrow', brandController.fundEscrow);
 
 // Notifications

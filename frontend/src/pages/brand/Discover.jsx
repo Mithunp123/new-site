@@ -167,7 +167,7 @@ const CreatorCard = ({ creator }) => {
       {/* Buttons */}
       <div className="flex gap-2 pt-2">
         <button 
-          onClick={() => navigate('/brand/requests', { state: { creator } })}
+          onClick={() => navigate('/brand/send-request', { state: { creator } })}
           className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
         >
           <Send className="w-4 h-4" />

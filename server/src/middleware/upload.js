@@ -23,3 +23,38 @@ const fileFilter = (req, file, cb) => {
 
 exports.single = (field) => multer({ storage, fileFilter }).single(field);
 exports.multiple = (field, max) => multer({ storage, fileFilter }).array(field, max);
+
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const creatorId = req.user.id;
+    const campaignId = req.params.campaignId;
+    const dir = path.join(
+      process.env.UPLOAD_DIR,
+      'content',
+      String(creatorId),
+      String(campaignId)
+    );
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `content_v${timestamp}${ext}`);
+  }
+});
+
+const videoFilter = (req, file, cb) => {
+  const allowed = /mp4|mov|avi|mkv|webm|jpg|jpeg|png|pdf/;
+  if (allowed.test(path.extname(file.originalname).toLowerCase())) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only video and image files are allowed'));
+  }
+};
+
+exports.uploadContent = multer({
+  storage: videoStorage,
+  fileFilter: videoFilter,
+  limits: { fileSize: 500 * 1024 * 1024 }  // 500MB max
+}).single('content');

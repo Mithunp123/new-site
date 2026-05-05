@@ -22,8 +22,8 @@ export default function MyCampaignsPage() {
   }
 
   const d = data || {};
-  const featured = d.featured_campaign;
-  const campaigns = d.all_campaigns || [];
+  const campaigns = d.campaigns || [];
+  const featured = campaigns.length > 0 ? campaigns[0] : null;
 
   const progressPct = (step) => Math.round(((step + 1) / 9) * 100);
 
@@ -64,9 +64,9 @@ export default function MyCampaignsPage() {
             {[
               { label: 'Brand', value: featured.brand_name },
               { label: 'Deliverable', value: featured.deliverable },
-              { label: 'Campaign Amount', value: `₹${featured.escrow_amount?.toLocaleString('en-IN')}` },
+              { label: 'Campaign Amount', value: `₹${featured.campaign_amount?.toLocaleString('en-IN')}` },
               { label: 'Escrow Status', value: featured.escrow_status?.charAt(0).toUpperCase() + featured.escrow_status?.slice(1) },
-              { label: 'Deadline', value: new Date(featured.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+              { label: 'Deadline', value: featured.deadline ? new Date(featured.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A' },
             ].map((item, i) => (
               <div key={i}>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{item.label}</p>
@@ -95,7 +95,7 @@ export default function MyCampaignsPage() {
           </thead>
           <tbody>
             {campaigns.map((c, i) => (
-              <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
+              <motion.tr key={c.campaign_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
                 className="border-b border-slate-50 hover:bg-slate-50/50 transition">
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export default function MyCampaignsPage() {
                 </td>
                 <td className="px-5 py-3.5 text-sm text-slate-600">{c.title}</td>
                 <td className="px-5 py-3.5 text-sm text-slate-500">{c.deliverable}</td>
-                <td className="px-5 py-3.5 text-sm font-semibold text-slate-800 font-heading">₹{c.amount?.toLocaleString('en-IN')}</td>
+                <td className="px-5 py-3.5 text-sm font-semibold text-slate-800 font-heading">₹{c.campaign_amount?.toLocaleString('en-IN')}</td>
                 <td className="px-5 py-3.5"><Badge status={c.escrow_status} /></td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
