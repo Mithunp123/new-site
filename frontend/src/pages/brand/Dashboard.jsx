@@ -50,7 +50,7 @@ const BrandDashboard = () => {
         <StatCard 
           label="Total Campaign Spend" 
           value={formatINR(dashboard?.total_campaign_spend?.amount)} 
-          sub={`↑${dashboard?.total_campaign_spend?.change_pct.toFixed(1)}% this month`}
+          sub={`↑${(dashboard?.total_campaign_spend?.change_pct || 0).toFixed(1)}% this month`}
           type="gradient"
         />
         <StatCard 
@@ -61,8 +61,8 @@ const BrandDashboard = () => {
         />
         <StatCard 
           label="Avg Campaign ROI" 
-          value={`${dashboard?.avg_campaign_roi?.value.toFixed(1)}x`} 
-          sub={`↑${dashboard?.avg_campaign_roi?.change.toFixed(1)}x vs last quarter`}
+          value={`${(dashboard?.avg_campaign_roi?.value || 0).toFixed(1)}x`} 
+          sub={`↑${(dashboard?.avg_campaign_roi?.change || 0).toFixed(1)}x vs last quarter`}
           valueColor="text-green-600"
         />
         <StatCard 
@@ -100,7 +100,7 @@ const BrandDashboard = () => {
                       <td className="py-4 text-gray-600">{camp.creators_count}</td>
                       <td className="py-4 font-bold">{formatINR(camp.spend)}</td>
                       <td className={`py-4 font-bold ${camp.roi > 4 ? 'text-green-500' : (camp.roi > 2 ? 'text-orange-500' : 'text-gray-400')}`}>
-                        {camp.roi ? `${camp.roi.toFixed(1)}x` : '—'}
+                        {camp.roi ? `${Number(camp.roi).toFixed(1)}x` : '—'}
                       </td>
                       <td className="py-4">
                         <StatusBadge status={camp.status} />
@@ -135,7 +135,7 @@ const BrandDashboard = () => {
                   />
                   <Bar dataKey="spend" radius={[6, 6, 0, 0]} barSize={32}>
                     {dashboard?.monthly_spend_chart?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === dashboard.monthly_spend_chart.length - 1 ? '#2563EB' : '#DBEAFE'} />
+                      <Cell key={`cell-${index}`} fill={index === (dashboard?.monthly_spend_chart?.length || 0) - 1 ? '#2563EB' : '#DBEAFE'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -179,7 +179,7 @@ const BrandDashboard = () => {
               <div className="pt-2">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Best Creator</p>
                 <button className="text-sm font-bold text-blue-600 hover:underline">
-                  {dashboard?.performance_metrics?.best_creator?.name} — {dashboard?.performance_metrics?.best_creator?.er.toFixed(1)}% ER
+                  {dashboard?.performance_metrics?.best_creator?.name || 'No data yet'} — {(dashboard?.performance_metrics?.best_creator?.er || 0).toFixed(1)}% ER
                 </button>
               </div>
             </div>

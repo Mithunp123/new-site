@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api/axios';
 import { 
   User, Bell, Shield, CreditCard, 
   Share2, Trash2, Camera, Globe,
@@ -15,13 +15,13 @@ const Settings = () => {
   const { data: profile, isLoading } = useQuery({
     queryKey: ['brand-profile'],
     queryFn: async () => {
-      const res = await axios.get('/api/brand/profile');
+      const res = await api.get('/api/brand/profile');
       return res.data.data;
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data) => axios.patch('/api/brand/profile', data),
+    mutationFn: (data) => api.patch('/api/brand/profile', data),
     onSuccess: () => {
       queryClient.invalidateQueries(['brand-profile']);
       alert('Profile updated successfully!');

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api/axios';
 import { 
   Search, Filter, CheckCircle2, MapPin, 
   Users, BarChart2, Eye, Bookmark, Send 
@@ -25,7 +25,7 @@ const BrandDiscover = () => {
     queryFn: async () => {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
-      const res = await axios.get(`/api/brand/discover?${params.toString()}`);
+      const res = await api.get(`/api/brand/discover?${params.toString()}`);
       return res.data.data;
     }
   });
@@ -102,8 +102,8 @@ const CreatorCard = ({ creator }) => {
   const toggleSave = async (e) => {
     e.preventDefault();
     try {
-      if (isSaved) await axios.delete(`/api/brand/creator/${creator.id}/save`);
-      else await axios.post(`/api/brand/creator/${creator.id}/save`);
+      if (isSaved) await api.delete(`/api/brand/creator/${creator.id}/save`);
+      else await api.post(`/api/brand/creator/${creator.id}/save`);
       setIsSaved(!isSaved);
     } catch (err) { console.error(err); }
   };
@@ -155,7 +155,7 @@ const CreatorCard = ({ creator }) => {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Followers</p>
         </div>
         <div className="text-center border-x border-gray-50">
-          <p className="text-[14px] font-bold text-green-600 leading-tight">{creator.top_platform_stats.engagement_rate.toFixed(1)}%</p>
+          <p className="text-[14px] font-bold text-green-600 leading-tight">{(creator.top_platform_stats.engagement_rate || 0).toFixed(1)}%</p>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Eng. Rate</p>
         </div>
         <div className="text-center">

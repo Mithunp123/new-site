@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api/axios';
 import { 
   Check, Clock, ExternalLink, Download, 
   Search, Filter, CheckCircle, AlertCircle,
@@ -14,18 +14,18 @@ const CampaignTracking = () => {
   const { data: tracking, isLoading } = useQuery({
     queryKey: ['campaign-tracking'],
     queryFn: async () => {
-      const res = await axios.get('/api/brand/campaigns/tracking');
+      const res = await api.get('/api/brand/campaigns/tracking');
       return res.data.data;
     }
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id) => axios.put(`/api/brand/campaign/${id}/approve-content`),
+    mutationFn: (id) => api.put(`/api/brand/campaign/${id}/approve-content`),
     onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }) => axios.put(`/api/brand/campaign/${id}/reject-content`, { reason }),
+    mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/reject-content`, { reason }),
     onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
   });
 

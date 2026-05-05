@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api/axios';
 import { 
   TrendingUp, DollarSign, Target, PieChart, 
   Download, Calendar, ArrowUpRight, ArrowDownRight,
@@ -17,7 +17,7 @@ const RoiAnalytics = () => {
   const { data: roi, isLoading } = useQuery({
     queryKey: ['brand-roi-analytics'],
     queryFn: async () => {
-      const res = await axios.get('/api/brand/roi-analytics?period=quarter');
+      const res = await api.get('/api/brand/roi-analytics?period=quarter');
       return res.data.data;
     }
   });
@@ -52,13 +52,13 @@ const RoiAnalytics = () => {
         <StatCard 
           label="Total Spend" 
           value={formatINR(totals?.total_spend)} 
-          sub={`↑${totals?.spend_change_pct.toFixed(1)}% this quarter`}
+          sub={`↑${(totals?.spend_change_pct || 0).toFixed(1)}% this quarter`}
           type="gradient"
         />
         <StatCard 
           label="Revenue Generated" 
           value={formatINR(totals?.revenue_generated)} 
-          sub={`+${totals?.revenue_change_pct.toFixed(1)}% vs last Q`}
+          sub={`+${(totals?.revenue_change_pct || 0).toFixed(1)}% vs last Q`}
           valueColor="text-green-600"
         />
         <StatCard 
@@ -69,7 +69,7 @@ const RoiAnalytics = () => {
         <StatCard 
           label="Cost Per Lead" 
           value={formatINR(totals?.cost_per_lead)} 
-          sub={`${totals?.cpl_change_pct.toFixed(1)}% improved`}
+          sub={`${(totals?.cpl_change_pct || 0).toFixed(1)}% improved`}
           isNegativeGood
         />
       </div>
@@ -137,7 +137,7 @@ const RoiAnalytics = () => {
                       </td>
                       <td className="py-4 font-bold text-gray-900">{creator.name}</td>
                       <td className="py-4 text-sm font-medium text-gray-600">{formatCount(creator.reach)}</td>
-                      <td className="py-4 text-sm font-bold text-green-600">{creator.engagement_rate.toFixed(1)}%</td>
+                      <td className="py-4 text-sm font-bold text-green-600">{(creator.engagement_rate || 0).toFixed(1)}%</td>
                       <td className="py-4 text-sm font-bold text-gray-900">{formatINR(creator.sales_generated)}</td>
                       <td className="py-4">
                         <RepeatBadge type={creator.repeat_collab} />
@@ -179,8 +179,8 @@ const RoiAnalytics = () => {
               <MetricRow label="Total Reach" value={formatCount(roi?.key_metrics?.total_reach)} />
               <MetricRow label="Total Engagement" value={formatCount(roi?.key_metrics?.total_engagement)} />
               <MetricRow label="Total Clicks" value={formatCount(roi?.key_metrics?.total_clicks)} />
-              <MetricRow label="Repeat Collab %" value={`${roi?.key_metrics?.repeat_collab_pct.toFixed(0)}%`} valueColor="text-green-600" />
-              <MetricRow label="Response Rate" value={`${roi?.key_metrics?.response_rate.toFixed(0)}%`} valueColor="text-green-600" />
+              <MetricRow label="Repeat Collab %" value={`${(roi?.key_metrics?.repeat_collab_pct || 0).toFixed(0)}%`} valueColor="text-green-600" />
+              <MetricRow label="Response Rate" value={`${(roi?.key_metrics?.response_rate || 0).toFixed(0)}%`} valueColor="text-green-600" />
             </div>
           </div>
         </div>

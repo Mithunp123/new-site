@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api/axios';
 import { 
   Target, Users, Zap, UserCheck, 
   TrendingUp, ArrowUpRight, Award,
@@ -13,7 +13,7 @@ const LeadManagement = () => {
   const { data: leads, isLoading } = useQuery({
     queryKey: ['brand-lead-management'],
     queryFn: async () => {
-      const res = await axios.get('/api/brand/lead-management');
+      const res = await api.get('/api/brand/lead-management');
       return res.data.data;
     }
   });
@@ -44,19 +44,19 @@ const LeadManagement = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           label="Response Rate" 
-          value={`${stats?.response_rate.toFixed(0)}%`} 
+          value={`${(stats?.response_rate || 0).toFixed(0)}%`} 
           sub={`+${stats?.response_rate_change || 6}% this month`}
           type="gradient"
         />
         <StatCard 
           label="Repeat Collaboration %" 
-          value={`${stats?.repeat_collab_pct.toFixed(0)}%`} 
+          value={`${(stats?.repeat_collab_pct || 0).toFixed(0)}%`} 
           sub="Creators rehired"
         />
         <StatCard 
           label="Creator Performance Rank" 
           value={stats?.top_creator?.creator_name || '—'} 
-          sub={`#1 · ${stats?.top_creator?.engagement_rate.toFixed(1)}% ER · ${formatINR(stats?.top_creator?.sales)} sales`}
+          sub={`#1 · ${(stats?.top_creator?.engagement_rate || 0).toFixed(1)}% ER · ${formatINR(stats?.top_creator?.sales || 0)} sales`}
         />
         <StatCard 
           label="Total Leads Generated" 
@@ -89,8 +89,8 @@ const LeadManagement = () => {
                       </span>
                     </td>
                     <td className="py-4 font-bold text-gray-900">{creator.creator_name}</td>
-                    <td className="py-4 text-sm font-bold text-green-600">{creator.engagement_rate.toFixed(1)}%</td>
-                    <td className="py-4 text-sm font-bold text-gray-900">{formatINR(creator.sales)}</td>
+                    <td className="py-4 text-sm font-bold text-green-600">{(creator.engagement_rate || 0).toFixed(1)}%</td>
+                    <td className="py-4 text-sm font-bold text-gray-900">{formatINR(creator.sales || 0)}</td>
                     <td className="py-4">
                       <RepeatBadge type={creator.repeat} />
                     </td>
@@ -109,7 +109,7 @@ const LeadManagement = () => {
               <div key={i} className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-bold text-gray-900">{item.campaign_title}</span>
-                  <span className="font-extrabold text-blue-600">{item.response_rate_pct.toFixed(0)}%</span>
+                  <span className="font-extrabold text-blue-600">{(item.response_rate_pct || 0).toFixed(0)}%</span>
                 </div>
                 <div className="h-3 bg-gray-50 rounded-full overflow-hidden">
                   <motion.div 
