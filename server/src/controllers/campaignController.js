@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { success, error } = require('../helpers/response');
+const { broadcastCampaignUpdate } = require('../websocket');
 
 exports.acceptCampaign = async (req, res, next) => {
   try {
@@ -16,6 +17,7 @@ exports.acceptCampaign = async (req, res, next) => {
     const [campaign] = await pool.query('SELECT brand_id, title FROM campaigns WHERE id=?', [id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['brand', campaign[0].brand_id, 'Campaign Accepted', `${creator[0].name} accepted your campaign request for ${campaign[0].title}`]);
 
+    broadcastCampaignUpdate(id, { status: 'creator_accepted', progress_step: 1 });
     success(res, { status: 'creator_accepted' });
   } catch (err) {
     next(err);
@@ -38,6 +40,7 @@ exports.declineCampaign = async (req, res, next) => {
     const [campaign] = await pool.query('SELECT brand_id, title FROM campaigns WHERE id=?', [id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['brand', campaign[0].brand_id, 'Campaign Declined', `${creator[0].name} declined your campaign request for ${campaign[0].title}`]);
 
+    broadcastCampaignUpdate(id, { status: 'declined', progress_step: 0 });
     success(res, { status: 'declined' });
   } catch (err) {
     next(err);

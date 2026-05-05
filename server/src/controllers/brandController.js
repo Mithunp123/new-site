@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { success, created, error } = require('../helpers/response');
 const { hashPassword, comparePassword } = require('../helpers/bcrypt');
 const { getInitials, getAvatarColor, formatINR, formatROI } = require('../helpers/format');
+const { broadcastCampaignUpdate } = require('../websocket');
 
 // Preferences & Verification
 exports.upsertPreferences = async (req, res, next) => {
@@ -647,6 +648,7 @@ exports.approveContent = async (req, res, next) => {
     const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Content Approved', `${brand[0].name} approved your content for ${camp[0].title}`]);
 
+    broadcastCampaignUpdate(id, { status: 'brand_approved', progress_step: 4 });
     success(res, { status: 'brand_approved', campaign_id: id });
   } catch (err) {
     next(err);
@@ -691,10 +693,49 @@ exports.fundEscrow = async (req, res, next) => {
     await pool.query("UPDATE campaigns SET escrow_status='held', status='agreement_locked', updated_at=NOW() WHERE id=?", [campaign_id]);
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'agreement_locked', 'brand')", [campaign_id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Escrow Secured', `Escrow secured for ${camp[0].title}`]);
+    broadcastCampaignUpdate(campaign_id, { status: 'agreement_locked', progress_step: 2, escrow_status: 'held' });
     success(res, { escrow_status: 'held', campaign_status: 'agreement_locked' });
   } catch (err) {
     next(err);
   }
+};
+
+exports.markCampaignLive = async (req, res, next) => {
+  try {
+    const id = req.params.campaignId;
+    const brand_id = req.user.id;
+    const [camp] = await pool.query('SELECT * FROM campaigns WHERE id=? AND brand_id=?', [id, brand_id]);
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+    if (camp[0].status !== 'brand_approved') return error(res, 'Content must be approved before marking live', 400);
+
+    await pool.query("UPDATE campaigns SET status='posted_live', updated_at=NOW() WHERE id=?", [id]);
+    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'posted_live', 'brand')", [id]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['creator', camp[0].creator_id, 'Campaign Live!', `Your content for "${camp[0].title}" is now live!`]);
+
+    broadcastCampaignUpdate(id, { status: 'posted_live', progress_step: 5 });
+    success(res, { status: 'posted_live' });
+  } catch (err) { next(err); }
+};
+
+exports.releasePayment = async (req, res, next) => {
+  try {
+    const id = req.params.campaignId;
+    const brand_id = req.user.id;
+    const [camp] = await pool.query('SELECT * FROM campaigns WHERE id=? AND brand_id=?', [id, brand_id]);
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+    const releasableStatuses = ['posted_live', 'analytics_collected'];
+    if (!releasableStatuses.includes(camp[0].status)) return error(res, 'Campaign not ready for payment release', 400);
+
+    await pool.query("UPDATE campaigns SET status='escrow_released', escrow_status='released', updated_at=NOW() WHERE id=?", [id]);
+    await pool.query("UPDATE brand_payments SET payment_status='released' WHERE campaign_id=? AND brand_id=?", [id, brand_id]);
+    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'escrow_released', 'brand')", [id]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['creator', camp[0].creator_id, 'Payment Released!', `Payment for "${camp[0].title}" has been released to your account.`]);
+
+    broadcastCampaignUpdate(id, { status: 'escrow_released', progress_step: 7, escrow_status: 'released' });
+    success(res, { status: 'escrow_released' });
+  } catch (err) { next(err); }
 };
 
 exports.getNotifications = async (req, res, next) => {

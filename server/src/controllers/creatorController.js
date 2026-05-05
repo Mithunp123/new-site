@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { success, error, created } = require('../helpers/response');
+const { broadcastCampaignUpdate } = require('../websocket');
 
 // Requests & Campaigns
 exports.getRequests = async (req, res, next) => {
@@ -79,6 +80,8 @@ exports.acceptRequest = async (req, res, next) => {
     const creatorId = req.user.id;
     await pool.query("UPDATE campaigns SET status='creator_accepted', updated_at=NOW() WHERE id = ? AND creator_id = ?", [campaignId, creatorId]);
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'creator_accepted', 'creator', 'Accepted')", [campaignId]);
+
+    broadcastCampaignUpdate(campaignId, { status: 'creator_accepted', progress_step: 1 });
     success(res, { status: 'creator_accepted' });
   } catch (err) { next(err); }
 };
@@ -88,6 +91,8 @@ exports.declineRequest = async (req, res, next) => {
     const campaignId = req.params.campaignId;
     const creatorId = req.user.id;
     await pool.query("UPDATE campaigns SET status='declined', updated_at=NOW() WHERE id = ? AND creator_id = ?", [campaignId, creatorId]);
+
+    broadcastCampaignUpdate(campaignId, { status: 'declined', progress_step: 0 });
     success(res, { status: 'declined' });
   } catch (err) { next(err); }
 };
@@ -105,12 +110,38 @@ exports.negotiateRequest = async (req, res, next) => {
 exports.getCampaigns = async (req, res, next) => {
   try {
     const creator_id = req.user.id;
-    const [campaigns] = await pool.query(`
-      SELECT c.*, b.name AS brand_name, b.logo_url AS brand_logo
-      FROM campaigns c JOIN brands b ON b.id = c.brand_id
+    const statusMap = {
+      'request_sent': 0, 'creator_accepted': 1, 'agreement_locked': 2,
+      'content_uploaded': 3, 'brand_approved': 4, 'posted_live': 5,
+      'analytics_collected': 6, 'escrow_released': 7, 'campaign_closed': 8
+    };
+    const [rows] = await pool.query(`
+      SELECT
+        c.id AS campaign_id,
+        c.id,
+        c.title,
+        c.status,
+        c.escrow_status,
+        c.budget AS campaign_amount,
+        c.content_type AS deliverable,
+        c.deadline,
+        b.name AS brand_name,
+        b.logo_url AS brand_logo
+      FROM campaigns c
+      JOIN brands b ON b.id = c.brand_id
       WHERE c.creator_id = ? AND c.status NOT IN ('request_sent','declined')
+      ORDER BY c.updated_at DESC
     `, [creator_id]);
-    success(res, { campaigns });
+
+    const campaigns = rows.map(c => ({
+      ...c,
+      progress_step: statusMap[c.status] ?? 0
+    }));
+
+    const active_count = campaigns.filter(c => !['campaign_closed','escrow_released'].includes(c.status)).length;
+    const completed_count = campaigns.filter(c => ['campaign_closed','escrow_released'].includes(c.status)).length;
+
+    success(res, { campaigns, active_count, completed_count });
   } catch (err) { next(err); }
 };
 
@@ -132,10 +163,47 @@ exports.uploadContent = async (req, res, next) => {
   try {
     const campaignId = req.params.campaignId;
     const creatorId = req.user.id;
-    if (!req.file) return error(res, 'No file uploaded', 400);
-    await pool.query("INSERT INTO content_submissions (campaign_id, creator_id, file_path, status) VALUES (?, ?, ?, 'submitted')", [campaignId, creatorId, req.file.path]);
-    await pool.query("UPDATE campaigns SET status='content_uploaded', updated_at=NOW() WHERE id=?", [campaignId]);
-    success(res, { status: 'submitted' });
+
+    // Accept either a file upload OR a content_url in the JSON body
+    const contentUrl = req.file ? req.file.path : req.body?.content_url;
+    if (!contentUrl) return error(res, 'No content provided. Upload a file or provide a content_url.', 400);
+
+    const [camp] = await pool.query(
+      'SELECT status FROM campaigns WHERE id = ? AND creator_id = ?',
+      [campaignId, creatorId]
+    );
+    if (!camp.length) return error(res, 'Campaign not found', 404);
+
+    const allowedStatuses = ['agreement_locked', 'escrow_locked', 'creator_accepted', 'content_uploaded'];
+    if (!allowedStatuses.includes(camp[0].status)) {
+      return error(res, `Cannot upload content in status: ${camp[0].status}`, 400);
+    }
+
+    await pool.query(
+      "INSERT INTO content_submissions (campaign_id, creator_id, file_path, status) VALUES (?, ?, ?, 'submitted') ON DUPLICATE KEY UPDATE file_path=?, status='submitted', submitted_at=NOW()",
+      [campaignId, creatorId, contentUrl, contentUrl]
+    );
+    await pool.query(
+      "UPDATE campaigns SET status='content_uploaded', content_url=?, updated_at=NOW() WHERE id=?",
+      [contentUrl, campaignId]
+    );
+    await pool.query(
+      "INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'content_uploaded', 'creator')",
+      [campaignId]
+    );
+
+    // Notify brand
+    const [campaign] = await pool.query('SELECT brand_id, title FROM campaigns WHERE id=?', [campaignId]);
+    const [creator] = await pool.query('SELECT name FROM creators WHERE id=?', [creatorId]);
+    if (campaign.length && creator.length) {
+      await pool.query(
+        'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+        ['brand', campaign[0].brand_id, 'Content Uploaded', `${creator[0].name} uploaded content for review: ${campaign[0].title}`]
+      );
+    }
+
+    success(res, { content_url: contentUrl, status: 'content_uploaded' });
+    broadcastCampaignUpdate(campaignId, { status: 'content_uploaded', progress_step: 3, content_url: contentUrl });
   } catch (err) { next(err); }
 };
 

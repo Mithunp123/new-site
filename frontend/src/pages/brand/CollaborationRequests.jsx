@@ -1,10 +1,19 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { Clock, CheckCircle2, XCircle, Send, ArrowUpRight, Search, Filter } from 'lucide-react';
 import { formatINR } from '../../utils/format';
 
+// Statuses that mean the creator has accepted and collaboration is active
+const COLLABED_STATUSES = [
+  'creator_accepted', 'agreement_locked', 'escrow_locked',
+  'content_uploaded', 'brand_approved', 'posted_live',
+  'analytics_collected', 'payment_released', 'campaign_closed'
+];
+
 const CollaborationRequests = () => {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ['brand-requests'],
     queryFn: async () => {
@@ -32,11 +41,19 @@ const CollaborationRequests = () => {
   }
 
   const getStatusBadge = (status) => {
+    if (COLLABED_STATUSES.includes(status?.toLowerCase())) {
+      return (
+        <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold border border-purple-100 flex items-center justify-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5"/> Collabed
+        </span>
+      );
+    }
     switch (status?.toLowerCase()) {
       case 'accepted': return <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-bold border border-green-100 flex items-center justify-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5"/> Accepted</span>;
       case 'declined': return <span className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-bold border border-red-100 flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Declined</span>;
       case 'pending': return <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold border border-blue-100 flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5"/> Pending</span>;
       case 'sent':
+      case 'request_sent':
       default:
         return <span className="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-xs font-bold border border-orange-100 flex items-center justify-center gap-1.5"><Send className="w-3.5 h-3.5"/> Sent</span>;
     }
@@ -68,7 +85,7 @@ const CollaborationRequests = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard label="Sent Requests" value={data?.sent_count || 0} icon={Send} color="orange" />
         <StatCard label="Pending Approval" value={data?.pending_count || 0} icon={Clock} color="blue" />
-        <StatCard label="Accepted Collabs" value={data?.accepted_count || 0} icon={CheckCircle2} color="green" />
+        <StatCard label="Active Collabs" value={(data?.accepted_count || 0) + (data?.collabed_count || 0)} icon={CheckCircle2} color="green" />
       </div>
 
       <div className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
@@ -108,9 +125,18 @@ const CollaborationRequests = () => {
                   <div className="w-28 flex justify-end">
                     {getStatusBadge(req.status)}
                   </div>
-                  <button className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-transparent hover:border-blue-100">
-                    <ArrowUpRight className="w-5 h-5" />
-                  </button>
+                  {COLLABED_STATUSES.includes(req.status?.toLowerCase()) ? (
+                    <button
+                      onClick={() => navigate('/brand/campaign-tracking')}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all"
+                    >
+                      Track Campaign <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-transparent hover:border-blue-100">
+                      <ArrowUpRight className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

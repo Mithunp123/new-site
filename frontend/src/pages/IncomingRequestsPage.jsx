@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Check, X, MessageSquare, Calendar, Link2, Lock, ChevronDown, ChevronUp, Bell, Inbox } from 'lucide-react';
+import { Search, Check, X, MessageSquare, Calendar, Link2, Lock, ChevronDown, ChevronUp, Bell, Inbox, ArrowRight } from 'lucide-react';
 import { getRequests, acceptCampaign, declineCampaign } from '../api/creatorApi';
+import { useCampaignSocket } from '../hooks/useCampaignSocket';
 
 const tabs = [
   { key: 'all', label: 'All' },
@@ -11,11 +13,19 @@ const tabs = [
   { key: 'completed', label: 'Completed' },
 ];
 
+// Status values that mean the creator has already accepted
+const ACCEPTED_STATUSES = [
+  'creator_accepted', 'agreement_locked', 'escrow_locked',
+  'content_uploaded', 'brand_approved', 'posted_live',
+  'analytics_collected', 'payment_released', 'campaign_closed'
+];
+
 export default function IncomingRequestsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests', activeTab, search],
@@ -40,6 +50,10 @@ export default function IncomingRequestsPage() {
 
   const counts = data?.counts || { pending: 0, accepted: 0, completed: 0, total: 0 };
   const campaigns = data?.campaigns || [];
+
+  // Subscribe to WebSocket for all campaign IDs in the list
+  const campaignIds = campaigns.map(c => c.campaign_id || c.id).filter(Boolean);
+  useCampaignSocket(campaignIds);
 
   if (isLoading) {
     return (
@@ -98,6 +112,8 @@ export default function IncomingRequestsPage() {
         {campaigns.length > 0 ? (
           campaigns.map((c) => {
             const isPending = c.status === 'request_sent';
+            const isAccepted = ACCEPTED_STATUSES.includes(c.status);
+            const isDeclined = c.status === 'declined';
             const isExpanded = expandedId === c.campaign_id;
             
             const iconBg = c.platform === 'instagram' ? '#fff3e0' : '#fce4ec';
@@ -105,9 +121,15 @@ export default function IncomingRequestsPage() {
             
             // Border Left colors
             let leftBorder = '4px solid #e2e8f0';
-            if (isPending) leftBorder = '4px solid #ef4444'; // Danger
-            else if (['creator_accepted', 'agreement_locked'].includes(c.status)) leftBorder = '4px solid #f59e0b'; // Warning/Accepted
-            else if (['content_uploaded', 'brand_approved', 'posted_live'].includes(c.status)) leftBorder = '4px solid #10b981'; // Success
+            if (isPending) leftBorder = '4px solid #ef4444';
+            else if (isAccepted) leftBorder = '4px solid #10b981';
+            else if (isDeclined) leftBorder = '4px solid #94a3b8';
+
+            // Safe field access with fallbacks
+            const brandName = c.brand_name || c.brand || 'Brand';
+            const deliverable = c.deliverable || c.content_type || '—';
+            const amount = c.amount ?? c.campaign_amount ?? 0;
+            const respondBy = c.respond_by ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null;
 
             return (
               <div key={c.campaign_id} className="card" style={{ borderLeft: leftBorder, background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -127,7 +149,7 @@ export default function IncomingRequestsPage() {
                       color: iconColor, 
                       flexShrink: 0 
                     }}>
-                      {c.brand_initials || 'BR'}
+                      {c.brand_initials || brandName?.[0]?.toUpperCase() || 'B'}
                     </div>
 
                     <div style={{ flex: 1, minWidth: '200px' }}>
@@ -135,31 +157,37 @@ export default function IncomingRequestsPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
                         <div>
                           <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-1)' }}>
-                            {c.brand_name} — {c.title}
+                            {brandName} — {c.title}
                           </div>
                           <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
-                            {c.deliverable} · {c.content_type}
+                            {deliverable} {c.content_type && c.content_type !== deliverable ? `· ${c.content_type}` : ''}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', fontWeight: '800', color: 'var(--blue)' }}>
-                            ₹{Number(c.amount).toLocaleString('en-IN')}
+                            ₹{Number(amount).toLocaleString('en-IN')}
                           </div>
-                          <span className={`badge ${isPending ? 'badge-red' : 'badge-orange'}`} style={{ gap: '6px' }}>
-                            <span style={{ 
-                              width: '6px', 
-                              height: '6px', 
-                              borderRadius: '50%', 
-                              background: isPending ? 'var(--red)' : 'var(--orange)',
-                              display: 'inline-block'
-                            }}></span>
-                            Respond by {new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                          </span>
+                          {isPending && respondBy && (
+                            <span className="badge badge-red" style={{ gap: '6px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }}></span>
+                              Respond by {respondBy}
+                            </span>
+                          )}
+                          {isAccepted && (
+                            <span style={{ padding: '3px 10px', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>
+                              ✓ Accepted
+                            </span>
+                          )}
+                          {isDeclined && (
+                            <span style={{ padding: '3px 10px', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>
+                              Declined
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Campaign Brief */}
-                      {(isPending || isExpanded) && (
+                      {(isPending || isExpanded) && c.brief && (
                         <div style={{ background: 'var(--bg-page)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', marginBottom: '6px', textTransform: 'uppercase' }}>CAMPAIGN BRIEF</div>
                           <div style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.6' }}>{c.brief}</div>
@@ -169,23 +197,23 @@ export default function IncomingRequestsPage() {
                       {/* Metadata Row */}
                       {(isPending || isExpanded) && (
                         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>📅 Timeline: <strong>{c.timeline_label}</strong></div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>🔗 Tracking Link: <strong>{c.tracking_label}</strong></div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>💰 Escrow: <strong>{c.escrow_label}</strong></div>
+                          {c.timeline_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>📅 Timeline: <strong>{c.timeline_label}</strong></div>}
+                          {c.tracking_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>🔗 Tracking Link: <strong>{c.tracking_label}</strong></div>}
+                          {c.escrow_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>💰 Escrow: <strong>{c.escrow_label}</strong></div>}
                         </div>
                       )}
 
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {isPending ? (
                           <>
                             <button 
                               onClick={() => acceptMut.mutate(c.campaign_id)}
                               className="btn btn-primary"
-                              disabled={acceptMut.isLoading}
+                              disabled={acceptMut.isPending}
                               style={{ padding: '8px 20px' }}
                             >
-                              ✓ {acceptMut.isLoading ? 'Accepting...' : 'Accept Collaboration'}
+                              ✓ {acceptMut.isPending ? 'Accepting...' : 'Accept Collaboration'}
                             </button>
                             <button className="btn btn-outline" style={{ background: 'transparent' }}>
                               Negotiate Rate
@@ -198,30 +226,33 @@ export default function IncomingRequestsPage() {
                               ✕ Decline
                             </button>
                           </>
-                        ) : (
+                        ) : isAccepted ? (
                           <>
                             <button 
-                              disabled 
-                              className="btn" 
-                              style={{ background: 'var(--green)', color: 'white', opacity: 1, cursor: 'default', boxShadow: 'none' }}
+                              onClick={() => navigate('/campaigns')}
+                              className="btn btn-primary"
+                              style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}
                             >
-                              ✓ Accepted
+                              View Campaign <ArrowRight size={14} />
                             </button>
                             <button 
                               onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
                               className="btn btn-outline"
                               style={{ background: 'transparent' }}
                             >
-                              {isExpanded ? 'Close Brief' : 'View Full Brief'}
-                            </button>
-                            <button 
-                              onClick={() => declineMut.mutate(c.campaign_id)}
-                              className="btn btn-sm" 
-                              style={{ color: 'var(--red)', background: 'transparent', border: 'none', fontWeight: '700' }}
-                            >
-                              ✕ Decline
+                              {isExpanded ? 'Close Brief' : 'View Brief'}
                             </button>
                           </>
+                        ) : isDeclined ? (
+                          <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>This request was declined.</span>
+                        ) : (
+                          <button 
+                            onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
+                            className="btn btn-outline"
+                            style={{ background: 'transparent' }}
+                          >
+                            {isExpanded ? 'Close Brief' : 'View Full Brief'}
+                          </button>
                         )}
                       </div>
                     </div>

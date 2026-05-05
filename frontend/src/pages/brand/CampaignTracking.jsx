@@ -1,18 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
 import { 
   Check, Clock, ExternalLink, Download, 
   Search, Filter, CheckCircle, AlertCircle,
-  XCircle, ArrowRight
+  XCircle, ArrowRight, Lock, Upload, BarChart2, DollarSign, X
 } from 'lucide-react';
 import { formatINR, formatCount } from '../../utils/format';
 import { motion } from 'framer-motion';
+import { useCampaignSocket } from '../../hooks/useCampaignSocket';
 
 const CampaignTracking = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+
   const { data: tracking, isLoading } = useQuery({
     queryKey: ['campaign-tracking'],
     queryFn: async () => {
@@ -21,19 +25,98 @@ const CampaignTracking = () => {
     }
   });
 
+  const lockEscrowMutation = useMutation({
+    mutationFn: (id) => api.post('/api/brand/payments/fund-escrow', { campaign_id: id }),
+    onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
+  });
+
   const approveMutation = useMutation({
     mutationFn: (id) => api.put(`/api/brand/campaign/${id}/approve-content`),
     onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/reject-content`, { reason }),
+    mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/request-revision`, { revision_note: reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['campaign-tracking']);
+      setShowRejectInput(false);
+      setRejectReason('');
+    }
+  });
+
+  const markLiveMutation = useMutation({
+    mutationFn: (id) => api.put(`/api/brand/campaign/${id}/mark-live`),
     onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
   });
 
+  const releasePaymentMutation = useMutation({
+    mutationFn: (id) => api.put(`/api/brand/campaign/${id}/release-payment`),
+    onSuccess: () => queryClient.invalidateQueries(['campaign-tracking'])
+  });
+
+  // Derive IDs for WebSocket before any early returns — empty array = no-op
+  const featured = tracking?.featured_campaign;
+  const allIds = (tracking?.all_campaigns || []).map(c => c.id).filter(Boolean);
+  if (featured?.id) allIds.unshift(featured.id);
+  useCampaignSocket([...new Set(allIds)]);
+
   if (isLoading) return <div className="p-8">Loading campaign progress...</div>;
 
-  const featured = tracking?.featured_campaign;
+  // Determine what action the brand needs to take based on current step
+  const getActionBanner = (campaign) => {
+    if (!campaign) return null;
+    const step = campaign.progress_step ?? 0;
+    const status = campaign.status;
+
+    // Step 1 (index 1) = creator_accepted → brand should lock escrow
+    if (step === 1 || status === 'creator_accepted') {
+      return {
+        type: 'escrow',
+        message: `${campaign.creator_name || 'Creator'} accepted your request! Lock escrow to proceed.`,
+        action: () => lockEscrowMutation.mutate(campaign.id),
+        actionLabel: '🔒 Lock Escrow',
+        loading: lockEscrowMutation.isPending,
+        color: 'blue'
+      };
+    }
+    // Step 3 (index 3) = content_uploaded → brand should review
+    if (step === 3 || status === 'content_uploaded') {
+      return {
+        type: 'review',
+        message: 'Creator has uploaded content. Review and approve or request revision.',
+        action: () => approveMutation.mutate(campaign.id),
+        actionLabel: '✓ Approve Content',
+        loading: approveMutation.isPending,
+        color: 'orange',
+        secondaryAction: true
+      };
+    }
+    // Step 4 (index 4) = brand_approved → mark as live
+    if (step === 4 || status === 'brand_approved') {
+      return {
+        type: 'live',
+        message: 'Content approved! Mark the campaign as live once the content is posted.',
+        action: () => markLiveMutation.mutate(campaign.id),
+        actionLabel: '🚀 Mark as Live',
+        loading: markLiveMutation.isPending,
+        color: 'green'
+      };
+    }
+    // Step 6 (index 6) = metrics_collected → release payment
+    if (step === 6 || status === 'analytics_collected') {
+      return {
+        type: 'payment',
+        message: 'Metrics collected! Release payment to complete the campaign.',
+        action: () => releasePaymentMutation.mutate(campaign.id),
+        actionLabel: '💸 Release Payment',
+        loading: releasePaymentMutation.isPending,
+        color: 'green'
+      };
+    }
+    return null;
+  };
+
+  const actionBanner = getActionBanner(featured);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 font-dm">
@@ -79,35 +162,77 @@ const CampaignTracking = () => {
             ))}
           </div>
 
-          {/* Action Banner */}
-          {featured.action_required && (
-            <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4">
+          {/* Dynamic Action Banner */}
+          {actionBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 ${
+                actionBanner.color === 'blue' ? 'bg-blue-50 border border-blue-200' :
+                actionBanner.color === 'green' ? 'bg-green-50 border border-green-200' :
+                'bg-[#FFFBEB] border border-[#FDE68A]'
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-orange-600" />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  actionBanner.color === 'blue' ? 'bg-blue-100' :
+                  actionBanner.color === 'green' ? 'bg-green-100' : 'bg-orange-100'
+                }`}>
+                  <AlertCircle className={`w-6 h-6 ${
+                    actionBanner.color === 'blue' ? 'text-blue-600' :
+                    actionBanner.color === 'green' ? 'text-green-600' : 'text-orange-600'
+                  }`} />
                 </div>
                 <p className="text-sm font-bold text-gray-900 leading-tight">
-                  📋 {featured.action_required.message}
+                  {actionBanner.message}
                 </p>
               </div>
-              <div className="flex gap-2 w-full md:w-auto">
-                <button 
-                  onClick={() => approveMutation.mutate(featured.id)}
-                  className="flex-1 md:flex-none px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm"
+              <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                <button
+                  onClick={actionBanner.action}
+                  disabled={actionBanner.loading}
+                  className={`flex-1 md:flex-none px-6 py-2.5 font-bold rounded-xl transition-all text-sm disabled:opacity-60 ${
+                    actionBanner.color === 'blue' ? 'bg-blue-600 text-white hover:bg-blue-700' :
+                    actionBanner.color === 'green' ? 'bg-green-600 text-white hover:bg-green-700' :
+                    'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  ✓ Approve Content
+                  {actionBanner.loading ? 'Processing...' : actionBanner.actionLabel}
                 </button>
-                <button 
-                  onClick={() => {
-                    const reason = prompt('Enter rejection reason:');
-                    if (reason) rejectMutation.mutate({ id: featured.id, reason });
-                  }}
-                  className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
-                >
-                  Request Revision
-                </button>
+                {actionBanner.secondaryAction && (
+                  <>
+                    {showRejectInput ? (
+                      <div className="flex gap-2 flex-1 md:flex-none">
+                        <input
+                          type="text"
+                          placeholder="Reason for revision..."
+                          value={rejectReason}
+                          onChange={e => setRejectReason(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-200 w-48"
+                        />
+                        <button
+                          onClick={() => rejectMutation.mutate({ id: featured.id, reason: rejectReason })}
+                          disabled={!rejectReason || rejectMutation.isPending}
+                          className="px-4 py-2 bg-orange-500 text-white font-bold rounded-xl text-sm hover:bg-orange-600 disabled:opacity-50"
+                        >
+                          Send
+                        </button>
+                        <button onClick={() => setShowRejectInput(false)} className="p-2 text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowRejectInput(true)}
+                        className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
+                      >
+                        Request Revision
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       )}
@@ -204,13 +329,25 @@ const StatusBadge = ({ status }) => {
     'brand_approved': 'bg-green-100 text-green-700 border-green-200',
     'content_uploaded': 'bg-orange-100 text-orange-700 border-orange-200',
     'request_sent': 'bg-blue-100 text-blue-700 border-blue-200',
+    'creator_accepted': 'bg-purple-100 text-purple-700 border-purple-200',
+    'agreement_locked': 'bg-purple-100 text-purple-700 border-purple-200',
+    'escrow_locked': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    'posted_live': 'bg-green-100 text-green-700 border-green-200',
+    'analytics_collected': 'bg-blue-100 text-blue-700 border-blue-200',
+    'payment_released': 'bg-green-100 text-green-700 border-green-200',
     'campaign_closed': 'bg-gray-100 text-gray-700 border-gray-200',
     'default': 'bg-gray-100 text-gray-700 border-gray-200'
   };
   const labels = {
-    'brand_approved': 'Completed',
+    'brand_approved': 'Approved',
     'content_uploaded': 'In Review',
     'request_sent': 'Brief Sent',
+    'creator_accepted': 'Accepted',
+    'agreement_locked': 'Active',
+    'escrow_locked': 'Escrow Locked',
+    'posted_live': 'Live',
+    'analytics_collected': 'Metrics In',
+    'payment_released': 'Paid',
     'campaign_closed': 'Closed'
   };
   return (

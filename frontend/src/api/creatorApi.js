@@ -26,7 +26,7 @@ export const negotiateCampaign = (id, data) => api.put(`/api/campaign/${id}/nego
 
 // Campaigns
 export const getMyCampaigns = (params) => api.get('/api/creator/campaigns', { params });
-export const uploadContent = (id, data) => api.put(`/api/campaign/${id}/upload-content`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const uploadContent = (id, data) => api.post(`/api/creator/campaigns/${id}/upload-content`, data);
 
 // Earnings
 export const getEarnings = () => api.get('/api/creator/earnings');

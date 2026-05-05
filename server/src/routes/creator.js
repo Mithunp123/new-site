@@ -31,7 +31,15 @@ router.post('/requests/:campaignId/negotiate', creatorController.negotiateReques
 
 router.get('/campaigns', creatorController.getCampaigns);
 router.get('/campaigns/:campaignId', creatorController.getCampaignById);
-router.post('/campaigns/:campaignId/upload-content', upload.uploadContent, creatorController.uploadContent);
+// Accept file upload OR JSON body with content_url
+router.post('/campaigns/:campaignId/upload-content', (req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    upload.uploadContent(req, res, next);
+  } else {
+    next(); // JSON body — skip multer
+  }
+}, creatorController.uploadContent);
 router.get('/campaigns/:campaignId/submissions', creatorController.getCampaignSubmissions);
 
 // Earnings

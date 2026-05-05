@@ -41,6 +41,8 @@ router.get('/campaigns/group/:groupId', brandController.getCampaignGroupDetails)
 router.get('/campaign/:campaignId/submissions', brandController.getCampaignSubmissions);
 router.put('/campaign/:campaignId/approve-content', brandController.approveContent);
 router.put('/campaign/:campaignId/request-revision', brandController.requestRevision);
+router.put('/campaign/:campaignId/mark-live', brandController.markCampaignLive);
+router.put('/campaign/:campaignId/release-payment', brandController.releasePayment);
 
 // Analytics
 router.get('/roi-analytics', brandController.getROIAnalytics);
