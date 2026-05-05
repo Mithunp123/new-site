@@ -3,6 +3,7 @@ const { success, created, error } = require('../helpers/response');
 const { hashPassword, comparePassword } = require('../helpers/bcrypt');
 const { getInitials, getAvatarColor, formatINR, formatROI } = require('../helpers/format');
 const { broadcastCampaignUpdate } = require('../websocket');
+const { autoCollectMetrics } = require('./analyticsController');
 
 // Preferences & Verification
 exports.upsertPreferences = async (req, res, next) => {
@@ -48,7 +49,10 @@ exports.updateLogo = async (req, res, next) => {
 exports.getProfile = async (req, res, next) => {
   try {
     const brand_id = req.user.id;
-    const [brand] = await pool.query('SELECT id, name, email, phone, website, logo_url, category, description, company_size, country, role, is_active FROM brands WHERE id = ?', [brand_id]);
+    const [brand] = await pool.query(
+      'SELECT id, name, email, phone, website, logo_url, category, description, company_size, country, role, is_active FROM brands WHERE id = ?',
+      [brand_id]
+    );
     const [prefs] = await pool.query('SELECT * FROM brand_preferences WHERE brand_id = ?', [brand_id]);
     const [verify] = await pool.query('SELECT * FROM brand_verification WHERE brand_id = ?', [brand_id]);
     
@@ -364,24 +368,18 @@ exports.getCollaborationRequests = async (req, res, next) => {
       WHERE c.brand_id = ? ORDER BY c.created_at DESC
     `, [id]);
 
-    const statusMapping = {
-      'request_sent': 'Sent',
-      'creator_accepted': 'Pending',
-      'declined': 'Declined'
-    };
-
     const requests = rows.map(r => ({
       ...r,
       creator_initials: getInitials(r.creator_name),
       avatar_color: getAvatarColor(r.creator_id),
-      status: statusMapping[r.status] || 'Accepted'
+      // Keep raw status — frontend handles display labels
     }));
 
     const [pending] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE brand_id=? AND status='creator_accepted'", [id]);
-    const [accepted] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE brand_id=? AND status NOT IN ('request_sent','declined','creator_accepted')", [id]);
+    const [collabed] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE brand_id=? AND status NOT IN ('request_sent','declined','creator_accepted')", [id]);
     const [sent] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE brand_id=? AND status='request_sent'", [id]);
 
-    success(res, { pending_count: pending[0].count, accepted_count: accepted[0].count, sent_count: sent[0].count, requests });
+    success(res, { pending_count: pending[0].count, accepted_count: pending[0].count, collabed_count: collabed[0].count, sent_count: sent[0].count, requests });
   } catch (err) {
     next(err);
   }
@@ -398,14 +396,19 @@ exports.getCampaignTracking = async (req, res, next) => {
       ORDER BY c.updated_at DESC LIMIT 1
     `, [id]);
 
-    const statusMap = { 'request_sent': 0, 'creator_accepted': 1, 'agreement_locked': 2, 'content_uploaded': 3, 'brand_approved': 4, 'posted_live': 5, 'analytics_collected': 6, 'escrow_released': 7, 'campaign_closed': 8 };
+    const statusMap = {
+      'request_sent': 0, 'creator_accepted': 1, 'agreement_locked': 2,
+      'content_uploaded': 3, 'brand_approved': 4, 'posted_live': 5,
+      'analytics_collected': 6, 'escrow_released': 7, 'campaign_closed': 8
+    };
     
     let featured = null;
     if (qfeatured.length) {
       const f = qfeatured[0];
       featured = {
         ...f,
-        progress_step: statusMap[f.status] || 0,
+        progress_step: statusMap[f.status] ?? 0,
+        // action_required kept for legacy but dynamic banner now handles this on frontend
         action_required: f.status === 'content_uploaded' ? {
           message: `Content submitted by ${f.creator_name} — Awaiting your approval`,
           can_approve: true,
@@ -710,11 +713,18 @@ exports.markCampaignLive = async (req, res, next) => {
 
     await pool.query("UPDATE campaigns SET status='posted_live', updated_at=NOW() WHERE id=?", [id]);
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'posted_live', 'brand')", [id]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
-      ['creator', camp[0].creator_id, 'Campaign Live!', `Your content for "${camp[0].title}" is now live!`]);
+    await pool.query(
+      "INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Campaign Live! 🚀', ?)",
+      [camp[0].creator_id, `Your content for "${camp[0].title}" is now live! Metrics will be collected automatically.`]
+    );
 
     broadcastCampaignUpdate(id, { status: 'posted_live', progress_step: 5 });
-    success(res, { status: 'posted_live' });
+
+    // Auto-collect metrics after 30 seconds (allows YouTube/Instagram to index the post)
+    // In production this delay can be longer (e.g. 1 hour) for accurate data
+    setTimeout(() => autoCollectMetrics(id, brand_id), 30000);
+
+    success(res, { status: 'posted_live', message: 'Campaign marked live. Metrics will be auto-collected in ~30 seconds.' });
   } catch (err) { next(err); }
 };
 
@@ -734,6 +744,19 @@ exports.releasePayment = async (req, res, next) => {
       ['creator', camp[0].creator_id, 'Payment Released!', `Payment for "${camp[0].title}" has been released to your account.`]);
 
     broadcastCampaignUpdate(id, { status: 'escrow_released', progress_step: 7, escrow_status: 'released' });
+
+    // Auto-close campaign after payment release
+    setTimeout(async () => {
+      try {
+        const [current] = await pool.query('SELECT status FROM campaigns WHERE id=?', [id]);
+        if (current[0]?.status === 'escrow_released') {
+          await pool.query("UPDATE campaigns SET status='campaign_closed', updated_at=NOW() WHERE id=?", [id]);
+          await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'campaign_closed', 'system')", [id]);
+          broadcastCampaignUpdate(id, { status: 'campaign_closed', progress_step: 8 });
+        }
+      } catch (e) { /* silent */ }
+    }, 3000);
+
     success(res, { status: 'escrow_released' });
   } catch (err) { next(err); }
 };

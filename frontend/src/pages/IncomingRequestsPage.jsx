@@ -13,11 +13,11 @@ const tabs = [
   { key: 'completed', label: 'Completed' },
 ];
 
-// Status values that mean the creator has already accepted
+// Status values that mean the creator has already accepted (any post-acceptance state)
 const ACCEPTED_STATUSES = [
   'creator_accepted', 'agreement_locked', 'escrow_locked',
   'content_uploaded', 'brand_approved', 'posted_live',
-  'analytics_collected', 'payment_released', 'campaign_closed'
+  'analytics_collected', 'payment_released', 'escrow_released', 'campaign_closed'
 ];
 
 export default function IncomingRequestsPage() {

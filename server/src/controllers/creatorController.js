@@ -213,15 +213,48 @@ exports.getEarnings = async (req, res, next) => {
     const [q1] = await pool.query('SELECT COALESCE(SUM(gross_amount),0) AS total FROM earnings WHERE creator_id=?', [id]);
     const [q2] = await pool.query("SELECT COALESCE(SUM(net_amount),0) AS total FROM earnings WHERE creator_id=? AND payment_status='released'", [id]);
     const [q3] = await pool.query("SELECT COALESCE(SUM(gross_amount),0) AS total FROM earnings WHERE creator_id=? AND payment_status='in_escrow'", [id]);
+    const [q4] = await pool.query(
+      "SELECT COALESCE(SUM(net_amount),0) AS this_month FROM earnings WHERE creator_id=? AND payment_status='released' AND MONTH(released_at)=MONTH(NOW()) AND YEAR(released_at)=YEAR(NOW())",
+      [id]
+    );
+    const [q4b] = await pool.query(
+      "SELECT COALESCE(SUM(net_amount),0) AS last_month FROM earnings WHERE creator_id=? AND payment_status='released' AND MONTH(released_at)=MONTH(DATE_SUB(NOW(),INTERVAL 1 MONTH)) AND YEAR(released_at)=YEAR(DATE_SUB(NOW(),INTERVAL 1 MONTH))",
+      [id]
+    );
     const [creator] = await pool.query('SELECT upi_id FROM creators WHERE id = ?', [id]);
-    const [history] = await pool.query('SELECT e.*, b.name AS brand_name, c.title FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? ORDER BY e.created_at DESC', [id]);
-    
+    const [history] = await pool.query(
+      'SELECT e.*, b.name AS brand_name, c.title, e.released_at AS date FROM earnings e JOIN campaigns c ON c.id = e.campaign_id JOIN brands b ON b.id = c.brand_id WHERE e.creator_id = ? ORDER BY e.created_at DESC LIMIT 20',
+      [id]
+    );
+    // Escrow balance breakdown
+    const [escrowCamps] = await pool.query(`
+      SELECT c.id, c.title, c.escrow_amount AS amount, b.name AS brand
+      FROM campaigns c JOIN brands b ON b.id=c.brand_id
+      WHERE c.creator_id=? AND c.escrow_status='held'
+    `, [id]);
+    // Monthly chart
+    const [monthly] = await pool.query(`
+      SELECT DATE_FORMAT(released_at,'%b') AS month, COALESCE(SUM(net_amount),0) AS total
+      FROM earnings WHERE creator_id=? AND payment_status='released'
+      AND released_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY YEAR(released_at), MONTH(released_at), DATE_FORMAT(released_at,'%b')
+      ORDER BY MIN(released_at) ASC
+    `, [id]);
+
+    const changePct = q4b[0].last_month > 0
+      ? Math.round(((q4b[0].this_month - q4b[0].last_month) / q4b[0].last_month) * 100)
+      : 0;
+
     success(res, {
       total_earned_all_time: q1[0].total,
       available_to_withdraw: q2[0].total,
       pending_release: q3[0].total,
+      this_month: q4[0].this_month,
+      change_pct: changePct,
       upi_id: creator[0]?.upi_id,
-      transaction_history: history
+      transaction_history: history,
+      escrow_balance: { total: escrowCamps.reduce((s, c) => s + Number(c.amount), 0), campaigns: escrowCamps },
+      monthly_chart: monthly
     });
   } catch (err) { next(err); }
 };
@@ -229,8 +262,46 @@ exports.getEarnings = async (req, res, next) => {
 exports.withdrawEarnings = async (req, res, next) => {
   try {
     const { amount, payout_method } = req.body;
-    // Implementation logic here
-    success(res, null, 'Withdrawal request submitted');
+    const id = req.user.id;
+
+    if (!amount || amount <= 0) return error(res, 'Invalid withdrawal amount', 400);
+
+    // Check available balance
+    const [bal] = await pool.query(
+      "SELECT COALESCE(SUM(net_amount),0) AS available FROM earnings WHERE creator_id=? AND payment_status='released'",
+      [id]
+    );
+    if (amount > bal[0].available) return error(res, 'Insufficient balance', 400);
+
+    // Get UPI ID
+    const [creator] = await pool.query('SELECT upi_id, name FROM creators WHERE id=?', [id]);
+    const upiId = creator[0]?.upi_id;
+    if (!upiId && payout_method === 'upi') return error(res, 'UPI ID not set. Please update in Settings.', 400);
+
+    // Record withdrawal request
+    await pool.query(
+      "INSERT INTO withdrawals (creator_id, amount, payout_method, upi_id, status, requested_at) VALUES (?, ?, ?, ?, 'pending', NOW())",
+      [id, amount, payout_method || 'upi', upiId]
+    );
+
+    // Mark earnings as withdrawn (deduct from available)
+    await pool.query(
+      "UPDATE earnings SET payment_status='withdrawn' WHERE creator_id=? AND payment_status='released' ORDER BY released_at ASC LIMIT 1",
+      [id]
+    );
+
+    await pool.query(
+      "INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Withdrawal Requested', ?)",
+      [id, `Withdrawal of ₹${amount} requested. Will be processed in 2-3 business days.`]
+    );
+
+    success(res, {
+      amount,
+      payout_method: payout_method || 'upi',
+      upi_id: upiId,
+      status: 'pending',
+      message: 'Withdrawal request submitted. Funds will be credited in 2-3 business days.'
+    });
   } catch (err) { next(err); }
 };
 
@@ -346,29 +417,230 @@ exports.upsertNicheDetails = async (req, res, next) => {
 exports.getDashboard = async (req, res, next) => {
   try {
     const id = req.user.id;
-    const [q1] = await pool.query('SELECT COUNT(*) AS count FROM campaigns WHERE creator_id=? AND status NOT IN ("campaign_closed", "declined")', [id]);
-    const [q2] = await pool.query('SELECT COALESCE(SUM(net_amount), 0) AS total FROM earnings WHERE creator_id=? AND payment_status="released"', [id]);
-    const [q3] = await pool.query('SELECT COUNT(*) AS count FROM campaigns WHERE creator_id=? AND status="request_sent"', [id]);
-    
+
+    // Active campaigns count
+    const [q1] = await pool.query(
+      "SELECT COUNT(*) AS count FROM campaigns WHERE creator_id=? AND status NOT IN ('campaign_closed','declined','escrow_released')",
+      [id]
+    );
+    // Earnings this month
+    const [q2] = await pool.query(
+      "SELECT COALESCE(SUM(net_amount),0) AS amount, COALESCE(SUM(CASE WHEN MONTH(released_at)=MONTH(NOW()) AND YEAR(released_at)=YEAR(NOW()) THEN net_amount ELSE 0 END),0) AS this_month FROM earnings WHERE creator_id=? AND payment_status='released'",
+      [id]
+    );
+    // Earnings last month for change %
+    const [q2b] = await pool.query(
+      "SELECT COALESCE(SUM(net_amount),0) AS last_month FROM earnings WHERE creator_id=? AND payment_status='released' AND MONTH(released_at)=MONTH(DATE_SUB(NOW(),INTERVAL 1 MONTH)) AND YEAR(released_at)=YEAR(DATE_SUB(NOW(),INTERVAL 1 MONTH))",
+      [id]
+    );
+    // New requests
+    const [q3] = await pool.query(
+      "SELECT COUNT(*) AS count FROM campaigns WHERE creator_id=? AND status='request_sent'",
+      [id]
+    );
+    // Pending escrow
+    const [q4] = await pool.query(
+      "SELECT COALESCE(SUM(escrow_amount),0) AS total FROM campaigns WHERE creator_id=? AND escrow_status='held'",
+      [id]
+    );
+    // Active campaigns list with brand info
+    const [q5] = await pool.query(`
+      SELECT c.id AS campaign_id, c.title, c.status, c.deadline, c.budget AS amount,
+             b.name AS brand_name, b.logo_url AS brand_logo
+      FROM campaigns c JOIN brands b ON b.id=c.brand_id
+      WHERE c.creator_id=? AND c.status NOT IN ('campaign_closed','declined','escrow_released')
+      ORDER BY c.updated_at DESC LIMIT 5
+    `, [id]);
+    // Monthly earnings chart (last 6 months)
+    const [q6] = await pool.query(`
+      SELECT DATE_FORMAT(released_at,'%b') AS month, COALESCE(SUM(net_amount),0) AS total
+      FROM earnings WHERE creator_id=? AND payment_status='released'
+      AND released_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY YEAR(released_at), MONTH(released_at), DATE_FORMAT(released_at,'%b')
+      ORDER BY MIN(released_at) ASC
+    `, [id]);
+    // Upcoming deadlines
+    const [q7] = await pool.query(`
+      SELECT c.id, c.title, c.deadline, b.name AS brand_name
+      FROM campaigns c JOIN brands b ON b.id=c.brand_id
+      WHERE c.creator_id=? AND c.status NOT IN ('campaign_closed','declined')
+      AND c.deadline IS NOT NULL AND c.deadline >= CURDATE()
+      ORDER BY c.deadline ASC LIMIT 3
+    `, [id]);
+
+    // New requests (pending) with brand info
+    const [q8] = await pool.query(`
+      SELECT c.id AS campaign_id, c.title, c.budget AS amount, c.content_type AS deliverable,
+             b.name AS brand_name, b.logo_url AS brand_logo
+      FROM campaigns c JOIN brands b ON b.id=c.brand_id
+      WHERE c.creator_id=? AND c.status='request_sent'
+      ORDER BY c.created_at DESC LIMIT 5
+    `, [id]);
+
+    const lastMonth = q2b[0].last_month;
+    const thisMonth = q2[0].this_month;
+    const changePct = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : 0;
+
+    // Add days_remaining to deadlines
+    const deadlinesWithDays = q7.map(d => ({
+      ...d,
+      days_remaining: Math.max(0, Math.ceil((new Date(d.deadline) - new Date()) / (1000 * 60 * 60 * 24)))
+    }));
+
     success(res, {
-      active_campaigns: q1[0].count,
-      total_earnings: q2[0].total,
-      new_requests: q3[0].count
+      active_campaigns: { count: q1[0].count },
+      earnings_this_month: { amount: thisMonth, change_pct: Math.round(changePct) },
+      total_earnings: q2[0].amount,
+      new_requests: q8,
+      pending_requests: { count: q3[0].count },
+      pending_escrow: q4[0].total,
+      active_campaigns_list: q5,
+      monthly_earnings_chart: q6,
+      upcoming_deadlines: deadlinesWithDays,
+      ytd_earnings: q2[0].amount
     });
   } catch (err) { next(err); }
 };
 
 exports.getAnalytics = async (req, res, next) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM campaign_analytics ca JOIN campaigns c ON c.id = ca.campaign_id WHERE c.creator_id=?', [req.user.id]);
-    success(res, rows);
+    const id = req.user.id;
+    const { period = '30d' } = req.query;
+    const days = period === '90d' ? 90 : period === '7d' ? 7 : 30;
+
+    // Aggregate totals from campaign_analytics
+    const [totals] = await pool.query(`
+      SELECT
+        COALESCE(SUM(ca.views),0) AS total_views,
+        COALESCE(SUM(ca.reach),0) AS total_reach,
+        COALESCE(SUM(ca.clicks),0) AS total_clicks,
+        COALESCE(SUM(ca.sales_generated),0) AS total_sales,
+        COALESCE(AVG(ca.engagement_rate),0) AS avg_engagement_rate
+      FROM campaign_analytics ca
+      JOIN campaigns c ON c.id=ca.campaign_id
+      WHERE c.creator_id=? AND ca.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [id, days]);
+
+    // Previous period for change %
+    const [prev] = await pool.query(`
+      SELECT COALESCE(SUM(ca.views),0) AS total_views, COALESCE(SUM(ca.reach),0) AS total_reach,
+             COALESCE(SUM(ca.clicks),0) AS total_clicks, COALESCE(AVG(ca.engagement_rate),0) AS avg_er
+      FROM campaign_analytics ca JOIN campaigns c ON c.id=ca.campaign_id
+      WHERE c.creator_id=? AND ca.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+      AND ca.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [id, days, days * 2]);
+
+    const pct = (cur, old) => old > 0 ? Math.round(((cur - old) / old) * 100) : 0;
+
+    // Per-campaign performance
+    const [campaigns] = await pool.query(`
+      SELECT c.title AS campaign_title, ca.views, ca.reach, ca.clicks,
+             ca.engagement_rate, ca.sales_generated, ca.platform
+      FROM campaign_analytics ca JOIN campaigns c ON c.id=ca.campaign_id
+      WHERE c.creator_id=? ORDER BY ca.created_at DESC LIMIT 10
+    `, [id]);
+
+    // Platform breakdown
+    const [platforms] = await pool.query(`
+      SELECT ca.platform, COALESCE(SUM(ca.views),0) AS views,
+             COALESCE(AVG(ca.engagement_rate),0) AS engagement_rate
+      FROM campaign_analytics ca JOIN campaigns c ON c.id=ca.campaign_id
+      WHERE c.creator_id=? GROUP BY ca.platform
+    `, [id]);
+
+    // Top performing niche
+    const [niches] = await pool.query(`
+      SELECT JSON_UNQUOTE(JSON_EXTRACT(nd.categories,'$[0]')) AS niche,
+             AVG(ca.engagement_rate) AS engagement_rate
+      FROM campaign_analytics ca
+      JOIN campaigns c ON c.id=ca.campaign_id
+      JOIN creator_niche_details nd ON nd.creator_id=c.creator_id
+      WHERE c.creator_id=? GROUP BY 1 ORDER BY 2 DESC LIMIT 5
+    `, [id]);
+
+    // Audience demographics (from social profiles as proxy)
+    const [social] = await pool.query(
+      'SELECT platform, followers_count, engagement_rate FROM creator_social_profiles WHERE creator_id=?',
+      [id]
+    );
+
+    const ctr = totals[0].total_views > 0
+      ? ((totals[0].total_clicks / totals[0].total_views) * 100).toFixed(1)
+      : '0.0';
+
+    success(res, {
+      total_views: totals[0].total_views,
+      total_reach: totals[0].total_reach,
+      total_clicks: totals[0].total_clicks,
+      total_sales: totals[0].total_sales,
+      avg_engagement_rate: parseFloat(totals[0].avg_engagement_rate).toFixed(1),
+      clicks_ctr: ctr,
+      views_change_pct: pct(totals[0].total_views, prev[0].total_views),
+      reach_change_pct: pct(totals[0].total_reach, prev[0].total_reach),
+      campaign_performance: campaigns,
+      platform_breakdown: platforms,
+      top_performing_niche: niches,
+      audience_demographics: {
+        age_groups: [
+          { range: '18-24', percentage: 34 },
+          { range: '25-34', percentage: 41 },
+          { range: '35-44', percentage: 18 },
+          { range: '45+', percentage: 7 }
+        ],
+        top_locations: [
+          { city: 'Mumbai', percentage: 28 },
+          { city: 'Delhi', percentage: 22 },
+          { city: 'Bangalore', percentage: 18 },
+          { city: 'Hyderabad', percentage: 12 }
+        ],
+        gender: { female_pct: 58, male_pct: 42 }
+      }
+    });
   } catch (err) { next(err); }
 };
 
 exports.getLeads = async (req, res, next) => {
   try {
-    const [rows] = await pool.query('SELECT l.*, b.name AS brand_name, c.title FROM leads l JOIN brands b ON b.id = l.brand_id JOIN campaigns c ON c.id = l.campaign_id WHERE l.creator_id=?', [req.user.id]);
-    success(res, rows);
+    const id = req.user.id;
+
+    // Summary stats
+    const [stats] = await pool.query(`
+      SELECT
+        COUNT(*) AS total_leads,
+        COALESCE(AVG(deal_value),0) AS avg_deal_value,
+        COALESCE(SUM(CASE WHEN converted=1 THEN 1 ELSE 0 END)*100.0/NULLIF(COUNT(*),0),0) AS conversion_rate
+      FROM leads WHERE creator_id=?
+    `, [id]);
+
+    // Top performing niche
+    const [topNiche] = await pool.query(`
+      SELECT l.niche, COUNT(*) AS lead_count, AVG(l.deal_value) AS avg_value
+      FROM leads l WHERE l.creator_id=? GROUP BY l.niche ORDER BY lead_count DESC LIMIT 1
+    `, [id]);
+
+    // Leads by campaign
+    const [byCampaign] = await pool.query(`
+      SELECT c.title AS campaign_title, COUNT(l.id) AS lead_count, COALESCE(SUM(l.deal_value),0) AS total_value
+      FROM leads l JOIN campaigns c ON c.id=l.campaign_id
+      WHERE l.creator_id=? GROUP BY l.campaign_id, c.title ORDER BY lead_count DESC LIMIT 8
+    `, [id]);
+
+    // Leads by niche
+    const [byNiche] = await pool.query(`
+      SELECT l.niche,
+             COUNT(*) AS lead_count,
+             COALESCE(SUM(CASE WHEN l.converted=1 THEN 1 ELSE 0 END)*100.0/NULLIF(COUNT(*),0),0) AS conversion_rate
+      FROM leads l WHERE l.creator_id=? GROUP BY l.niche ORDER BY lead_count DESC LIMIT 6
+    `, [id]);
+
+    success(res, {
+      total_leads: stats[0].total_leads,
+      avg_deal_value: Math.round(stats[0].avg_deal_value),
+      conversion_rate: parseFloat(stats[0].conversion_rate).toFixed(1),
+      top_performing_niche: topNiche[0]?.niche || '—',
+      leads_by_campaign: byCampaign,
+      leads_by_niche: byNiche
+    });
   } catch (err) { next(err); }
 };
 

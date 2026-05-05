@@ -56,7 +56,7 @@ export default function MyCampaignsPage() {
   const safeEscrow = (c) => c.escrow_status || c.escrow || 'pending';
   const safeStep = (c) => c.progress_step ?? c.current_step ?? 0;
 
-  // Determine if creator can upload content (step 3 = escrow locked)
+  // Determine if creator can upload content (escrow must be locked)
   const canUpload = (c) => {
     const step = safeStep(c);
     const status = c.status;

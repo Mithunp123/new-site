@@ -68,7 +68,6 @@ const CampaignTracking = () => {
     const step = campaign.progress_step ?? 0;
     const status = campaign.status;
 
-    // Step 1 (index 1) = creator_accepted → brand should lock escrow
     if (step === 1 || status === 'creator_accepted') {
       return {
         type: 'escrow',
@@ -79,7 +78,6 @@ const CampaignTracking = () => {
         color: 'blue'
       };
     }
-    // Step 3 (index 3) = content_uploaded → brand should review
     if (step === 3 || status === 'content_uploaded') {
       return {
         type: 'review',
@@ -91,7 +89,6 @@ const CampaignTracking = () => {
         secondaryAction: true
       };
     }
-    // Step 4 (index 4) = brand_approved → mark as live
     if (step === 4 || status === 'brand_approved') {
       return {
         type: 'live',
@@ -102,7 +99,17 @@ const CampaignTracking = () => {
         color: 'green'
       };
     }
-    // Step 6 (index 6) = metrics_collected → release payment
+    if (step === 5 || status === 'posted_live') {
+      return {
+        type: 'waiting',
+        message: 'Content is live! Collecting performance metrics automatically — this takes a few seconds.',
+        action: null,
+        actionLabel: null,
+        loading: false,
+        color: 'blue',
+        isInfo: true
+      };
+    }
     if (step === 6 || status === 'analytics_collected') {
       return {
         type: 'payment',
@@ -111,6 +118,28 @@ const CampaignTracking = () => {
         actionLabel: '💸 Release Payment',
         loading: releasePaymentMutation.isPending,
         color: 'green'
+      };
+    }
+    if (step === 7 || status === 'escrow_released') {
+      return {
+        type: 'closing',
+        message: 'Payment released! Campaign is being closed automatically.',
+        action: null,
+        actionLabel: null,
+        loading: false,
+        color: 'green',
+        isInfo: true
+      };
+    }
+    if (step === 8 || status === 'campaign_closed') {
+      return {
+        type: 'closed',
+        message: '🎉 Campaign completed successfully! All steps done.',
+        action: null,
+        actionLabel: null,
+        loading: false,
+        color: 'green',
+        isInfo: true
       };
     }
     return null;
@@ -187,51 +216,53 @@ const CampaignTracking = () => {
                   {actionBanner.message}
                 </p>
               </div>
-              <div className="flex gap-2 w-full md:w-auto flex-wrap">
-                <button
-                  onClick={actionBanner.action}
-                  disabled={actionBanner.loading}
-                  className={`flex-1 md:flex-none px-6 py-2.5 font-bold rounded-xl transition-all text-sm disabled:opacity-60 ${
-                    actionBanner.color === 'blue' ? 'bg-blue-600 text-white hover:bg-blue-700' :
-                    actionBanner.color === 'green' ? 'bg-green-600 text-white hover:bg-green-700' :
-                    'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {actionBanner.loading ? 'Processing...' : actionBanner.actionLabel}
-                </button>
-                {actionBanner.secondaryAction && (
-                  <>
-                    {showRejectInput ? (
-                      <div className="flex gap-2 flex-1 md:flex-none">
-                        <input
-                          type="text"
-                          placeholder="Reason for revision..."
-                          value={rejectReason}
-                          onChange={e => setRejectReason(e.target.value)}
-                          className="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-200 w-48"
-                        />
+              {!actionBanner.isInfo && (
+                <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                  <button
+                    onClick={actionBanner.action}
+                    disabled={actionBanner.loading}
+                    className={`flex-1 md:flex-none px-6 py-2.5 font-bold rounded-xl transition-all text-sm disabled:opacity-60 ${
+                      actionBanner.color === 'blue' ? 'bg-blue-600 text-white hover:bg-blue-700' :
+                      actionBanner.color === 'green' ? 'bg-green-600 text-white hover:bg-green-700' :
+                      'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {actionBanner.loading ? 'Processing...' : actionBanner.actionLabel}
+                  </button>
+                  {actionBanner.secondaryAction && (
+                    <>
+                      {showRejectInput ? (
+                        <div className="flex gap-2 flex-1 md:flex-none">
+                          <input
+                            type="text"
+                            placeholder="Reason for revision..."
+                            value={rejectReason}
+                            onChange={e => setRejectReason(e.target.value)}
+                            className="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-200 w-48"
+                          />
+                          <button
+                            onClick={() => rejectMutation.mutate({ id: featured.id, reason: rejectReason })}
+                            disabled={!rejectReason || rejectMutation.isPending}
+                            className="px-4 py-2 bg-orange-500 text-white font-bold rounded-xl text-sm hover:bg-orange-600 disabled:opacity-50"
+                          >
+                            Send
+                          </button>
+                          <button onClick={() => setShowRejectInput(false)} className="p-2 text-gray-400 hover:text-gray-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => rejectMutation.mutate({ id: featured.id, reason: rejectReason })}
-                          disabled={!rejectReason || rejectMutation.isPending}
-                          className="px-4 py-2 bg-orange-500 text-white font-bold rounded-xl text-sm hover:bg-orange-600 disabled:opacity-50"
+                          onClick={() => setShowRejectInput(true)}
+                          className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
                         >
-                          Send
+                          Request Revision
                         </button>
-                        <button onClick={() => setShowRejectInput(false)} className="p-2 text-gray-400 hover:text-gray-600">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowRejectInput(true)}
-                        className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
-                      >
-                        Request Revision
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </div>
@@ -335,7 +366,9 @@ const StatusBadge = ({ status }) => {
     'posted_live': 'bg-green-100 text-green-700 border-green-200',
     'analytics_collected': 'bg-blue-100 text-blue-700 border-blue-200',
     'payment_released': 'bg-green-100 text-green-700 border-green-200',
-    'campaign_closed': 'bg-gray-100 text-gray-700 border-gray-200',
+    'escrow_released': 'bg-green-100 text-green-700 border-green-200',
+    'campaign_closed': 'bg-gray-100 text-gray-600 border-gray-200',
+    'declined': 'bg-red-100 text-red-600 border-red-200',
     'default': 'bg-gray-100 text-gray-700 border-gray-200'
   };
   const labels = {
@@ -348,7 +381,9 @@ const StatusBadge = ({ status }) => {
     'posted_live': 'Live',
     'analytics_collected': 'Metrics In',
     'payment_released': 'Paid',
-    'campaign_closed': 'Closed'
+    'escrow_released': 'Payment Released',
+    'campaign_closed': 'Closed',
+    'declined': 'Declined'
   };
   return (
     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${styles[status] || styles.default}`}>

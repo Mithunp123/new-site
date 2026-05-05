@@ -97,13 +97,13 @@ export default function DashboardPage() {
         <StatCard 
           label="Active Campaigns" 
           value={d.active_campaigns?.count || 0} 
-          changeLabel={d.active_campaigns?.deadline_soon_count > 0 ? `${d.active_campaigns.deadline_soon_count} deadline soon` : 'On track'} 
+          changeLabel="On track" 
           icon={Briefcase} 
           index={1} 
         />
         <StatCard 
           label="Pending Requests" 
-          value={d.pending_requests?.count || 0} 
+          value={d.pending_requests?.count || d.new_requests?.length || 0} 
           changeLabel="Respond within 48 hrs" 
           icon={Inbox} 
           index={2} 

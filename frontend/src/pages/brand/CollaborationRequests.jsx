@@ -9,7 +9,7 @@ import { formatINR } from '../../utils/format';
 const COLLABED_STATUSES = [
   'creator_accepted', 'agreement_locked', 'escrow_locked',
   'content_uploaded', 'brand_approved', 'posted_live',
-  'analytics_collected', 'payment_released', 'campaign_closed'
+  'analytics_collected', 'payment_released', 'escrow_released', 'campaign_closed'
 ];
 
 const CollaborationRequests = () => {

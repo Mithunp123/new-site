@@ -1,6 +1,7 @@
 const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const url = require('url');
+const pool = require('./config/db');
 
 // Map: campaignId -> Set of WebSocket clients
 const campaignRooms = new Map();
@@ -12,14 +13,10 @@ function setupWebSocket(server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
-    // Authenticate via ?token= query param
     const { query } = url.parse(req.url, true);
     const token = query.token;
 
-    if (!token) {
-      ws.close(4001, 'Missing token');
-      return;
-    }
+    if (!token) { ws.close(4001, 'Missing token'); return; }
 
     let decoded;
     try {
@@ -29,30 +26,92 @@ function setupWebSocket(server) {
       return;
     }
 
-    clientMeta.set(ws, { userId: decoded.id, role: decoded.role, campaignIds: new Set() });
+    clientMeta.set(ws, {
+      userId: decoded.id,
+      role: decoded.role,
+      campaignIds: new Set(),
+    });
 
-    ws.on('message', (raw) => {
+    ws.on('message', async (raw) => {
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
 
-      // Client subscribes to a campaign room
-      if (msg.type === 'subscribe' && msg.campaign_id) {
-        const meta = clientMeta.get(ws);
-        if (!meta) return;
+      const meta = clientMeta.get(ws);
+      if (!meta) return;
 
+      // ── Subscribe to a campaign room (for status updates + chat) ──
+      if (msg.type === 'subscribe' && msg.campaign_id) {
         const cid = String(msg.campaign_id);
         if (!campaignRooms.has(cid)) campaignRooms.set(cid, new Set());
         campaignRooms.get(cid).add(ws);
         meta.campaignIds.add(cid);
-
         ws.send(JSON.stringify({ type: 'subscribed', campaign_id: cid }));
       }
 
-      // Client unsubscribes
+      // ── Unsubscribe ──
       if (msg.type === 'unsubscribe' && msg.campaign_id) {
         const cid = String(msg.campaign_id);
         campaignRooms.get(cid)?.delete(ws);
-        clientMeta.get(ws)?.campaignIds.delete(cid);
+        meta.campaignIds.delete(cid);
+      }
+
+      // ── Chat message ──
+      if (msg.type === 'chat' && msg.campaign_id && msg.message?.trim()) {
+        const cid = String(msg.campaign_id);
+        const senderType = meta.role === 'brand' ? 'brand' : 'creator';
+
+        try {
+          // Verify sender belongs to this campaign
+          const [camp] = await pool.query(
+            'SELECT brand_id, creator_id FROM campaigns WHERE id=?',
+            [cid]
+          );
+          if (!camp.length) return;
+
+          const c = camp[0];
+          const allowed =
+            (senderType === 'brand' && c.brand_id === meta.userId) ||
+            (senderType === 'creator' && c.creator_id === meta.userId);
+          if (!allowed) return;
+
+          // Persist to DB
+          const [result] = await pool.query(
+            'INSERT INTO messages (campaign_id, sender_type, sender_id, message) VALUES (?, ?, ?, ?)',
+            [cid, senderType, meta.userId, msg.message.trim()]
+          );
+
+          const payload = JSON.stringify({
+            type: 'chat',
+            campaign_id: cid,
+            id: result.insertId,
+            sender_type: senderType,
+            sender_id: meta.userId,
+            message: msg.message.trim(),
+            created_at: new Date().toISOString(),
+          });
+
+          // Broadcast to everyone in the room (including sender for confirmation)
+          const room = campaignRooms.get(cid);
+          if (room) {
+            room.forEach(client => {
+              if (client.readyState === 1) client.send(payload);
+            });
+          }
+        } catch (e) {
+          console.error('[WS] Chat error:', e.message);
+        }
+      }
+
+      // ── Mark messages as read ──
+      if (msg.type === 'mark_read' && msg.campaign_id) {
+        const cid = String(msg.campaign_id);
+        const senderType = meta.role === 'brand' ? 'creator' : 'brand'; // mark OTHER party's messages
+        try {
+          await pool.query(
+            'UPDATE messages SET is_read=true WHERE campaign_id=? AND sender_type=? AND is_read=false',
+            [cid, senderType]
+          );
+        } catch (e) { /* silent */ }
       }
     });
 
@@ -70,19 +129,21 @@ function setupWebSocket(server) {
 }
 
 /**
- * Broadcast a campaign status update to all subscribers of that campaign.
- * Call this from controllers after any status change.
+ * Broadcast a campaign status update to all subscribers.
  */
 function broadcastCampaignUpdate(campaignId, payload) {
   const cid = String(campaignId);
   const room = campaignRooms.get(cid);
   if (!room || room.size === 0) return;
 
-  const message = JSON.stringify({ type: 'campaign_update', campaign_id: cid, ...payload });
+  const message = JSON.stringify({
+    type: 'campaign_update',
+    campaign_id: cid,
+    ...payload,
+  });
+
   room.forEach(ws => {
-    if (ws.readyState === 1 /* OPEN */) {
-      ws.send(message);
-    }
+    if (ws.readyState === 1) ws.send(message);
   });
 }
 

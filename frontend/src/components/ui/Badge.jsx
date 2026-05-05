@@ -1,15 +1,15 @@
 export default function Badge({ status, className = '' }) {
   const styles = {
     'active': 'bg-green-100 text-green-700',
-    'creator_accepted': 'bg-green-100 text-green-700',
-    'agreement_locked': 'bg-green-100 text-green-700',
+    'creator_accepted': 'bg-purple-100 text-purple-700',
+    'agreement_locked': 'bg-indigo-100 text-indigo-700',
     'in_review': 'bg-orange-100 text-orange-700',
     'content_uploaded': 'bg-orange-100 text-orange-700',
     'brief_ready': 'bg-blue-100 text-blue-700',
     'request_sent': 'bg-blue-100 text-blue-700',
     'completed': 'bg-slate-100 text-slate-600',
     'campaign_closed': 'bg-slate-100 text-slate-600',
-    'escrow_released': 'bg-slate-100 text-slate-600',
+    'escrow_released': 'bg-green-100 text-green-700',
     'brand_approved': 'bg-green-100 text-green-700',
     'posted_live': 'bg-green-100 text-green-700',
     'analytics_collected': 'bg-blue-100 text-blue-700',
@@ -21,17 +21,18 @@ export default function Badge({ status, className = '' }) {
     // Payment
     'in_escrow': 'bg-orange-100 text-orange-700',
     'paid': 'bg-green-100 text-green-700',
+    'declined': 'bg-red-100 text-red-600',
   };
 
   const labels = {
-    'request_sent': 'Brief Ready',
-    'creator_accepted': 'Active',
-    'agreement_locked': 'Active',
+    'request_sent': 'Brief Sent',
+    'creator_accepted': 'Accepted',
+    'agreement_locked': 'Escrow Locked',
     'content_uploaded': 'In Review',
     'brand_approved': 'Approved',
     'posted_live': 'Live',
-    'analytics_collected': 'Analytics',
-    'escrow_released': 'Completed',
+    'analytics_collected': 'Metrics In',
+    'escrow_released': 'Payment Released',
     'campaign_closed': 'Completed',
     'held': '🔒 Locked',
     'locked': '🔒 Locked',
@@ -43,6 +44,7 @@ export default function Badge({ status, className = '' }) {
     'in_review': 'In Review',
     'brief_ready': 'Brief Ready',
     'completed': 'Completed',
+    'declined': 'Declined',
   };
 
   const style = styles[status] || 'bg-slate-100 text-slate-500';

@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { DollarSign, Wallet, Clock, TrendingUp, Lock, Download, ArrowRight } from 'lucide-react';
+import { DollarSign, Wallet, Clock, TrendingUp, Lock, Download, ArrowRight, CheckCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { getEarnings } from '../api/creatorApi';
+import { getEarnings, withdrawEarnings } from '../api/creatorApi';
 import StatCard from '../components/ui/StatCard';
 import Badge from '../components/ui/Badge';
 import useAuthStore from '../store/authStore';
@@ -11,10 +12,24 @@ const fmt = (v) => `₹${(v || 0).toLocaleString('en-IN')}`;
 
 export default function EarningsPage() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+
   const { data, isLoading } = useQuery({ 
     queryKey: ['earnings', user?.id], 
     queryFn: () => getEarnings().then(r => r.data.data),
     staleTime: 0
+  });
+
+  const withdrawMut = useMutation({
+    mutationFn: (amount) => withdrawEarnings({ amount: Number(amount), payout_method: 'upi' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['earnings'] });
+      setWithdrawSuccess(true);
+      setWithdrawAmount('');
+      setTimeout(() => setWithdrawSuccess(false), 4000);
+    }
   });
 
   if (isLoading) {
@@ -27,7 +42,7 @@ export default function EarningsPage() {
   }
 
   const d = data || {};
-  const allTimeYTDPct = 22; // Static YTD
+  const available = d.available_to_withdraw || 0;
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
@@ -44,8 +59,8 @@ export default function EarningsPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-6 mb-6">
-        <StatCard label="Total Earned (All Time)" value={fmt(d.total_earned_all_time)} change={allTimeYTDPct} changeLabel="YTD" icon={DollarSign} variant="blue" index={0} />
-        <StatCard label="Available to Withdraw" value={fmt(d.available_to_withdraw)} changeLabel="Ready now" icon={Wallet} index={1} />
+        <StatCard label="Total Earned (All Time)" value={fmt(d.total_earned_all_time)} change={d.change_pct} changeLabel="vs last month" icon={DollarSign} variant="blue" index={0} />
+        <StatCard label="Available to Withdraw" value={fmt(available)} changeLabel="Ready now" icon={Wallet} index={1} />
         <StatCard label="Pending Release" value={fmt(d.pending_release)} changeLabel={`In escrow — ${d.escrow_balance?.campaigns?.length || 0} campaigns`} icon={Clock} index={2} />
         <StatCard label="This Month" value={fmt(d.this_month)} change={d.change_pct} changeLabel="vs last month" icon={TrendingUp} index={3} />
       </div>
@@ -117,16 +132,36 @@ export default function EarningsPage() {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
             <h3 className="text-base font-bold font-heading text-slate-900 mb-4">Withdraw Earnings</h3>
             <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-1">Available Balance</p>
-            <p className="text-3xl font-extrabold text-green-600 font-heading mb-4">{fmt(d.available_to_withdraw)}</p>
+            <p className="text-3xl font-extrabold text-green-600 font-heading mb-4">{fmt(available)}</p>
 
             <p className="text-xs text-slate-400 uppercase tracking-wide font-bold mb-2">Payout Method</p>
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-700 mb-4">
-              {(d.upi_id || user?.upi_id) ? `UPI — ${d.upi_id || user?.upi_id}` : 'UPI — Not Set'}
+              {(d.upi_id || user?.upi_id) ? `UPI — ${d.upi_id || user?.upi_id}` : 'UPI — Not Set (update in Settings)'}
             </div>
 
-            <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition text-sm">
-              Withdraw {fmt(d.available_to_withdraw)}
-            </button>
+            {withdrawSuccess ? (
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium mb-3">
+                <CheckCircle size={16} /> Withdrawal requested! 2-3 business days.
+              </div>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  placeholder={`Amount (max ${fmt(available)})`}
+                  value={withdrawAmount}
+                  onChange={e => setWithdrawAmount(e.target.value)}
+                  max={available}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm mb-3 outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  onClick={() => withdrawMut.mutate(withdrawAmount)}
+                  disabled={!withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > available || withdrawMut.isPending || !d.upi_id}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {withdrawMut.isPending ? 'Processing...' : `Withdraw ${withdrawAmount ? fmt(withdrawAmount) : ''}`}
+                </button>
+              </>
+            )}
             <p className="text-xs text-slate-400 text-center mt-2">2-3 business days · No charges</p>
           </div>
 

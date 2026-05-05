@@ -24,6 +24,7 @@ app.use('/api/campaign', require('./src/routes/campaign'));
 app.use('/api/admin',    require('./src/routes/admin'));
 app.use('/api/content',  require('./src/routes/content'));
 app.use('/api/social',   require('./src/routes/social'));
+app.use('/api/chat',     require('./src/routes/chat'));
 
 app.use(errorHandler);
 module.exports = app;

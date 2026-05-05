@@ -1,5 +1,7 @@
 const pool = require('../config/db');
 const { success, error } = require('../helpers/response');
+const { broadcastCampaignUpdate } = require('../websocket');
+const { autoCollectMetrics } = require('./analyticsController');
 
 // Dashboard
 exports.getDashboard = async (req, res, next) => {
@@ -282,8 +284,11 @@ exports.postLive = async (req, res, next) => {
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'posted_live', 'admin')", [id]);
     const [camp] = await pool.query('SELECT creator_id, brand_id, title FROM campaigns WHERE id=?', [id]);
     await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Campaign Live', 'Your campaign is now live.')", [camp[0].creator_id]);
-    await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('brand', ?, 'Campaign Live', 'Your campaign is now live.')", [camp[0].brand_id]);
-    success(res, null, 'Campaign marked as live');
+    await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('brand', ?, 'Campaign Live', 'Your campaign is now live. Metrics will be auto-collected.')", [camp[0].brand_id]);
+    broadcastCampaignUpdate(id, { status: 'posted_live', progress_step: 5 });
+    // Auto-collect metrics after 30s
+    setTimeout(() => autoCollectMetrics(id, camp[0].brand_id), 30000);
+    success(res, null, 'Campaign marked as live. Metrics will be auto-collected.');
   } catch (err) {
     next(err);
   }
@@ -307,6 +312,7 @@ exports.addAnalytics = async (req, res, next) => {
     const niche = nd[0] ? JSON.parse(nd[0].categories)[0] : 'General';
     await pool.query('INSERT INTO leads (campaign_id, creator_id, brand_id, niche, deal_value) VALUES (?, ?, ?, ?, ?)', [id, camp[0].creator_id, camp[0].brand_id, niche, camp[0].escrow_amount]);
 
+    broadcastCampaignUpdate(id, { status: 'analytics_collected', progress_step: 6 });
     success(res, null, 'Analytics recorded and leads generated');
   } catch (err) {
     next(err);
@@ -340,6 +346,7 @@ exports.releaseEscrow = async (req, res, next) => {
     await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Payment Released', ?)", [c.creator_id, `Payment of ${creator_payout} released to your account.`]);
     await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('brand', ?, 'Escrow Released', ?)", [c.brand_id, `Escrow released for campaign ${c.title}`]);
 
+    broadcastCampaignUpdate(id, { status: 'escrow_released', progress_step: 7, escrow_status: 'released' });
     success(res, { escrow_amount: c.escrow_amount, commission_amount: commission_amt, creator_payout, commission_rate: c.commission_rate });
   } catch (err) {
     next(err);

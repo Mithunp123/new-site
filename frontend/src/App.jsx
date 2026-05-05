@@ -27,6 +27,7 @@ import CampaignTracking from './pages/brand/CampaignTracking';
 import RoiAnalytics from './pages/brand/RoiAnalytics';
 import LeadManagement from './pages/brand/LeadManagement';
 import BrandSettings from './pages/brand/Settings';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Admin Components
 import AdminLayout from './components/layout/AdminLayout';
@@ -115,14 +116,14 @@ export default function App() {
           <Route path="/brand/register" element={isAuthenticated ? <Navigate to="/brand/dashboard" replace /> : <BrandRegisterPage />} />
 
           <Route element={<BrandProtectedRoute><BrandLayout /></BrandProtectedRoute>}>
-            <Route path="/brand/dashboard" element={<BrandDashboard />} />
-            <Route path="/brand/discover" element={<BrandDiscover />} />
-            <Route path="/brand/requests" element={<CollaborationRequests />} />
-            <Route path="/brand/send-request" element={<SendRequest />} />
-            <Route path="/brand/campaign-tracking" element={<CampaignTracking />} />
-            <Route path="/brand/roi-analytics" element={<RoiAnalytics />} />
-            <Route path="/brand/lead-management" element={<LeadManagement />} />
-            <Route path="/brand/settings" element={<BrandSettings />} />
+            <Route path="/brand/dashboard" element={<ErrorBoundary><BrandDashboard /></ErrorBoundary>} />
+            <Route path="/brand/discover" element={<ErrorBoundary><BrandDiscover /></ErrorBoundary>} />
+            <Route path="/brand/requests" element={<ErrorBoundary><CollaborationRequests /></ErrorBoundary>} />
+            <Route path="/brand/send-request" element={<ErrorBoundary><SendRequest /></ErrorBoundary>} />
+            <Route path="/brand/campaign-tracking" element={<ErrorBoundary><CampaignTracking /></ErrorBoundary>} />
+            <Route path="/brand/roi-analytics" element={<ErrorBoundary><RoiAnalytics /></ErrorBoundary>} />
+            <Route path="/brand/lead-management" element={<ErrorBoundary><LeadManagement /></ErrorBoundary>} />
+            <Route path="/brand/settings" element={<ErrorBoundary><BrandSettings /></ErrorBoundary>} />
           </Route>
 
           {/* ADMIN ROUTES */}
