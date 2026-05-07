@@ -5,11 +5,11 @@ import ChatPanel from '../chat/ChatPanel';
 
 export default function Layout() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar />
-      <div className="ml-[240px]">
+      <div className="flex-1 flex flex-col min-h-screen">
         <TopBar title="" />
-        <main className="px-8 py-6">
+        <main className="page-content">
           <Outlet />
         </main>
       </div>

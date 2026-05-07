@@ -4,40 +4,20 @@ import {
   Users, Building2, Zap, TrendingUp, 
   FileText, CheckCircle, XCircle, ShieldAlert,
   ArrowUpRight, ArrowDownRight, Search,
-  MoreVertical
+  MoreVertical, Target, Shield, AlertCircle
 } from 'lucide-react';
 import * as adminApi from "../api/adminApi";
 import { formatCount } from "../utils/format";
+import StatCard from "../components/ui/StatCard";
 
-const StatCard = ({ label, value, subText, subValue, icon: Icon, isBlue }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
-    className={`rounded-2xl p-6 border border-gray-100 shadow-sm ${isBlue ? 'bg-[#2563EB] text-white shadow-blue-100 shadow-lg' : 'bg-white text-slate-900'}`}
-  >
-    <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isBlue ? 'text-blue-100' : 'text-gray-400'}`}>{label}</p>
-    <div className="flex items-end justify-between">
-      <div>
-        <h3 className="text-2xl font-black font-jakarta">{value}</h3>
-        {subValue && (
-          <div className="flex items-center gap-1 mt-1">
-            <span className={`text-[10px] font-bold ${isBlue ? 'text-blue-100' : 'text-green-600'}`}>{subValue}</span>
-            <span className={`text-[10px] font-medium ${isBlue ? 'text-blue-200' : 'text-gray-400'}`}>{subText}</span>
-          </div>
-        )}
-      </div>
-      {Icon && !isBlue && <Icon size={24} className="text-gray-200" />}
-    </div>
-  </motion.div>
-);
-
-const SectionHeader = ({ title, subValue, badgeColor }) => (
-  <div className="flex items-center justify-between mb-6">
-    <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+const SectionHeader = ({ title, subValue, badgeColor, icon: Icon }) => (
+  <div className="flex items-center justify-between mb-4">
+    <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+       {Icon && <Icon size={20} className="text-brand-blue" strokeWidth={2.5} />}
        {title}
     </h2>
     {subValue && (
-      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${badgeColor}`}>
+      <span className={`badge ${badgeColor}`}>
         {subValue}
       </span>
     )}
@@ -83,85 +63,102 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-4">
       {/* Page Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 font-jakarta tracking-tight">Admin Control Panel</h1>
-          <p className="text-gray-500 font-medium mt-1">Platform-wide monitoring and moderation</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none">Admin Control Panel</h1>
+          <p className="text-xs text-slate-500 font-medium mt-1">Platform-wide monitoring and moderation</p>
         </div>
-        <button className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm text-sm flex items-center gap-2">
+        <button className="btn-secondary flex items-center gap-2 py-2 text-xs">
           Generate Report
         </button>
       </div>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard 
           label="Total Users" 
           value={(dashboard?.total_creators + dashboard?.total_brands).toLocaleString()} 
-          subValue={dashboard?.new_creators_this_month + dashboard?.new_brands_this_month > 0 ? `+${dashboard.new_creators_this_month + dashboard.new_brands_this_month}` : '0'} 
-          subText="new"
+          change={dashboard?.new_creators_this_month + dashboard?.new_brands_this_month}
+          changeLabel="New this month"
+          icon={Users}
+          index={0}
         />
         <StatCard 
-          label="Active Creators" 
+          label="Creators" 
           value={dashboard?.total_creators?.toLocaleString() || '0'} 
-          subValue={dashboard?.new_creators_this_month > 0 ? `+${dashboard.new_creators_this_month}` : '0'} 
-          subText="new"
+          change={dashboard?.new_creators_this_month}
+          changeLabel="New creators"
+          icon={Target}
+          index={1}
         />
         <StatCard 
-          label="Active Brands" 
+          label="Brands" 
           value={dashboard?.total_brands?.toLocaleString() || '0'} 
-          subValue={dashboard?.new_brands_this_month > 0 ? `+${dashboard.new_brands_this_month}` : '0'} 
-          subText="new"
+          change={dashboard?.new_brands_this_month}
+          changeLabel="New brands"
+          icon={Building2}
+          index={2}
         />
         <StatCard 
-          label="MRR" 
+          label="Commissions" 
           value={formatCurrency(dashboard?.commission_this_month)} 
-          subValue={dashboard?.commission_this_month > 0 ? 'Live' : '0'} 
-          isBlue
+          changeLabel="Live revenue"
+          icon={Zap}
+          variant="blue"
+          index={3}
         />
         <StatCard 
-          label="Active Campaigns" 
+          label="Campaigns" 
           value={dashboard?.active_campaigns || 0} 
-          subText="Across all brands"
+          changeLabel="Across platform"
+          icon={TrendingUp}
+          index={4}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left Column - Main Tables */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-4">
           {/* Profile Approval Queue */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
-            <SectionHeader title="Profile Approval Queue" subValue={`${dashboard?.pending_verifications || 0} Pending`} badgeColor="bg-orange-50 text-orange-600" />
+          <div className="card-premium overflow-hidden">
+            <div className="p-5 border-b border-slate-50/50">
+              <SectionHeader 
+                title="Approval Queue" 
+                subValue={`${dashboard?.pending_verifications || 0} Pending`} 
+                badgeColor="badge-orange" 
+                icon={Shield}
+              />
+            </div>
             
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-[10px] font-bold text-gray-400 tracking-widest uppercase border-b border-gray-50">
-                    <th className="pb-4">Name</th>
-                    <th className="pb-4">Role</th>
-                    <th className="pb-4">Platform</th>
-                    <th className="pb-4">Followers</th>
-                    <th className="pb-4">Submitted</th>
-                    <th className="pb-4 text-right">Action</th>
+                  <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Category</th>
+                    <th>Reach</th>
+                    <th>Submitted</th>
+                    <th className="text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {pendingCreators.map((item) => (
-                    <tr key={item.id} className="group hover:bg-gray-50 transition-colors">
-                      <td className="py-5">
+                    <tr key={item.id} className="group transition-colors">
+                      <td>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-900 truncate">{item.name}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate">{item.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {item.platforms?.map(p => (
-                              <span key={p} className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                              <span key={p} className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-tighter">
                                 {p === 'instagram' ? (
                                   <svg className="w-2.5 h-2.5 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
                                 ) : p === 'youtube' ? (
@@ -173,35 +170,32 @@ export default function AdminDashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-5">
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full uppercase">Creator</span>
+                      <td>
+                        <span className="badge badge-blue">Creator</span>
                       </td>
-                      <td className="py-5">
-                        <span className="text-[10px] font-bold text-gray-600 bg-gray-50 px-2 py-1 rounded-lg uppercase tracking-tight">{item.category || 'Niche'}</span>
+                      <td>
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100/50 px-2 py-1 rounded-lg uppercase tracking-tight">{item.category || 'Niche'}</span>
                       </td>
-                      <td className="py-5">
+                      <td>
                         <div className="flex flex-col gap-0.5">
                           {item.instagram_followers > 0 && (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 leading-none">
                               <span className="text-[9px] font-black text-pink-500 uppercase">IG</span>
-                              <span className="text-[11px] font-bold text-gray-700">{formatCount(Number(item.instagram_followers))}</span>
+                              <span className="text-[11px] font-bold text-slate-700">{formatCount(Number(item.instagram_followers))}</span>
                             </div>
                           )}
                           {item.youtube_followers > 0 && (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 leading-none">
                               <span className="text-[9px] font-black text-red-600 uppercase">YT</span>
-                              <span className="text-[11px] font-bold text-gray-700">{formatCount(Number(item.youtube_followers))}</span>
+                              <span className="text-[11px] font-bold text-slate-700">{formatCount(Number(item.youtube_followers))}</span>
                             </div>
-                          )}
-                          {!item.instagram_followers && !item.youtube_followers && (
-                            <span className="text-xs text-gray-400 font-bold">0</span>
                           )}
                         </div>
                       </td>
-                      <td className="py-5">
-                        <span className="text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</span>
+                      <td className="text-xs text-slate-400 font-bold">
+                        {new Date(item.created_at).toLocaleDateString()}
                       </td>
-                      <td className="py-5 text-right">
+                      <td className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button 
                             disabled={!!processingId}
@@ -216,7 +210,7 @@ export default function AdminDashboardPage() {
                                 setProcessingId(null);
                               }
                             }}
-                            className={`px-3 py-1.5 bg-[#2563EB] text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className={`px-3 py-1.5 bg-brand-blue text-white text-[10px] font-black rounded-lg hover:bg-brand-blue-dark transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                           >
                             {processingId === item.id ? (
                               <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -235,10 +229,10 @@ export default function AdminDashboardPage() {
                                 setProcessingId(null);
                               }
                             }}
-                            className={`px-3 py-1.5 bg-white border border-red-100 text-red-500 text-[10px] font-bold rounded-lg hover:bg-red-50 transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className={`px-3 py-1.5 bg-white border border-rose-100 text-rose-500 text-[10px] font-black rounded-lg hover:bg-rose-50 transition-all flex items-center gap-2 ${processingId === item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                           >
                             {processingId === item.id ? (
-                              <div className="w-3 h-3 border-2 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                              <div className="w-3 h-3 border-2 border-rose-100 border-t-rose-500 rounded-full animate-spin"></div>
                             ) : '✕ Reject'}
                           </button>
                         </div>
@@ -247,7 +241,7 @@ export default function AdminDashboardPage() {
                   ))}
                   {pendingCreators.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="py-10 text-center text-gray-400 text-sm">No pending approvals</td>
+                      <td colSpan="6" className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No pending approvals</td>
                     </tr>
                   )}
                 </tbody>
@@ -256,35 +250,42 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Dispute Management */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
-            <SectionHeader title="Dispute Management" subValue={`${dashboard?.open_disputes || 0} Open`} badgeColor="bg-red-50 text-red-600" />
+          <div className="card-premium overflow-hidden">
+            <div className="p-5 border-b border-slate-50/50">
+              <SectionHeader 
+                title="Disputes" 
+                subValue={`${dashboard?.open_disputes || 0} Open`} 
+                badgeColor="badge-red" 
+                icon={AlertCircle}
+              />
+            </div>
             
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-[10px] font-bold text-gray-400 tracking-widest uppercase border-b border-gray-50">
-                    <th className="pb-4">Dispute</th>
-                    <th className="pb-4">Brand</th>
-                    <th className="pb-4">Creator</th>
-                    <th className="pb-4">Amount</th>
-                    <th className="pb-4">Status</th>
-                    <th className="pb-4 text-right">Action</th>
+                  <tr>
+                    <th>Dispute</th>
+                    <th>Brand</th>
+                    <th>Creator</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th className="text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {disputes.map((dis) => (
-                    <tr key={dis.id} className="group hover:bg-gray-50 transition-colors">
-                      <td className="py-5 text-sm font-medium text-gray-700">{dis.reason || 'Late posting'}</td>
-                      <td className="py-5 text-sm font-bold text-gray-900">{dis.brand_name}</td>
-                      <td className="py-5 text-sm font-bold text-gray-900">{dis.creator_name}</td>
-                      <td className="py-5 text-sm font-bold text-gray-900">{formatCurrency(dis.escrow_amount)}</td>
-                      <td className="py-5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${dis.status === 'open' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>
+                    <tr key={dis.id}>
+                      <td className="text-sm font-bold text-slate-700">{dis.reason || 'Late posting'}</td>
+                      <td className="text-sm font-black text-slate-900">{dis.brand_name}</td>
+                      <td className="text-sm font-black text-slate-900">{dis.creator_name}</td>
+                      <td className="text-sm font-black text-slate-900">{formatCurrency(dis.escrow_amount)}</td>
+                      <td>
+                        <span className={`badge ${dis.status === 'open' ? 'badge-orange' : 'badge-gray'}`}>
                           {dis.status}
                         </span>
                       </td>
-                      <td className="py-5 text-right">
-                        <button className="px-4 py-1.5 bg-white border border-gray-200 text-gray-700 text-[10px] font-bold rounded-lg hover:bg-gray-50 transition-all">
+                      <td className="text-right">
+                        <button className="btn-secondary text-[10px] py-1.5 px-3">
                           Resolve
                         </button>
                       </td>
@@ -292,7 +293,7 @@ export default function AdminDashboardPage() {
                   ))}
                   {disputes.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="py-10 text-center text-gray-400 text-sm">No active disputes</td>
+                      <td colSpan="6" className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No active disputes</td>
                     </tr>
                   )}
                 </tbody>
@@ -302,27 +303,27 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Right Column - Side Panels */}
-        <div className="space-y-8">
+        <div className="space-y-4">
           {/* Commission Tracking */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
-            <SectionHeader title="Commission Tracking" />
+          <div className="card-premium p-5">
+            <SectionHeader title="Commissions" icon={Zap} />
             <div className="space-y-5">
-              <MetricRow label="Total Commissions Earned" value={formatCurrency(dashboard?.total_volume * 0.1)} valueColor="text-green-600" />
+              <MetricRow label="Total Earned" value={formatCurrency(dashboard?.total_volume * 0.1)} valueColor="text-emerald-600" />
               <MetricRow label="This Month" value={formatCurrency(dashboard?.commission_this_month)} />
-              <MetricRow label="Avg Commission Rate" value="10%" />
-              <MetricRow label="Total Campaigns Closed" value={dashboard?.closed_campaigns?.toLocaleString() || '0'} />
-              <MetricRow label="Total Escrow Processed" value={formatCurrency(dashboard?.total_volume)} />
+              <MetricRow label="Avg Rate" value="10%" />
+              <MetricRow label="Closed Deals" value={dashboard?.closed_campaigns?.toLocaleString() || '0'} />
+              <MetricRow label="Volume" value={formatCurrency(dashboard?.total_volume)} />
             </div>
           </div>
 
           {/* Platform Stats */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
-            <SectionHeader title="Platform Stats" />
+          <div className="card-premium p-5">
+            <SectionHeader title="Security" icon={ShieldAlert} />
             <div className="space-y-5">
-              <MetricRow label="Fake Creators Removed" value={dashboard?.flagged_creators?.toLocaleString() || '0'} valueColor="text-red-500" />
-              <MetricRow label="Profiles Verified" value={dashboard?.verified_creators?.toLocaleString() || '0'} valueColor="text-green-600" />
-              <MetricRow label="Disputes Resolved" value={dashboard?.resolved_disputes?.toLocaleString() || '0'} valueColor="text-green-600" />
-              <MetricRow label="Platform Uptime" value="99.9%" valueColor="text-green-600" />
+              <MetricRow label="Flagged" value={dashboard?.flagged_creators?.toLocaleString() || '0'} valueColor="text-rose-500" />
+              <MetricRow label="Verified" value={dashboard?.verified_creators?.toLocaleString() || '0'} valueColor="text-emerald-600" />
+              <MetricRow label="Resolved" value={dashboard?.resolved_disputes?.toLocaleString() || '0'} valueColor="text-emerald-600" />
+              <MetricRow label="Uptime" value="99.9%" valueColor="text-emerald-600" />
             </div>
           </div>
         </div>
@@ -333,7 +334,7 @@ export default function AdminDashboardPage() {
 
 const MetricRow = ({ label, value, valueColor }) => (
   <div className="flex justify-between items-center py-1">
-    <span className="text-sm font-medium text-gray-400">{label}</span>
-    <span className={`text-sm font-black ${valueColor || 'text-gray-900'}`}>{value}</span>
+    <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">{label}</span>
+    <span className={`text-sm font-black ${valueColor || 'text-slate-900'}`}>{value}</span>
   </div>
 );
