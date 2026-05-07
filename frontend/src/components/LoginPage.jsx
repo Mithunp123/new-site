@@ -37,9 +37,9 @@ const LoginPage = () => {
       try {
         const { role } = await googleLogin(tokenResponse.access_token);
         const isAdmin = role === 'admin' || role === 'super_admin' || role === 'moderator';
-        if (isAdmin) navigate('/admin/dashboard');
-        else if (role === 'brand') navigate('/brand/dashboard');
-        else navigate('/dashboard');
+        if (isAdmin) navigate('/admin/dashboard', { replace: true });
+        else if (role === 'brand') navigate('/brand/dashboard', { replace: true });
+        else navigate('/dashboard', { replace: true });
       } catch (err) {
         if (err.response?.status === 404) {
           // No account — redirect to /register with full Google profile
@@ -71,9 +71,9 @@ const LoginPage = () => {
     try {
       const { role } = await login(form);
       const isAdmin = role === 'admin' || role === 'super_admin' || role === 'moderator';
-      if (isAdmin) navigate('/admin/dashboard');
-      else if (role === 'brand') navigate('/brand/dashboard');
-      else navigate('/dashboard');
+      if (isAdmin) navigate('/admin/dashboard', { replace: true });
+      else if (role === 'brand') navigate('/brand/dashboard', { replace: true });
+      else navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
     } finally {

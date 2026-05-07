@@ -51,6 +51,11 @@ export default function SettingsPage() {
       setMsg('Profile updated successfully!');
       setTimeout(() => setMsg(''), 3000);
     },
+    onError: (err) => {
+      const message = err?.response?.data?.error || err?.message || 'Failed to update profile. Please try again.';
+      setMsg(message);
+      setTimeout(() => setMsg(''), 4000);
+    },
   });
 
   const pwMut = useMutation({
@@ -58,14 +63,23 @@ export default function SettingsPage() {
     onSuccess: () => {
       setMsg('Password updated!');
       setPwForm({ current_password: '', new_password: '', confirm_password: '' });
+      setTimeout(() => setMsg(''), 3000);
+    },
+    onError: (err) => {
+      const message = err?.response?.data?.error || err?.message || 'Failed to update password.';
+      setMsg(message);
+      setTimeout(() => setMsg(''), 4000);
     },
   });
 
   const deleteMut = useMutation({ mutationFn: () => deleteAccount() });
 
   const handleSave = () => {
-    const langs = form.languages_known?.split(',').map(l => l.trim()).filter(Boolean) || [];
-    updateMut.mutate({ ...form, languages_known: langs });
+    const langs = form.languages_known
+      ? form.languages_known.split(',').map(l => l.trim()).filter(Boolean)
+      : [];
+    const { email, ...rest } = form; // email is read-only, don't send it
+    updateMut.mutate({ ...rest, languages_known: langs });
   };
 
   const handlePasswordUpdate = () => {
@@ -84,8 +98,8 @@ export default function SettingsPage() {
           <h1 className="page-title">Account Settings</h1>
           <p className="page-subtitle">Manage your profile, notifications, security, and billing</p>
         </div>
-        <button onClick={handleSave} className="btn-primary">
-          <Save size={15} /> Save Changes
+        <button onClick={handleSave} disabled={updateMut.isPending} className="btn-primary">
+          <Save size={15} /> {updateMut.isPending ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 

@@ -27,8 +27,27 @@ exports.fetchInstagramData = async (req, res, next) => {
 
     let userInfo;
     try {
-      const userRes = await axios.request(userInfoOptions);
-      userInfo = userRes.data;
+      // Retry up to 2 times on 502 (transient gateway errors from RapidAPI)
+      let lastError;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const userRes = await axios.request(userInfoOptions);
+          userInfo = userRes.data;
+          lastError = null;
+          break; // success — exit retry loop
+        } catch (apiErr) {
+          lastError = apiErr;
+          const status = apiErr?.response?.status;
+          // Only retry on 502; fail fast on other errors
+          if (status !== 502 || attempt === 3) break;
+          // Exponential backoff: 300ms, 600ms
+          await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+        }
+      }
+      if (lastError) {
+        console.error('IG User Info API Error:', lastError?.response?.data || lastError.message);
+        return error(res, 'Instagram service is temporarily unavailable. Please try again shortly.', 502);
+      }
     } catch (apiErr) {
       console.error('IG User Info API Error:', apiErr?.response?.data || apiErr.message);
       return error(res, 'Failed to fetch Instagram user. Account might be private or rate limit exceeded.', 502);

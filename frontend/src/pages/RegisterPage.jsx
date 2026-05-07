@@ -63,7 +63,6 @@ const RegisterPage = () => {
   const [step, setStep] = useState(1);
   const [userType, setUserType] = useState(initialUserType);
   const [loading, setLoading] = useState(false);
-  const [isAutoFetchEnabled, setIsAutoFetchEnabled] = useState(false);
   const [fetchingIG, setFetchingIG] = useState(false);
   const [fetchingYT, setFetchingYT] = useState(false);
   const [error, setError] = useState('');
@@ -144,7 +143,7 @@ const RegisterPage = () => {
           instagram_followers: d.followers || prev.instagram_followers,
           instagram_avg_views: d.avg_views || prev.instagram_avg_views,
           instagram_er: d.engagement_rate || prev.instagram_er,
-          instagram_verified: d.verified || prev.instagram_verified,
+          instagram_verified: d.is_verified ?? prev.instagram_verified,
         }));
       }
     } catch {
@@ -179,23 +178,23 @@ const RegisterPage = () => {
     }
   }, [formData.youtube_url]);
 
-  // Debounced Instagram auto-fetch
+  // Debounced Instagram auto-fetch — triggers automatically when URL changes
   useEffect(() => {
-    if (!isAutoFetchEnabled || !formData.instagram_url) return;
+    if (!formData.instagram_url) return;
     const timer = setTimeout(() => {
       fetchIGStats();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [formData.instagram_url, isAutoFetchEnabled, fetchIGStats]);
+  }, [formData.instagram_url, fetchIGStats]);
 
-  // Debounced YouTube auto-fetch
+  // Debounced YouTube auto-fetch — triggers automatically when URL changes
   useEffect(() => {
-    if (!isAutoFetchEnabled || !formData.youtube_url) return;
+    if (!formData.youtube_url) return;
     const timer = setTimeout(() => {
       fetchYTStats();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [formData.youtube_url, isAutoFetchEnabled, fetchYTStats]);
+  }, [formData.youtube_url, fetchYTStats]);
 
   // When signing up via Google, step 2 (Account Details) is skipped entirely
   // because name + email are already known and no password is needed.
@@ -326,7 +325,13 @@ const RegisterPage = () => {
       <div className="login-right">
         {/* Top navigation: back arrow (left) + close X (right) */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (step > 1) {
+              handleBack();
+            } else {
+              navigate(-1);
+            }
+          }}
           style={{
             position: 'absolute',
             top: '40px',
@@ -694,27 +699,6 @@ const RegisterPage = () => {
                   ) : (
                     /* Creator: Instagram + YouTube */
                     <div>
-                      {/* Auto-fetch toggle */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                        <span style={{ fontSize: '13px', color: '#888' }}>Auto-fetch social stats</span>
-                        <button
-                          onClick={() => setIsAutoFetchEnabled(!isAutoFetchEnabled)}
-                          style={{
-                            background: isAutoFetchEnabled ? 'rgba(37,99,235,0.15)' : '#1a1a1a',
-                            border: `1px solid ${isAutoFetchEnabled ? '#2563EB' : '#333'}`,
-                            borderRadius: '20px',
-                            padding: '5px 14px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            color: isAutoFetchEnabled ? '#2563EB' : '#666',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          {isAutoFetchEnabled ? 'Auto-Fetch ON' : 'Auto-Fetch OFF'}
-                        </button>
-                      </div>
-
                       {/* Instagram Section */}
                       <div style={{ marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>

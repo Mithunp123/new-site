@@ -334,10 +334,10 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, display_name, bio, location, languages_known, phone } = req.body;
+    const { name, display_name, bio, location, languages_known, phone, upi_id } = req.body;
     await pool.query(
-      'UPDATE creators SET name=?, display_name=?, bio=?, location=?, languages_known=?, phone=? WHERE id=?',
-      [name, display_name, bio, location, JSON.stringify(languages_known || []), phone, req.user.id]
+      'UPDATE creators SET name=?, display_name=?, bio=?, location=?, languages_known=?, phone=?, upi_id=? WHERE id=?',
+      [name, display_name, bio, location, JSON.stringify(languages_known || []), phone, upi_id || null, req.user.id]
     );
     success(res, null, 'Profile updated');
   } catch (err) { next(err); }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Zap, Briefcase, Inbox, Eye, UserPlus, ArrowRight, Check, X, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getDashboard, acceptCampaign, declineCampaign } from '../api/creatorApi';
@@ -32,6 +33,7 @@ function Skeleton() {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
@@ -77,7 +79,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900">Good morning, {firstName} 👋</h1>
           <p className="text-sm text-slate-500 mt-0.5">Here's what's happening with your brand deals today.</p>
         </div>
-        <button className="btn-secondary self-start sm:self-center">
+        <button className="btn-secondary self-start sm:self-center" onClick={() => navigate('/settings')}>
           <UserPlus size={15} /> Update Profile
         </button>
       </div>
