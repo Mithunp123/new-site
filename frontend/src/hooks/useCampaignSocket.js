@@ -50,6 +50,11 @@ export function useCampaignSocket(campaignIds, queryKeysToInvalidate = []) {
           queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
           queryClient.invalidateQueries({ queryKey: ['requests'] });
           queryClient.invalidateQueries({ queryKey: ['brand-requests'] });
+          // If metrics just arrived, also invalidate the analytics detail query
+          if (msg.status === 'analytics_collected' && msg.campaign_id) {
+            queryClient.invalidateQueries({ queryKey: ['campaign-analytics', Number(msg.campaign_id)] });
+            queryClient.invalidateQueries({ queryKey: ['campaign-analytics', String(msg.campaign_id)] });
+          }
           queryKeysToInvalidate.forEach(key => {
             queryClient.invalidateQueries({ queryKey: [key] });
           });

@@ -54,54 +54,85 @@ export default function ChatPanel() {
     },
   });
 
-  // WebSocket connection
+  // Keep a ref to conversations so the WS onopen handler can subscribe
+  // without the effect needing to re-run (and tear down the socket) every
+  // time the conversations list changes length.
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
+  // WebSocket connection — only reconnects when the panel opens/closes,
+  // not on every conversations list change (which was dropping in-flight messages).
   useEffect(() => {
     if (!open) return;
     const token = localStorage.getItem('gradix_token');
     if (!token) return;
 
-    const ws = new WebSocket(`${WS_URL}?token=${token}`);
-    wsRef.current = ws;
+    let reconnectTimer = null;
+    let mounted = true;
 
-    ws.onopen = () => {
-      // Subscribe to all active conversations
-      conversations.forEach(c => {
-        ws.send(JSON.stringify({ type: 'subscribe', campaign_id: String(c.campaign_id) }));
-      });
-    };
+    function connect() {
+      if (!mounted) return;
+      const ws = new WebSocket(`${WS_URL}?token=${token}`);
+      wsRef.current = ws;
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'chat') {
-          setWsMessages(prev => {
-            const cid = msg.campaign_id;
-            const existing = prev[cid] || [];
-            // Avoid duplicates
-            if (existing.find(m => m.id === msg.id)) return prev;
-            return { ...prev, [cid]: [...existing, msg] };
-          });
-          queryClient.invalidateQueries({ queryKey: ['chat-unread'] });
-          queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      ws.onopen = () => {
+        // Subscribe to all conversations known at connect time
+        conversationsRef.current.forEach(c => {
+          ws.send(JSON.stringify({ type: 'subscribe', campaign_id: String(c.campaign_id) }));
+        });
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'chat') {
+            setWsMessages(prev => {
+              const cid = msg.campaign_id;
+              const existing = prev[cid] || [];
+              // Avoid duplicates by id
+              if (msg.id && existing.find(m => m.id === msg.id)) return prev;
+              return { ...prev, [cid]: [...existing, msg] };
+            });
+            queryClient.invalidateQueries({ queryKey: ['chat-unread'] });
+            queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+          }
+        } catch { /* ignore */ }
+      };
+
+      ws.onclose = (e) => {
+        // Auto-reconnect unless panel closed or auth error
+        if (mounted && e.code !== 4001) {
+          reconnectTimer = setTimeout(connect, 3000);
         }
-      } catch { /* ignore */ }
-    };
+      };
 
-    ws.onerror = () => ws.close();
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      mounted = false;
+      clearTimeout(reconnectTimer);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [open, conversations.length]); // eslint-disable-line
+  }, [open]); // eslint-disable-line
 
-  // Subscribe to new conversation when opened
+  // When the user opens a conversation, subscribe to it (in case it wasn't
+  // in the list when the socket first connected) and mark messages as read.
   useEffect(() => {
-    if (activeCampaignId && wsRef.current?.readyState === 1) {
+    if (!activeCampaignId) return;
+    if (wsRef.current?.readyState === 1) {
       wsRef.current.send(JSON.stringify({ type: 'subscribe', campaign_id: String(activeCampaignId) }));
       wsRef.current.send(JSON.stringify({ type: 'mark_read', campaign_id: String(activeCampaignId) }));
     }
-  }, [activeCampaignId]);
+    // Also invalidate so the unread badge clears immediately
+    queryClient.invalidateQueries({ queryKey: ['chat-unread'] });
+    queryClient.invalidateQueries({ queryKey: ['chat-messages', activeCampaignId] });
+  }, [activeCampaignId, queryClient]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

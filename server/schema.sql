@@ -300,6 +300,79 @@ CREATE TABLE IF NOT EXISTS creator_flags (
   FOREIGN KEY (flagged_by) REFERENCES admins(id)
 );
 
+-- MESSAGES (WebSocket chat between brand and creator per campaign)
+CREATE TABLE IF NOT EXISTS messages (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  campaign_id  INT NOT NULL,
+  sender_type  ENUM('brand','creator') NOT NULL,
+  sender_id    INT NOT NULL,
+  message      TEXT NOT NULL,
+  is_read      BOOLEAN DEFAULT false,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  INDEX idx_messages_campaign (campaign_id),
+  INDEX idx_messages_unread (campaign_id, sender_type, is_read)
+);
+
+-- CONTENT SUBMISSIONS (tracks each content upload attempt per campaign)
+CREATE TABLE IF NOT EXISTS content_submissions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  campaign_id   INT NOT NULL,
+  creator_id    INT NOT NULL,
+  file_path     VARCHAR(500),
+  status        ENUM('submitted','approved','revision_requested') DEFAULT 'submitted',
+  rejection_note TEXT,
+  submitted_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at   TIMESTAMP NULL,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (creator_id)  REFERENCES creators(id)
+);
+
+-- WITHDRAWALS (creator payout requests)
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  creator_id    INT NOT NULL,
+  amount        DECIMAL(10,2) NOT NULL,
+  payout_method VARCHAR(50) DEFAULT 'upi',
+  upi_id        VARCHAR(100),
+  status        ENUM('pending','processing','completed','failed') DEFAULT 'pending',
+  requested_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  processed_at  TIMESTAMP NULL,
+  FOREIGN KEY (creator_id) REFERENCES creators(id)
+);
+
+-- CAMPAIGN GROUPS (for bulk campaign creation targeting multiple creators)
+CREATE TABLE IF NOT EXISTS campaign_groups (
+  id                       INT AUTO_INCREMENT PRIMARY KEY,
+  brand_id                 INT NOT NULL,
+  group_title              VARCHAR(200) NOT NULL,
+  campaign_goal            TEXT,
+  brief                    TEXT,
+  platform                 VARCHAR(50),
+  content_type             VARCHAR(100),
+  number_of_posts          INT DEFAULT 1,
+  start_date               DATE,
+  end_date                 DATE,
+  respond_by               DATE,
+  budget_per_creator       DECIMAL(10,2) DEFAULT 0,
+  platform_fee_rate        DECIMAL(5,2) DEFAULT 8.00,
+  tracking_link            VARCHAR(255),
+  deliverables_required    TEXT,
+  targeting_type           ENUM('specific','category') DEFAULT 'specific',
+  target_niches            JSON,
+  target_platforms         JSON,
+  target_min_followers     INT DEFAULT 0,
+  target_max_followers     INT DEFAULT 0,
+  target_min_er            DECIMAL(5,2) DEFAULT 0,
+  target_location          VARCHAR(100),
+  total_creators_targeted  INT DEFAULT 0,
+  total_creators_accepted  INT DEFAULT 0,
+  status                   ENUM('active','completed','cancelled') DEFAULT 'active',
+  created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (brand_id) REFERENCES brands(id)
+);
+
 -- SEED DEFAULT ADMIN
 INSERT IGNORE INTO admins (name, email, password_hash, role)
 VALUES (

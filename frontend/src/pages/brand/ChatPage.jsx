@@ -42,40 +42,69 @@ export default function BrandChatPage() {
     },
   });
 
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
   useEffect(() => {
     const token = localStorage.getItem('gradix_token');
     if (!token) return;
-    const ws = new WebSocket(`${WS_URL}?token=${token}`);
-    wsRef.current = ws;
-    ws.onopen = () => {
-      conversations.forEach(c => {
-        ws.send(JSON.stringify({ type: 'subscribe', campaign_id: String(c.campaign_id) }));
-      });
-    };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'chat') {
-          setWsMessages(prev => {
-            const cid = msg.campaign_id;
-            const existing = prev[cid] || [];
-            if (existing.find(m => m.id === msg.id)) return prev;
-            return { ...prev, [cid]: [...existing, msg] };
-          });
-          queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+
+    let reconnectTimer = null;
+    let mounted = true;
+
+    function connect() {
+      if (!mounted) return;
+      const ws = new WebSocket(`${WS_URL}?token=${token}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        conversationsRef.current.forEach(c => {
+          ws.send(JSON.stringify({ type: 'subscribe', campaign_id: String(c.campaign_id) }));
+        });
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'chat') {
+            setWsMessages(prev => {
+              const cid = msg.campaign_id;
+              const existing = prev[cid] || [];
+              if (msg.id && existing.find(m => m.id === msg.id)) return prev;
+              return { ...prev, [cid]: [...existing, msg] };
+            });
+            queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+          }
+        } catch { /* ignore */ }
+      };
+
+      ws.onclose = (e) => {
+        if (mounted && e.code !== 4001) {
+          reconnectTimer = setTimeout(connect, 3000);
         }
-      } catch { /* ignore */ }
+      };
+
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
+
+    return () => {
+      mounted = false;
+      clearTimeout(reconnectTimer);
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     };
-    ws.onerror = () => ws.close();
-    return () => { ws.close(); wsRef.current = null; };
-  }, [conversations.length]); // eslint-disable-line
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     if (activeCampaignId && wsRef.current?.readyState === 1) {
       wsRef.current.send(JSON.stringify({ type: 'subscribe', campaign_id: String(activeCampaignId) }));
       wsRef.current.send(JSON.stringify({ type: 'mark_read', campaign_id: String(activeCampaignId) }));
     }
-  }, [activeCampaignId]);
+    if (activeCampaignId) {
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeCampaignId] });
+    }
+  }, [activeCampaignId, queryClient]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

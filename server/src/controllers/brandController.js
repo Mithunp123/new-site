@@ -392,8 +392,21 @@ exports.getCampaignTracking = async (req, res, next) => {
     const [qfeatured] = await pool.query(`
       SELECT c.id, c.title, c.status, cr.name AS creator_name
       FROM campaigns c JOIN creators cr ON cr.id = c.creator_id
-      WHERE c.brand_id = ? AND c.status NOT IN ('campaign_closed','declined')
-      ORDER BY c.updated_at DESC LIMIT 1
+      WHERE c.brand_id = ? AND c.status != 'declined'
+      ORDER BY
+        CASE c.status
+          WHEN 'content_uploaded'    THEN 1
+          WHEN 'creator_accepted'    THEN 2
+          WHEN 'brand_approved'      THEN 3
+          WHEN 'posted_live'         THEN 4
+          WHEN 'analytics_collected' THEN 5
+          WHEN 'agreement_locked'    THEN 6
+          WHEN 'escrow_released'     THEN 7
+          WHEN 'campaign_closed'     THEN 8
+          ELSE 9
+        END ASC,
+        c.updated_at DESC
+      LIMIT 1
     `, [id]);
 
     const statusMap = {

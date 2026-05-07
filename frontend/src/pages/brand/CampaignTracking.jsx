@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
-import { Check, ExternalLink, Download, Search, AlertCircle, X, BarChart2 } from 'lucide-react';
+import { Check, ExternalLink, Download, Search, AlertCircle, X, BarChart2, Eye, MousePointer, TrendingUp, Users } from 'lucide-react';
 import { formatINR, formatCount } from '../../utils/format';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCampaignSocket } from '../../hooks/useCampaignSocket';
 
 const STEPS = [
@@ -25,15 +25,45 @@ const CampaignTracking = () => {
       const res = await api.get('/api/brand/campaigns/tracking');
       return res.data.data;
     },
+    // Poll every 30s when any campaign is in 'posted_live' state so the UI
+    // automatically picks up the backend transition to 'analytics_collected'
+    refetchInterval: (data) => {
+      const featured = data?.featured_campaign;
+      const all = data?.all_campaigns || [];
+      const isAwaitingMetrics =
+        featured?.status === 'posted_live' ||
+        all.some(c => c.status === 'posted_live');
+      return isAwaitingMetrics ? 30_000 : false;
+    },
   });
 
-  const lockEscrowMut    = useMutation({ mutationFn: (id) => api.post('/api/brand/payments/fund-escrow', { campaign_id: id }), onSuccess: () => queryClient.invalidateQueries(['campaign-tracking']) });
-  const approveMut       = useMutation({ mutationFn: (id) => api.put(`/api/brand/campaign/${id}/approve-content`), onSuccess: () => queryClient.invalidateQueries(['campaign-tracking']) });
-  const rejectMut        = useMutation({ mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/request-revision`, { revision_note: reason }), onSuccess: () => { queryClient.invalidateQueries(['campaign-tracking']); setShowRejectInput(false); setRejectReason(''); } });
-  const markLiveMut      = useMutation({ mutationFn: (id) => api.put(`/api/brand/campaign/${id}/mark-live`), onSuccess: () => queryClient.invalidateQueries(['campaign-tracking']) });
-  const releasePayMut    = useMutation({ mutationFn: (id) => api.put(`/api/brand/campaign/${id}/release-payment`), onSuccess: () => queryClient.invalidateQueries(['campaign-tracking']) });
+  const lockEscrowMut    = useMutation({ mutationFn: (id) => api.post('/api/brand/payments/fund-escrow', { campaign_id: id }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }) });
+  const approveMut       = useMutation({ mutationFn: (id) => api.put(`/api/brand/campaign/${id}/approve-content`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }) });
+  const rejectMut        = useMutation({ mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/request-revision`, { revision_note: reason }), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }); setShowRejectInput(false); setRejectReason(''); } });
+  const markLiveMut      = useMutation({ mutationFn: (id) => api.put(`/api/brand/campaign/${id}/mark-live`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }) });
+  const releasePayMut    = useMutation({
+    mutationFn: (id) => api.put(`/api/brand/campaign/${id}/release-payment`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['brand-dashboard'] });
+    },
+  });
 
   const featured = tracking?.featured_campaign;
+
+  // Fetch analytics for the featured campaign once metrics are collected
+  const metricsStatuses = ['analytics_collected', 'escrow_released', 'campaign_closed'];
+  const { data: featuredAnalytics } = useQuery({
+    queryKey: ['campaign-analytics', featured?.id],
+    queryFn: async () => {
+      const res = await api.get(`/api/campaign/${featured.id}/detail`);
+      return res.data.data?.analytics || null;
+    },
+    enabled: !!featured?.id && metricsStatuses.includes(featured?.status),
+    // Also re-fetch when the WebSocket pushes analytics_collected
+    staleTime: 0,
+  });
+
   const allIds   = (tracking?.all_campaigns || []).map(c => c.id).filter(Boolean);
   if (featured?.id) allIds.unshift(featured.id);
   useCampaignSocket([...new Set(allIds)]);
@@ -55,10 +85,10 @@ const CampaignTracking = () => {
     if (step === 1 || status === 'creator_accepted')    return { type: 'escrow',  msg: `${campaign.creator_name || 'Creator'} accepted! Lock escrow to proceed.`, action: () => lockEscrowMut.mutate(campaign.id), label: 'Lock Escrow', loading: lockEscrowMut.isPending, color: 'blue' };
     if (step === 3 || status === 'content_uploaded')    return { type: 'review',  msg: 'Creator uploaded content. Review and approve or request revision.', action: () => approveMut.mutate(campaign.id), label: 'Approve Content', loading: approveMut.isPending, color: 'amber', secondary: true };
     if (step === 4 || status === 'brand_approved')      return { type: 'live',    msg: 'Content approved! Mark as live once the content is posted.', action: () => markLiveMut.mutate(campaign.id), label: 'Mark as Live', loading: markLiveMut.isPending, color: 'green' };
-    if (step === 5 || status === 'posted_live')         return { type: 'info',    msg: 'Content is live! Collecting performance metrics automatically.', color: 'blue', isInfo: true };
-    if (step === 6 || status === 'analytics_collected') return { type: 'payment', msg: 'Metrics collected! Release payment to complete the campaign.', action: () => releasePayMut.mutate(campaign.id), label: 'Release Payment', loading: releasePayMut.isPending, color: 'green' };
-    if (step === 7 || status === 'escrow_released')     return { type: 'info',    msg: 'Payment released! Campaign is being closed automatically.', color: 'green', isInfo: true };
-    if (step === 8 || status === 'campaign_closed')     return { type: 'done',    msg: '🎉 Campaign completed successfully!', color: 'green', isInfo: true };
+    if (step === 5 || status === 'posted_live')         return { type: 'payment', msg: 'Content is live! You can release payment now or wait for metrics to be collected automatically.', action: () => releasePayMut.mutate(campaign.id), label: 'Release Payment Now', loading: releasePayMut.isPending, color: 'green', secondary: true, secondaryInfo: true };
+    if (step === 6 || status === 'analytics_collected') return { type: 'payment', msg: `Metrics collected! Views, reach and engagement are ready. Release payment to complete the campaign.`, action: () => releasePayMut.mutate(campaign.id), label: 'Release Payment', loading: releasePayMut.isPending, color: 'green' };
+    if (step === 7 || status === 'escrow_released')     return { type: 'info',    msg: 'Payment released! Campaign is closing automatically…', color: 'green', isInfo: true };
+    if (step === 8 || status === 'campaign_closed')     return { type: 'done',    msg: '🎉 Campaign completed successfully! Check ROI Analytics for full performance data.', color: 'green', isInfo: true };
     return null;
   };
 
@@ -88,7 +118,7 @@ const CampaignTracking = () => {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Search campaigns..." className="input pl-9 w-56" />
+            <input type="text" placeholder="Search campaigns..." className="w-56 py-2.5 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all duration-150" />
           </div>
           <button onClick={() => navigate('/brand/discover')} className="btn-primary">+ Discover Creators</button>
         </div>
@@ -144,7 +174,7 @@ const CampaignTracking = () => {
                   <button onClick={actionBanner.action} disabled={actionBanner.loading} className={btnColors[actionBanner.color] || btnColors.blue}>
                     {actionBanner.loading ? 'Processing...' : actionBanner.label}
                   </button>
-                  {actionBanner.secondary && (
+                  {actionBanner.secondary && !actionBanner.secondaryInfo && (
                     showRejectInput ? (
                       <div className="flex gap-2">
                         <input type="text" placeholder="Reason for revision..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="input w-48 text-sm" />
@@ -155,10 +185,38 @@ const CampaignTracking = () => {
                       <button onClick={() => setShowRejectInput(true)} className="btn-secondary text-sm">Request Revision</button>
                     )
                   )}
+                  {actionBanner.secondary && actionBanner.secondaryInfo && (
+                    <span className="text-xs opacity-70 self-center">Metrics auto-collect in ~30s</span>
+                  )}
                 </div>
               )}
             </motion.div>
           )}
+
+          {/* Live Metrics Panel — shown once analytics_collected or beyond */}
+          <AnimatePresence>
+            {featuredAnalytics && metricsStatuses.includes(featured.status) && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart2 size={15} className="text-[#2563EB]" />
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-slate-500">Campaign Metrics</p>
+                  <span className="ml-auto text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Live</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <MetricTile icon={Eye}          label="Views"           value={formatCount(featuredAnalytics.views)} />
+                  <MetricTile icon={Users}         label="Reach"           value={formatCount(featuredAnalytics.reach)} />
+                  <MetricTile icon={TrendingUp}    label="Engagement Rate" value={`${Number(featuredAnalytics.engagement_rate || 0).toFixed(1)}%`} highlight />
+                  <MetricTile icon={MousePointer}  label="Clicks"          value={formatCount(featuredAnalytics.clicks)} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
@@ -235,5 +293,15 @@ const EscrowBadge = ({ type, label }) => {
   const cls = { orange: 'badge-orange', blue: 'badge-blue', green: 'badge-green' };
   return <span className={`badge ${cls[type] || 'badge-gray'}`}>{label}</span>;
 };
+
+const MetricTile = ({ icon: Icon, label, value, highlight }) => (
+  <div className={`rounded-xl p-3 flex flex-col gap-1 ${highlight ? 'bg-blue-50 border border-blue-100' : 'bg-white border border-slate-100'}`}>
+    <div className="flex items-center gap-1.5">
+      <Icon size={13} className={highlight ? 'text-[#2563EB]' : 'text-slate-400'} />
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+    </div>
+    <p className={`text-lg font-bold ${highlight ? 'text-[#2563EB]' : 'text-slate-900'}`}>{value || '—'}</p>
+  </div>
+);
 
 export default CampaignTracking;
