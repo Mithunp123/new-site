@@ -4,23 +4,36 @@ import { X, Apple, Eye, EyeOff, Loader } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import useAuthStore from '../store/authStore';
 import creatorBg from '../assets/login-bg-v2.png';
-import brandBg from '../assets/brand-bg-v2.png';
 import './LoginPage.css';
 
 const LoginPage = () => {
-  const [userType, setUserType] = useState('creator'); // 'creator' or 'brand'
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login, googleLogin } = useAuthStore();
-  const isBrand = userType === 'brand';
 
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setError('');
       setLoading(true);
+
+      // Step 1: Fetch Google profile upfront — this gives us name, email, picture
+      // We do this BEFORE calling the backend so we always have full profile data
+      // regardless of what the backend returns in its error response
+      let googleProfile = null;
+      try {
+        const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        googleProfile = await profileRes.json();
+        // googleProfile = { name, email, picture, sub, ... }
+      } catch {
+        // If we can't fetch the profile, continue anyway — backend may still have it
+      }
+
+      // Step 2: Try to log in with the backend
       try {
         const { role } = await googleLogin(tokenResponse.access_token);
         const isAdmin = role === 'admin' || role === 'super_admin' || role === 'moderator';
@@ -29,12 +42,17 @@ const LoginPage = () => {
         else navigate('/dashboard');
       } catch (err) {
         if (err.response?.status === 404) {
-          // User not found, redirect to register with google data
-          navigate('/register', { 
-            state: { 
-              googleUser: err.response.data?.data?.googleUser, 
-              userType 
-            } 
+          // No account — redirect to /register with full Google profile
+          // User will pick Creator or Brand on Step 1, then skip Step 2 entirely
+          const backendGoogleUser = err.response.data?.data?.googleUser;
+          navigate('/register', {
+            state: {
+              googleUser: {
+                name: googleProfile?.name || backendGoogleUser?.name || '',
+                email: googleProfile?.email || backendGoogleUser?.email || '',
+                picture: googleProfile?.picture || backendGoogleUser?.picture || null,
+              },
+            },
           });
         } else {
           setError(err.response?.data?.error || 'Google Login failed');
@@ -64,9 +82,9 @@ const LoginPage = () => {
   };
 
   return (
-    <div className={`login-container ${isBrand ? 'brand-theme reversed' : ''}`}>
+    <div className="login-container">
       <div className="login-left" style={{ 
-        backgroundImage: `url(${isBrand ? brandBg : creatorBg})` 
+        backgroundImage: `url(${creatorBg})` 
       }}>
         <div className="brand-logo">
           <div className="logo-box">
@@ -80,7 +98,7 @@ const LoginPage = () => {
           <span className="brand-name">Gradix</span>
         </div>
         <div className="login-left-content">
-          <h1>{isBrand ? 'Scale your brand with top-tier creators' : 'Your personal cloud & AI for growth'}</h1>
+          <h1>Your personal cloud &amp; AI for growth</h1>
         </div>
       </div>
 

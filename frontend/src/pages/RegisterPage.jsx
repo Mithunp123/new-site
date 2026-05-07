@@ -6,6 +6,7 @@ import {
   Video, Globe, Camera, Zap, Music, Smartphone, Heart,
   Utensils, Check, Briefcase, Sparkles
 } from 'lucide-react';
+import { useGoogleLogin } from '@react-oauth/google';
 import creatorBg from '../assets/login-bg-v2.png';
 import brandBg from '../assets/brand-bg-v2.png';
 import { registerUser, updateProfile } from '../api/creatorApi';
@@ -97,6 +98,38 @@ const RegisterPage = () => {
   const updateField = (field, value) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
+  // Allow signing up with Google directly from the register page
+  // We store the google user in local state instead of navigating to avoid losing userType selection
+  const [googleUserState, setGoogleUserState] = useState(googleUser);
+
+  const signUpWithGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const gUser = await res.json();
+        const gData = { name: gUser.name, email: gUser.email, picture: gUser.picture };
+        // Store in local state and pre-fill form — no navigation needed
+        setGoogleUserState(gData);
+        setFormData((prev) => ({
+          ...prev,
+          name: gUser.name || prev.name,
+          email: gUser.email || prev.email,
+        }));
+        // Jump straight to step 3 since we have their identity
+        setStep(3);
+      } catch {
+        setError('Failed to get Google account info. Please try again.');
+      }
+    },
+    onError: () => setError('Google sign-up failed. Please try again.'),
+  });
+
+  // Use local state for googleUser so it works both when redirected from login
+  // AND when user clicks "Continue with Google" directly on this page
+  const activeGoogleUser = googleUserState;
+
   const fetchIGStats = useCallback(async () => {
     const username = extractInstagramUsername(formData.instagram_url);
     if (!username) return;
@@ -164,6 +197,8 @@ const RegisterPage = () => {
     return () => clearTimeout(timer);
   }, [formData.youtube_url, isAutoFetchEnabled, fetchYTStats]);
 
+  // When signing up via Google, step 2 (Account Details) is skipped entirely
+  // because name + email are already known and no password is needed.
   const handleNext = () => {
     setError('');
     if (step === 3 && !isBrand) {
@@ -172,12 +207,20 @@ const RegisterPage = () => {
         return;
       }
     }
-    if (step < 4) setStep((s) => s + 1);
+    if (step < 4) {
+      // Skip step 2 for Google sign-up users
+      const nextStep = activeGoogleUser && step === 1 ? 3 : step + 1;
+      setStep(nextStep);
+    }
   };
 
   const handleBack = () => {
     setError('');
-    if (step > 1) setStep((s) => s - 1);
+    if (step > 1) {
+      // Skip step 2 when going back for Google sign-up users
+      const prevStep = activeGoogleUser && step === 3 ? 1 : step - 1;
+      setStep(prevStep);
+    }
   };
 
   const handleSubmit = async () => {
@@ -188,8 +231,9 @@ const RegisterPage = () => {
         const res = await brandRegister({
           name: formData.name,
           email: formData.email,
-          password: formData.password,
+          password: activeGoogleUser ? 'GOOGLE_AUTH_USER' : formData.password,
           phone: formData.phone,
+          isGoogleSignUp: !!activeGoogleUser,
         });
         const { token, brand } = res.data.data;
         setSession(token, { ...brand, role: 'brand' });
@@ -205,8 +249,9 @@ const RegisterPage = () => {
         const res = await registerUser({
           name: formData.name,
           email: formData.email,
-          password: formData.password,
+          password: activeGoogleUser ? 'GOOGLE_AUTH_USER' : formData.password,
           phone: formData.phone,
+          isGoogleSignUp: !!activeGoogleUser,
         });
         const { token, creator } = res.data.data;
         setSession(token, { ...creator, role: 'creator' });
@@ -234,7 +279,11 @@ const RegisterPage = () => {
     }
   };
 
-  const progressPercent = ((step - 1) / (steps.length - 1)) * 100;
+  // For Google sign-up, step 2 is skipped so we map visual steps differently:
+  // actual steps shown: 1 → 3 → 4  (step 2 is auto-completed)
+  const progressPercent = activeGoogleUser
+    ? step === 1 ? 0 : step === 3 ? 66 : 100
+    : ((step - 1) / (steps.length - 1)) * 100;
 
   return (
     <div className="login-container">
@@ -275,6 +324,34 @@ const RegisterPage = () => {
 
       {/* RIGHT PANEL */}
       <div className="login-right">
+        {/* Top navigation: back arrow (left) + close X (right) */}
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            position: 'absolute',
+            top: '40px',
+            left: '40px',
+            background: 'transparent',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            transition: 'color 0.2s',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#666')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
+          Back
+        </button>
+
         <button className="close-btn" onClick={() => navigate('/')}>
           <X size={24} />
         </button>
@@ -295,7 +372,10 @@ const RegisterPage = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               {steps.map((s) => {
-                const isCompleted = step > s.id;
+                // For Google sign-up: step 2 is auto-completed, treat it as always done
+                const isCompleted = activeGoogleUser
+                  ? (s.id < step || s.id === 2)
+                  : step > s.id;
                 const isCurrent = step === s.id;
                 return (
                   <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flex: 1 }}>
@@ -342,6 +422,41 @@ const RegisterPage = () => {
                     Choose your path
                   </h2>
                   <p style={{ color: '#666', fontSize: '14px', marginBottom: '28px' }}>Select the role that best describes you</p>
+
+                  {/* Google identity banner — shown when coming from Google OAuth */}
+                  {activeGoogleUser && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#1a1a1a', border: '1px solid #2563EB', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px' }}>
+                      {activeGoogleUser.picture ? (
+                        <img
+                          src={activeGoogleUser.picture}
+                          alt={activeGoogleUser.name}
+                          referrerPolicy="no-referrer"
+                          style={{ width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '14px', fontWeight: '700', color: '#fff' }}>
+                          {activeGoogleUser.name?.[0]?.toUpperCase() || 'G'}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>
+                          {activeGoogleUser.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {activeGoogleUser.email}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(37,99,235,0.15)', borderRadius: '8px', padding: '4px 8px', flexShrink: 0 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                        </svg>
+                        <span style={{ fontSize: '11px', color: '#2563EB', fontWeight: '600' }}>Google</span>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
                     {/* Creator Card */}
                     <div
@@ -411,6 +526,26 @@ const RegisterPage = () => {
                   <button className="submit-btn" onClick={handleNext} style={{ marginBottom: 0 }}>
                     Continue <ArrowRight size={16} style={{ marginLeft: '6px' }} />
                   </button>
+
+                  {/* Google sign-up option — only shown when NOT already coming from Google OAuth */}
+                  {!activeGoogleUser && (
+                    <>
+                      <div className="divider" style={{ margin: '16px 0' }}>or</div>
+                      <button
+                        className="social-btn"
+                        onClick={() => signUpWithGoogle()}
+                        style={{ width: '100%' }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                        </svg>
+                        Continue with Google
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -422,14 +557,19 @@ const RegisterPage = () => {
                   </h2>
                   <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px' }}>Create your Gradix account</p>
 
-                  {googleUser && (
+                  {activeGoogleUser && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px' }}>
-                      {googleUser.picture && (
-                        <img src={googleUser.picture} alt="Google" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                      {activeGoogleUser.picture && (
+                        <img
+                          src={activeGoogleUser.picture}
+                          alt={activeGoogleUser.name}
+                          referrerPolicy="no-referrer"
+                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                        />
                       )}
                       <div>
                         <div style={{ fontSize: '13px', color: '#fff', fontWeight: '500' }}>Signing up with Google</div>
-                        <div style={{ fontSize: '12px', color: '#666' }}>{googleUser.email}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>{activeGoogleUser.email}</div>
                       </div>
                     </div>
                   )}
@@ -453,22 +593,22 @@ const RegisterPage = () => {
                         placeholder="Email address"
                         value={formData.email}
                         onChange={(e) => updateField('email', e.target.value)}
-                        readOnly={!!googleUser?.email}
+                        readOnly={!!activeGoogleUser?.email}
                         style={{
                           paddingLeft: '48px',
-                          background: googleUser?.email ? '#111' : '#1a1a1a',
+                          background: activeGoogleUser?.email ? '#111' : '#1a1a1a',
                           border: '1px solid #333',
                           borderRadius: '12px',
-                          color: googleUser?.email ? '#888' : '#fff',
+                          color: activeGoogleUser?.email ? '#888' : '#fff',
                           fontSize: '14px',
                           width: '100%',
                           padding: '14px 16px 14px 48px',
                           outline: 'none',
-                          cursor: googleUser?.email ? 'not-allowed' : 'text',
+                          cursor: activeGoogleUser?.email ? 'not-allowed' : 'text',
                         }}
                       />
                     </div>
-                    {!googleUser && (
+                    {!activeGoogleUser && (
                       <div className="input-wrapper">
                         <input
                           type={showPassword ? 'text' : 'password'}
@@ -493,8 +633,8 @@ const RegisterPage = () => {
                     <button
                       className="submit-btn"
                       onClick={handleNext}
-                      disabled={!formData.name || (!googleUser && !formData.password) || !formData.email}
-                      style={{ marginBottom: 0, opacity: (!formData.name || (!googleUser && !formData.password) || !formData.email) ? 0.5 : 1 }}
+                      disabled={!formData.name || (!activeGoogleUser && !formData.password) || !formData.email}
+                      style={{ marginBottom: 0, opacity: (!formData.name || (!activeGoogleUser && !formData.password) || !formData.email) ? 0.5 : 1 }}
                     >
                       Continue <ArrowRight size={16} style={{ marginLeft: '6px' }} />
                     </button>
