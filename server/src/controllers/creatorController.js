@@ -322,7 +322,7 @@ exports.markNotificationRead = async (req, res, next) => {
 // Profile & Account
 exports.getProfile = async (req, res, next) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, email, phone, display_name, bio, location, languages_known, profile_photo, is_verified, role FROM creators WHERE id = ?', [req.user.id]);
+    const [rows] = await pool.query('SELECT id, name, email, phone, display_name, bio, location, languages_known, profile_photo, is_verified, role, upi_id FROM creators WHERE id = ?', [req.user.id]);
     if (rows.length === 0) return error(res, 'Creator not found', 404);
     
     const creator = rows[0];
