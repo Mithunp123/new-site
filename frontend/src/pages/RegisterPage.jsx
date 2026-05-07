@@ -1,40 +1,72 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Apple, Mail, Eye, EyeOff, ArrowRight, User, Phone, MapPin, 
-  Send, Video, Globe, Camera, Zap, Music, 
-  Smartphone, Heart, Coffee, Utensils, Check, Briefcase, Sparkles
+import {
+  X, Mail, Eye, EyeOff, ArrowRight, User, Phone, MapPin,
+  Video, Globe, Camera, Zap, Music, Smartphone, Heart,
+  Utensils, Check, Briefcase, Sparkles
 } from 'lucide-react';
-import { useGoogleLogin } from '@react-oauth/google';
 import creatorBg from '../assets/login-bg-v2.png';
 import brandBg from '../assets/brand-bg-v2.png';
-import { registerUser, updateProfile, googleLogin as googleLoginApi } from '../api/creatorApi';
+import { registerUser, updateProfile } from '../api/creatorApi';
 import { brandRegister, setBrandDetails } from '../api/brandApi';
 import useAuthStore from '../store/authStore';
+import '../components/LoginPage.css';
+
+const categories = [
+  { id: 'fashion', label: 'Fashion', icon: Camera },
+  { id: 'tech', label: 'Tech', icon: Smartphone },
+  { id: 'lifestyle', label: 'Lifestyle', icon: Heart },
+  { id: 'gaming', label: 'Gaming', icon: Zap },
+  { id: 'music', label: 'Music', icon: Music },
+  { id: 'food', label: 'Food', icon: Utensils },
+];
+
+const steps = [
+  { id: 1, title: 'Role', sub: 'Who are you?' },
+  { id: 2, title: 'Account', sub: 'Sign up details' },
+  { id: 3, title: 'Profile', sub: 'Tell us more' },
+  { id: 4, title: 'Finish', sub: 'Setup complete' },
+];
+
+function extractInstagramUsername(url) {
+  if (!url) return null;
+  const clean = url.trim().replace(/\/$/, '');
+  const match = clean.match(/instagram\.com\/([^/?#]+)/i);
+  if (match) return match[1];
+  if (!clean.includes('/') && !clean.includes('.')) return clean;
+  return null;
+}
+
+function extractYouTubeIdentifier(url) {
+  if (!url) return null;
+  const clean = url.trim().replace(/\/$/, '');
+  const channelMatch = clean.match(/youtube\.com\/channel\/(UC[\w-]+)/i);
+  if (channelMatch) return { type: 'channel_id', id: channelMatch[1] };
+  const handleMatch = clean.match(/youtube\.com\/@([\w-]+)/i);
+  if (handleMatch) return { type: 'handle', id: handleMatch[1] };
+  const userMatch = clean.match(/youtube\.com\/user\/([\w-]+)/i);
+  if (userMatch) return { type: 'username', id: userMatch[1] };
+  if (!clean.includes('/') && !clean.includes('.')) return { type: 'handle', id: clean };
+  return null;
+}
 
 const RegisterPage = () => {
+  const navigate = useNavigate();
   const location = useLocation();
-  const googleUser = location.state?.googleUser;
+  const { setSession } = useAuthStore();
+
+  const googleUser = location.state?.googleUser || null;
   const initialUserType = location.state?.userType || 'creator';
 
-  console.log('RegisterPage: googleUser state:', googleUser);
-  console.log('RegisterPage: initialUserType:', initialUserType);
-
   const [step, setStep] = useState(1);
-  const [userType, setUserType] = useState(initialUserType); // 'creator' or 'brand'
-
-  useEffect(() => {
-    // Keep it simple - Google users just follow the flow but with prefilled data
-  }, [googleUser, step]);
-
+  const [userType, setUserType] = useState(initialUserType);
   const [loading, setLoading] = useState(false);
-  const [isAutoFetchEnabled, setIsAutoFetchEnabled] = useState(true);
+  const [isAutoFetchEnabled, setIsAutoFetchEnabled] = useState(false);
   const [fetchingIG, setFetchingIG] = useState(false);
   const [fetchingYT, setFetchingYT] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const { setSession } = useAuthStore();
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     name: googleUser?.name || '',
@@ -57,591 +89,780 @@ const RegisterPage = () => {
     target_audience: '',
     campaign_goal: '',
     budget_range: '',
-    expected_budget: 0
+    expected_budget: '',
   });
 
   const isBrand = userType === 'brand';
 
-  const extractInstagramUsername = (url) => {
-    if (!url) return null;
-    const match = url.match(/(?:(?:http|https):\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([A-Za-z0-9_](?:(?:[A-Za-z0-9_]|(?:\.(?!\.))){0,28}(?:[A-Za-z0-9_]))?)/i);
-    return match ? match[1] : url.trim(); // Fallback to raw input if regex fails (user might type username directly)
-  };
+  const updateField = (field, value) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
-  const extractYouTubeIdentifier = (url) => {
-    if (!url) return { type: null, identifier: null };
-    const channelMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/channel\/([a-zA-Z0-9_-]+)/i);
-    if (channelMatch) return { type: 'channelId', identifier: channelMatch[1] };
-    
-    const userMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/user\/([a-zA-Z0-9_-]+)/i);
-    if (userMatch) return { type: 'username', identifier: userMatch[1] };
-    
-    const handleMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/@([a-zA-Z0-9_-]+)/i);
-    if (handleMatch) return { type: 'handle', identifier: handleMatch[1] };
-    
-    return { type: 'handle', identifier: url.trim().replace(/^@/, '') };
-  };
-
-  const fetchIGStats = async () => {
-    if (!isAutoFetchEnabled || !formData.instagram_url) return;
+  const fetchIGStats = useCallback(async () => {
     const username = extractInstagramUsername(formData.instagram_url);
     if (!username) return;
-
     setFetchingIG(true);
-    setError('');
     try {
       const res = await fetch(`http://localhost:3000/api/social/instagram?username=${username}`);
       const data = await res.json();
-      if (data.success && data.data) {
-        setFormData(prev => ({
+      if (data && data.data) {
+        const d = data.data;
+        setFormData((prev) => ({
           ...prev,
-          instagram_followers: data.data.followers || prev.instagram_followers,
-          instagram_avg_views: data.data.avg_views || prev.instagram_avg_views,
-          instagram_er: data.data.engagement_rate || prev.instagram_er,
-          instagram_verified: data.data.is_verified || prev.instagram_verified
+          instagram_followers: d.followers || prev.instagram_followers,
+          instagram_avg_views: d.avg_views || prev.instagram_avg_views,
+          instagram_er: d.engagement_rate || prev.instagram_er,
+          instagram_verified: d.verified || prev.instagram_verified,
         }));
-      } else {
-        // Silent fail for auto-fetch, let user manual enter
-        console.log('IG fetch failed:', data.message);
       }
-    } catch (err) {
-      console.log('IG fetch error:', err);
+    } catch {
+      // silently fail
     } finally {
       setFetchingIG(false);
     }
-  };
+  }, [formData.instagram_url]);
 
-  const fetchYTStats = async () => {
-    if (!isAutoFetchEnabled || !formData.youtube_url) return;
-    const { type, identifier } = extractYouTubeIdentifier(formData.youtube_url);
-    if (!identifier) return;
-
+  const fetchYTStats = useCallback(async () => {
+    const result = extractYouTubeIdentifier(formData.youtube_url);
+    if (!result) return;
     setFetchingYT(true);
-    setError('');
     try {
-      const res = await fetch(`http://localhost:3000/api/social/youtube?type=${type}&identifier=${identifier}`);
+      const res = await fetch(
+        `http://localhost:3000/api/social/youtube?type=${result.type}&identifier=${result.id}`
+      );
       const data = await res.json();
-      if (data.success && data.data) {
-        setFormData(prev => ({
+      if (data && data.data) {
+        const d = data.data;
+        setFormData((prev) => ({
           ...prev,
-          youtube_subscribers: data.data.subscribers || prev.youtube_subscribers,
-          youtube_avg_views: data.data.avg_views || prev.youtube_avg_views,
-          youtube_er: data.data.engagement_rate || prev.youtube_er
+          youtube_subscribers: d.subscribers || prev.youtube_subscribers,
+          youtube_avg_views: d.avg_views || prev.youtube_avg_views,
+          youtube_er: d.engagement_rate || prev.youtube_er,
         }));
-      } else {
-        console.log('YT fetch failed:', data.message);
       }
-    } catch (err) {
-      console.log('YT fetch error:', err);
+    } catch {
+      // silently fail
     } finally {
       setFetchingYT(false);
     }
-  };
+  }, [formData.youtube_url]);
 
-  // Debounce helpers for input changing
+  // Debounced Instagram auto-fetch
   useEffect(() => {
+    if (!isAutoFetchEnabled || !formData.instagram_url) return;
     const timer = setTimeout(() => {
-      if (formData.instagram_url && isAutoFetchEnabled) fetchIGStats();
+      fetchIGStats();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [formData.instagram_url, isAutoFetchEnabled]);
+  }, [formData.instagram_url, isAutoFetchEnabled, fetchIGStats]);
 
+  // Debounced YouTube auto-fetch
   useEffect(() => {
+    if (!isAutoFetchEnabled || !formData.youtube_url) return;
     const timer = setTimeout(() => {
-      if (formData.youtube_url && isAutoFetchEnabled) fetchYTStats();
+      fetchYTStats();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [formData.youtube_url, isAutoFetchEnabled]);
+  }, [formData.youtube_url, isAutoFetchEnabled, fetchYTStats]);
 
   const handleNext = () => {
+    setError('');
     if (step === 3 && !isBrand) {
       if (!formData.instagram_url && !formData.youtube_url) {
-        setError('Please provide at least one social media profile (Instagram or YouTube) to continue.');
+        setError('Please add at least one social media URL to continue.');
         return;
       }
     }
-    setError('');
-    
-    if (step < 4) {
-      setStep(step + 1);
-    }
+    if (step < 4) setStep((s) => s + 1);
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+    setError('');
+    if (step > 1) setStep((s) => s - 1);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (step < 4) {
-      handleNext();
-      return;
-    }
-
-    setError('');
+  const handleSubmit = async () => {
     setLoading(true);
+    setError('');
     try {
-      // 1. Initial Registration
-      const registrationFn = isBrand ? brandRegister : registerUser;
-      const res = await registrationFn({
-        name: formData.name,
-        email: formData.email,
-        password: googleUser ? 'GOOGLE_AUTH_USER' : formData.password,
-        phone: formData.phone,
-        location: formData.location,
-        role: userType
-      });
-
-      const { token, user } = res.data.data;
-      
-      // 2. Set Session IMMEDIATELY so subsequent API calls (updateProfile) are authenticated
-      setSession(token, user);
-
-      // 3. Complete Profile Details
       if (isBrand) {
+        const res = await brandRegister({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+        });
+        const { token, brand } = res.data.data;
+        setSession(token, { ...brand, role: 'brand' });
         await setBrandDetails({
-          brand_name: formData.name,
           website: formData.website,
-          category: formData.category,
           target_audience: formData.target_audience,
           campaign_goal: formData.campaign_goal,
-          budget_range: formData.budget_range
+          budget_range: formData.budget_range,
+          category: formData.category,
         });
+        navigate('/brand/dashboard');
       } else {
-        if (!formData.instagram_url && !formData.youtube_url) {
-          setError('At least one platform (Instagram or YouTube) is required');
-          setLoading(false);
-          setStep(3);
-          return;
-        }
-
+        const res = await registerUser({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+        });
+        const { token, creator } = res.data.data;
+        setSession(token, { ...creator, role: 'creator' });
         await updateProfile({
           location: formData.location,
-          phone: formData.phone,
           category: formData.category,
           instagram_url: formData.instagram_url,
-          instagram_followers: parseInt(formData.instagram_followers) || 0,
-          instagram_avg_views: parseInt(formData.instagram_avg_views) || 0,
-          instagram_er: parseFloat(formData.instagram_er) || 0,
+          instagram_followers: formData.instagram_followers,
+          instagram_avg_views: formData.instagram_avg_views,
+          instagram_er: formData.instagram_er,
           instagram_verified: formData.instagram_verified,
           youtube_url: formData.youtube_url,
-          youtube_subscribers: parseInt(formData.youtube_subscribers) || 0,
-          youtube_avg_views: parseInt(formData.youtube_avg_views) || 0,
-          youtube_er: parseFloat(formData.youtube_er) || 0,
-          expected_budget: parseFloat(formData.expected_budget) || 0
+          youtube_subscribers: formData.youtube_subscribers,
+          youtube_avg_views: formData.youtube_avg_views,
+          youtube_er: formData.youtube_er,
+          twitter: formData.twitter,
+          expected_budget: formData.expected_budget,
         });
+        navigate('/dashboard');
       }
-
-      navigate(isBrand ? '/brand/dashboard' : '/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
-      setStep(2);
+      setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const categories = [
-    { id: 'fashion', label: 'Fashion', icon: Camera },
-    { id: 'tech', label: 'Tech', icon: Smartphone },
-    { id: 'lifestyle', label: 'Lifestyle', icon: Heart },
-    { id: 'gaming', label: 'Gaming', icon: Zap },
-    { id: 'music', label: 'Music', icon: Music },
-    { id: 'food', label: 'Food', icon: Utensils },
-  ];
-
-  const steps = [
-    { id: 1, title: 'Role', sub: 'Who are you?' },
-    { id: 2, title: 'Account', sub: 'Sign up details' },
-    { id: 3, title: 'Profile', sub: 'Tell us more' },
-    { id: 4, title: 'Finish', sub: 'Setup complete' },
-  ];
+  const progressPercent = ((step - 1) / (steps.length - 1)) * 100;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex font-jakarta">
-      {/* Left Decoration Side */}
-      <div className="hidden lg:flex w-1/3 relative overflow-hidden bg-[#0F172A]">
-        <div className="absolute inset-0 opacity-40 mix-blend-overlay" 
-             style={{ backgroundImage: `url(${isBrand ? brandBg : creatorBg})`, backgroundSize: 'cover' }}></div>
-        <div className="relative z-10 p-12 flex flex-col justify-between h-full">
-          <div>
-            <div className="flex items-center gap-3 mb-12">
-              <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Sparkles className="text-white" size={20} />
-              </div>
-              <span className="text-2xl font-black text-white tracking-tight">Gradix</span>
-            </div>
-            <h1 className="text-5xl font-black text-white leading-tight mb-6">
-              Start your <span className="text-[#2563EB]">premium</span> journey with us.
-            </h1>
-            <p className="text-slate-400 text-lg max-w-md font-medium leading-relaxed">
-              Connect with top-tier partners and scale your influence using our AI-driven platform.
-            </p>
+    <div className="login-container">
+      {/* LEFT PANEL */}
+      <div
+        className="login-left"
+        style={{ backgroundImage: `url(${isBrand ? brandBg : creatorBg})` }}
+      >
+        <div className="brand-logo">
+          <div className="logo-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="7" height="7" rx="2" fill="white" />
+              <rect x="14" y="3" width="7" height="7" rx="2" fill="white" fillOpacity="0.5" />
+              <rect x="3" y="14" width="7" height="7" rx="2" fill="white" fillOpacity="0.5" />
+              <rect x="14" y="14" width="7" height="7" rx="2" fill="white" />
+            </svg>
           </div>
-          
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 text-white/60">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                <Check size={20} />
+          <span className="brand-name">Gradix</span>
+        </div>
+        <div className="login-left-content">
+          <h1>Start your premium journey</h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', fontSize: '14px' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Check size={12} />
               </div>
-              <span className="font-bold">Verified Partners Only</span>
+              Connect with top brands and creators
             </div>
-            <div className="flex items-center gap-4 text-white/60">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                <Check size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', fontSize: '14px' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Check size={12} />
               </div>
-              <span className="font-bold">Secure Escrow Payments</span>
+              AI-powered matching and analytics
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right Content Side */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
-        <div className="w-full max-w-2xl">
-          {/* Progress Indicator */}
-          <div className="flex justify-between mb-16 relative">
-            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 z-0"></div>
-            <div className="absolute top-1/2 left-0 h-0.5 bg-[#2563EB] -translate-y-1/2 z-0 transition-all duration-500" 
-                 style={{ width: `${((step - 1) / (steps.length - 1)) * 100}%` }}></div>
-            
-            {steps.map((s) => (
-              <div key={s.id} className="relative z-10 flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 border-4 ${
-                  s.id < step ? 'bg-[#2563EB] border-blue-100 text-white' : 
-                  s.id === step ? 'bg-white border-[#2563EB] text-[#2563EB] shadow-lg shadow-blue-100' : 
-                  'bg-white border-gray-100 text-gray-400'
-                }`}>
-                  {s.id < step ? <Check size={18} /> : s.id}
-                </div>
-                <div className="mt-3 text-center">
-                  <p className={`text-xs font-black uppercase tracking-wider ${s.id === step ? 'text-gray-900' : 'text-gray-400'}`}>{s.title}</p>
-                  <p className="text-[10px] text-gray-400 font-bold hidden sm:block">{s.sub}</p>
-                </div>
-              </div>
-            ))}
+      {/* RIGHT PANEL */}
+      <div className="login-right">
+        <button className="close-btn" onClick={() => navigate('/')}>
+          <X size={24} />
+        </button>
+
+        <div className="login-form-container" style={{ maxWidth: '420px', width: '100%' }}>
+          {/* PROGRESS INDICATOR */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ height: '4px', background: '#1a1a1a', borderRadius: '2px', marginBottom: '16px', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${progressPercent}%`,
+                  background: '#2563EB',
+                  borderRadius: '2px',
+                  transition: 'width 0.4s cubic-bezier(0.4,0,0.2,1)',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              {steps.map((s) => {
+                const isCompleted = step > s.id;
+                const isCurrent = step === s.id;
+                return (
+                  <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flex: 1 }}>
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        transition: 'all 0.3s ease',
+                        background: isCompleted ? '#2563EB' : isCurrent ? 'transparent' : '#1a1a1a',
+                        border: isCurrent ? '2px solid #2563EB' : isCompleted ? '2px solid #2563EB' : '2px solid #333',
+                        color: isCompleted ? '#fff' : isCurrent ? '#2563EB' : '#666',
+                      }}
+                    >
+                      {isCompleted ? <Check size={12} /> : s.id}
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: isCurrent ? '#fff' : '#666', textAlign: 'center' }}>
+                      {s.title}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Form Container */}
-          <div className="bg-white rounded-[32px] p-10 shadow-xl shadow-slate-200/50 border border-white">
-            {googleUser?.email && (
-              <div className="mb-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Google Session Active</span>
-                </div>
-                <span className="text-[10px] font-bold text-blue-400">{googleUser.email}</span>
-              </div>
-            )}
-
-            <AnimatePresence mode="wait">
+          {/* STEP CONTENT */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+            >
+              {/* STEP 1 - Role Selection */}
               {step === 1 && (
-                <motion.div 
-                  key="step1"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
-                >
-                  <div className="text-center">
-                    <h2 className="text-3xl font-black text-gray-900 mb-2">Choose your path</h2>
-                    <p className="text-gray-500 font-bold">Select the role that fits you best</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <button 
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+                    Choose your path
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '28px' }}>Select the role that best describes you</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
+                    {/* Creator Card */}
+                    <div
                       onClick={() => setUserType('creator')}
-                      className={`relative p-8 rounded-3xl text-left transition-all duration-300 border-2 ${
-                        userType === 'creator' 
-                        ? 'border-[#2563EB] bg-blue-50/50 shadow-xl shadow-blue-100' 
-                        : 'border-gray-100 hover:border-gray-200 bg-white'
-                      }`}
+                      style={{
+                        background: userType === 'creator' ? 'rgba(37,99,235,0.08)' : '#1a1a1a',
+                        border: `1px solid ${userType === 'creator' ? '#2563EB' : '#333'}`,
+                        borderRadius: '16px',
+                        padding: '20px 24px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '16px',
+                        position: 'relative',
+                      }}
+                      onMouseEnter={(e) => { if (userType !== 'creator') e.currentTarget.style.borderColor = '#555'; }}
+                      onMouseLeave={(e) => { if (userType !== 'creator') e.currentTarget.style.borderColor = '#333'; }}
                     >
-                      <div className={`w-14 h-14 rounded-2xl mb-6 flex items-center justify-center ${
-                        userType === 'creator' ? 'bg-[#2563EB] text-white' : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        <Sparkles size={28} />
+                      <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: userType === 'creator' ? 'rgba(37,99,235,0.15)' : '#262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Sparkles size={20} color={userType === 'creator' ? '#2563EB' : '#888'} />
                       </div>
-                      <h3 className="text-xl font-black text-gray-900 mb-2">I'm a Creator</h3>
-                      <p className="text-sm text-gray-500 font-bold leading-relaxed">
-                        I want to collaborate with brands and monetize my content.
-                      </p>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', fontSize: '15px', color: '#fff', marginBottom: '3px' }}>I'm a Creator</div>
+                        <div style={{ fontSize: '13px', color: '#666' }}>Grow your audience and monetize your content</div>
+                      </div>
                       {userType === 'creator' && (
-                        <div className="absolute top-4 right-4 w-6 h-6 bg-[#2563EB] rounded-full flex items-center justify-center text-white">
-                          <Check size={14} />
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={11} color="#fff" />
                         </div>
                       )}
-                    </button>
+                    </div>
 
-                    <button 
+                    {/* Brand Card */}
+                    <div
                       onClick={() => setUserType('brand')}
-                      className={`relative p-8 rounded-3xl text-left transition-all duration-300 border-2 ${
-                        userType === 'brand' 
-                        ? 'border-[#2563EB] bg-blue-50/50 shadow-xl shadow-blue-100' 
-                        : 'border-gray-100 hover:border-gray-200 bg-white'
-                      }`}
+                      style={{
+                        background: userType === 'brand' ? 'rgba(37,99,235,0.08)' : '#1a1a1a',
+                        border: `1px solid ${userType === 'brand' ? '#2563EB' : '#333'}`,
+                        borderRadius: '16px',
+                        padding: '20px 24px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '16px',
+                        position: 'relative',
+                      }}
+                      onMouseEnter={(e) => { if (userType !== 'brand') e.currentTarget.style.borderColor = '#555'; }}
+                      onMouseLeave={(e) => { if (userType !== 'brand') e.currentTarget.style.borderColor = '#333'; }}
                     >
-                      <div className={`w-14 h-14 rounded-2xl mb-6 flex items-center justify-center ${
-                        userType === 'brand' ? 'bg-[#2563EB] text-white' : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        <Briefcase size={28} />
+                      <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: userType === 'brand' ? 'rgba(37,99,235,0.15)' : '#262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Briefcase size={20} color={userType === 'brand' ? '#2563EB' : '#888'} />
                       </div>
-                      <h3 className="text-xl font-black text-gray-900 mb-2">I'm a Brand</h3>
-                      <p className="text-sm text-gray-500 font-bold leading-relaxed">
-                        I want to find the perfect creators to scale my products.
-                      </p>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', fontSize: '15px', color: '#fff', marginBottom: '3px' }}>I'm a Brand</div>
+                        <div style={{ fontSize: '13px', color: '#666' }}>Find creators and run impactful campaigns</div>
+                      </div>
                       {userType === 'brand' && (
-                        <div className="absolute top-4 right-4 w-6 h-6 bg-[#2563EB] rounded-full flex items-center justify-center text-white">
-                          <Check size={14} />
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={11} color="#fff" />
                         </div>
                       )}
-                    </button>
+                    </div>
                   </div>
 
-                  <button 
-                    onClick={handleNext}
-                    className="w-full py-4 bg-[#0F172A] text-white font-black rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-2 group"
-                  >
-                    Continue <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />
+                  <button className="submit-btn" onClick={handleNext} style={{ marginBottom: 0 }}>
+                    Continue <ArrowRight size={16} style={{ marginLeft: '6px' }} />
                   </button>
-                </motion.div>
+                </div>
               )}
 
+              {/* STEP 2 - Account Details */}
               {step === 2 && (
-                <motion.div 
-                  key="step2"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
-                >
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-black text-gray-900 mb-2">Account Details</h2>
-                    <p className="text-gray-500 font-bold italic">Let's set up your access</p>
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+                    Account Details
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px' }}>Create your Gradix account</p>
+
+                  {googleUser && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px' }}>
+                      {googleUser.picture && (
+                        <img src={googleUser.picture} alt="Google" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                      )}
+                      <div>
+                        <div style={{ fontSize: '13px', color: '#fff', fontWeight: '500' }}>Signing up with Google</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>{googleUser.email}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="input-group">
+                    <div className="input-wrapper">
+                      <User size={16} className="input-icon" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                      <input
+                        className="with-icon"
+                        type="text"
+                        placeholder="Full Name"
+                        value={formData.name}
+                        onChange={(e) => updateField('name', e.target.value)}
+                        style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
+                      />
+                    </div>
+                    <div className="input-wrapper">
+                      <Mail size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                      <input
+                        type="email"
+                        placeholder="Email address"
+                        value={formData.email}
+                        onChange={(e) => updateField('email', e.target.value)}
+                        readOnly={!!googleUser?.email}
+                        style={{
+                          paddingLeft: '48px',
+                          background: googleUser?.email ? '#111' : '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: '12px',
+                          color: googleUser?.email ? '#888' : '#fff',
+                          fontSize: '14px',
+                          width: '100%',
+                          padding: '14px 16px 14px 48px',
+                          outline: 'none',
+                          cursor: googleUser?.email ? 'not-allowed' : 'text',
+                        }}
+                      />
+                    </div>
+                    {!googleUser && (
+                      <div className="input-wrapper">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Password"
+                          value={formData.password}
+                          onChange={(e) => updateField('password', e.target.value)}
+                          style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 48px 14px 16px', outline: 'none' }}
+                        />
+                        <div
+                          className="password-toggle"
+                          onClick={() => setShowPassword(!showPassword)}
+                          style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', cursor: 'pointer' }}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="text" 
-                        placeholder="Full Name"
-                        className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
-                        value={formData.name}
-                        onChange={e => setFormData({...formData, name: e.target.value})}
+                  <div className="wizard-actions">
+                    <button className="back-btn" onClick={handleBack}>Back</button>
+                    <button
+                      className="submit-btn"
+                      onClick={handleNext}
+                      disabled={!formData.name || (!googleUser && !formData.password) || !formData.email}
+                      style={{ marginBottom: 0, opacity: (!formData.name || (!googleUser && !formData.password) || !formData.email) ? 0.5 : 1 }}
+                    >
+                      Continue <ArrowRight size={16} style={{ marginLeft: '6px' }} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3 - Profile */}
+              {step === 3 && (
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+                    Personalize Profile
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px' }}>
+                    {isBrand ? 'Tell us about your brand' : 'Add your social presence'}
+                  </p>
+
+                  <div className="input-group">
+                    <div className="input-wrapper">
+                      <Phone size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                      <input
+                        type="tel"
+                        placeholder="Phone number"
+                        value={formData.phone}
+                        onChange={(e) => updateField('phone', e.target.value)}
+                        style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
                       />
                     </div>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="email" 
-                        placeholder="Email Address"
-                        className={`w-full pl-12 pr-4 py-4 font-bold rounded-2xl border-none transition-all ${
-                          googleUser?.email 
-                          ? 'bg-blue-50/50 text-blue-600 cursor-not-allowed opacity-75' 
-                          : 'bg-[#F8FAFC] text-gray-900 focus:ring-2 focus:ring-blue-100'
-                        }`}
-                        value={formData.email}
-                        onChange={e => setFormData({...formData, email: e.target.value})}
-                        readOnly={!!googleUser?.email}
-                      />
-                    </div>
-                    {!googleUser?.email && (
-                      <div className="relative">
-                        <Eye className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input 
-                          type="password" 
-                          placeholder="Password"
-                          className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
-                          value={formData.password}
-                          onChange={e => setFormData({...formData, password: e.target.value})}
+                    {!isBrand && (
+                      <div className="input-wrapper">
+                        <MapPin size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                        <input
+                          type="text"
+                          placeholder="Location (city, country)"
+                          value={formData.location}
+                          onChange={(e) => updateField('location', e.target.value)}
+                          style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
                         />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex gap-4 pt-4">
-                    <button onClick={handleBack} className="flex-1 py-4 bg-white border border-gray-100 text-gray-700 font-black rounded-2xl hover:bg-gray-50 transition-all">Back</button>
-                    <button onClick={handleNext} className="flex-[2] py-4 bg-[#2563EB] text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-100">Next Step</button>
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 3 && (
-                <motion.div 
-                  key="step3"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
-                >
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-black text-gray-900 mb-2">Personalize Profile</h2>
-                    <p className="text-gray-500 font-bold italic">Tell us what you're into</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="relative col-span-2">
-                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="tel" 
-                        placeholder="Phone Number"
-                        className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
-                        value={formData.phone}
-                        onChange={e => setFormData({...formData, phone: e.target.value})}
-                      />
+                  {isBrand ? (
+                    /* Brand: website */
+                    <div className="input-group">
+                      <div className="input-wrapper">
+                        <Globe size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                        <input
+                          type="url"
+                          placeholder="Brand website URL"
+                          value={formData.website}
+                          onChange={(e) => updateField('website', e.target.value)}
+                          style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
+                        />
+                      </div>
                     </div>
-                    <div className="relative col-span-2">
-                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input 
-                        type="text" 
-                        placeholder="Location"
-                        className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100"
-                        value={formData.location}
-                        onChange={e => setFormData({...formData, location: e.target.value})}
-                      />
-                    </div>
-                    
-                    {!isBrand ? (
-                      <>
-                        <div className="col-span-2 flex items-center justify-between mb-2">
-                          <p className="text-sm font-bold text-gray-900">Instagram Stats</p>
-                          <label className="flex items-center gap-2 cursor-pointer bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:bg-blue-100">
-                            <input 
-                              type="checkbox" 
-                              checked={isAutoFetchEnabled} 
-                              onChange={e => setIsAutoFetchEnabled(e.target.checked)} 
-                              className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5" 
-                            />
-                            {isAutoFetchEnabled ? 'Auto-Fetch ON' : 'Manual Entry'}
-                          </label>
+                  ) : (
+                    /* Creator: Instagram + YouTube */
+                    <div>
+                      {/* Auto-fetch toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <span style={{ fontSize: '13px', color: '#888' }}>Auto-fetch social stats</span>
+                        <button
+                          onClick={() => setIsAutoFetchEnabled(!isAutoFetchEnabled)}
+                          style={{
+                            background: isAutoFetchEnabled ? 'rgba(37,99,235,0.15)' : '#1a1a1a',
+                            border: `1px solid ${isAutoFetchEnabled ? '#2563EB' : '#333'}`,
+                            borderRadius: '20px',
+                            padding: '5px 14px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: isAutoFetchEnabled ? '#2563EB' : '#666',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {isAutoFetchEnabled ? 'Auto-Fetch ON' : 'Auto-Fetch OFF'}
+                        </button>
+                      </div>
+
+                      {/* Instagram Section */}
+                      <div style={{ marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>Instagram Stats</span>
+                          {fetchingIG && (
+                            <span style={{ fontSize: '11px', color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <svg style={{ animation: 'spin 1s linear infinite', width: '12px', height: '12px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 12a9 9 0 11-6.219-8.56" />
+                              </svg>
+                              Fetching...
+                            </span>
+                          )}
                         </div>
-                        <div className="col-span-2 space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="relative col-span-2">
-                              <Camera className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                              <input type="text" placeholder="Instagram URL (e.g. instagram.com/username)" value={formData.instagram_url} onChange={e => setFormData({...formData, instagram_url: e.target.value})} onBlur={() => {if(isAutoFetchEnabled && !formData.instagram_followers) fetchIGStats();}} className="w-full pl-12 pr-10 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
-                              {fetchingIG && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
-                            </div>
-                            <input type="number" placeholder="Followers" value={formData.instagram_followers} onChange={e => setFormData({...formData, instagram_followers: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
-                            <input type="number" placeholder="Avg Views" value={formData.instagram_avg_views} onChange={e => setFormData({...formData, instagram_avg_views: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
-                            <input type="number" step="0.01" placeholder="Engagement Rate %" value={formData.instagram_er} onChange={e => setFormData({...formData, instagram_er: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-blue-50/50' : ''}`} />
-                            <label className="flex items-center gap-2 px-4 py-3 bg-[#F8FAFC] rounded-2xl cursor-pointer">
-                              <input type="checkbox" checked={formData.instagram_verified} onChange={e => setFormData({...formData, instagram_verified: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500" />
-                              <span className="text-sm font-bold text-gray-900">Verified (Blue Tick)</span>
+                        <div className="input-group" style={{ marginBottom: '8px' }}>
+                          <div className="input-wrapper">
+                            <Camera size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                            <input
+                              type="url"
+                              placeholder="Instagram profile URL"
+                              value={formData.instagram_url}
+                              onChange={(e) => updateField('instagram_url', e.target.value)}
+                              style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
+                            />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <input
+                              type="number"
+                              placeholder="Followers"
+                              value={formData.instagram_followers}
+                              onChange={(e) => updateField('instagram_followers', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Avg Views"
+                              value={formData.instagram_avg_views}
+                              onChange={(e) => updateField('instagram_avg_views', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Engagement Rate %"
+                              value={formData.instagram_er}
+                              onChange={(e) => updateField('instagram_er', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
+                            />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '12px 14px' }}>
+                              <input
+                                type="checkbox"
+                                checked={formData.instagram_verified}
+                                onChange={(e) => updateField('instagram_verified', e.target.checked)}
+                                style={{ accentColor: '#2563EB', width: '14px', height: '14px' }}
+                              />
+                              <span style={{ fontSize: '13px', color: '#fff' }}>Verified</span>
                             </label>
                           </div>
-                          {isAutoFetchEnabled && (formData.instagram_followers || formData.instagram_avg_views) && (
-                            <p className="text-[10px] text-blue-600 font-bold text-right">Data auto-fetched (approximate)</p>
-                          )}
                         </div>
-
-                        <div className="col-span-2 space-y-4 pt-4 border-t border-gray-100">
-                          <p className="text-sm font-bold text-gray-900">YouTube Stats</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="relative col-span-2">
-                              <Video className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                              <input type="text" placeholder="YouTube URL (e.g. youtube.com/@channel)" value={formData.youtube_url} onChange={e => setFormData({...formData, youtube_url: e.target.value})} onBlur={() => {if(isAutoFetchEnabled && !formData.youtube_subscribers) fetchYTStats();}} className="w-full pl-12 pr-10 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
-                              {fetchingYT && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>}
-                            </div>
-                            <input type="number" placeholder="Subscribers" value={formData.youtube_subscribers} onChange={e => setFormData({...formData, youtube_subscribers: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
-                            <input type="number" placeholder="Avg Views" value={formData.youtube_avg_views} onChange={e => setFormData({...formData, youtube_avg_views: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
-                            <input type="number" step="0.01" placeholder="Engagement Rate %" value={formData.youtube_er} onChange={e => setFormData({...formData, youtube_er: e.target.value})} className={`w-full px-4 py-3 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100 ${isAutoFetchEnabled ? 'opacity-80 bg-red-50/50' : ''}`} />
-                          </div>
-                          {isAutoFetchEnabled && (formData.youtube_subscribers || formData.youtube_avg_views) && (
-                            <p className="text-[10px] text-red-600 font-bold text-right">Data auto-fetched (approximate)</p>
-                          )}
-                        </div>
-                        {error && <p className="text-red-500 text-sm font-bold col-span-2 text-center">{error}</p>}
-                      </>
-                    ) : (
-                      <div className="relative col-span-2">
-                        <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input type="text" placeholder="Brand Website" className="w-full pl-12 pr-4 py-4 bg-[#F8FAFC] border-none text-gray-900 font-bold rounded-2xl focus:ring-2 focus:ring-blue-100" />
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex gap-4 pt-4">
-                    <button onClick={handleBack} className="flex-1 py-4 bg-white border border-gray-100 text-gray-700 font-black rounded-2xl hover:bg-gray-50 transition-all">Back</button>
-                    <button onClick={handleNext} className="flex-[2] py-4 bg-[#2563EB] text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-100">Next Step</button>
-                  </div>
-                </motion.div>
-              )}
+                      {/* Divider */}
+                      <div style={{ borderTop: '1px solid #333', margin: '16px 0' }} />
 
-              {step === 4 && (
-                <motion.div 
-                  key="step4"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
-                >
-                  <div className="text-center">
-                    <h2 className="text-3xl font-black text-gray-900 mb-2">Final Details</h2>
-                    <p className="text-gray-500 font-bold mb-8">What is your expected budget per collab?</p>
-                  </div>
+                      {/* YouTube Section */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>YouTube Stats</span>
+                          {fetchingYT && (
+                            <span style={{ fontSize: '11px', color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <svg style={{ animation: 'spin 1s linear infinite', width: '12px', height: '12px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 12a9 9 0 11-6.219-8.56" />
+                              </svg>
+                              Fetching...
+                            </span>
+                          )}
+                        </div>
+                        <div className="input-group">
+                          <div className="input-wrapper">
+                            <Video size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                            <input
+                              type="url"
+                              placeholder="YouTube channel URL"
+                              value={formData.youtube_url}
+                              onChange={(e) => updateField('youtube_url', e.target.value)}
+                              style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
+                            />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <input
+                              type="number"
+                              placeholder="Subscribers"
+                              value={formData.youtube_subscribers}
+                              onChange={(e) => updateField('youtube_subscribers', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Avg Views"
+                              value={formData.youtube_avg_views}
+                              onChange={(e) => updateField('youtube_avg_views', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Engagement Rate %"
+                              value={formData.youtube_er}
+                              onChange={(e) => updateField('youtube_er', e.target.value)}
+                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%', gridColumn: 'span 2' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-                  {!isBrand && (
-                    <div className="relative mb-8">
-                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xl">₹</span>
-                      <input 
-                        type="number" 
-                        placeholder="Expected Budget per post (e.g. 5000)"
-                        className="w-full pl-12 pr-6 py-5 bg-[#F8FAFC] border-none text-gray-900 font-black text-xl rounded-3xl focus:ring-4 focus:ring-blue-100 transition-all shadow-inner"
-                        value={formData.expected_budget || ''}
-                        onChange={e => setFormData({...formData, expected_budget: e.target.value})}
-                      />
-                      <p className="mt-2 ml-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">Enter your average fee per collaboration</p>
+                      {/* Twitter */}
+                      <div style={{ marginTop: '12px' }}>
+                        <div className="input-wrapper">
+                          <Globe size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
+                          <input
+                            type="url"
+                            placeholder="Twitter / X profile URL (optional)"
+                            value={formData.twitter}
+                            onChange={(e) => updateField('twitter', e.target.value)}
+                            style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  <div className="text-center mb-6">
-                    <p className="text-gray-500 font-bold">Pick your primary niche</p>
-                  </div>
+                  {error && (
+                    <p style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px', textAlign: 'center' }}>{error}</p>
+                  )}
 
-                  <div className="grid grid-cols-3 gap-4">
-                    {categories.map(cat => (
-                      <button 
-                        key={cat.id}
-                        onClick={() => setFormData({...formData, category: cat.id})}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl transition-all border-2 ${
-                          formData.category === cat.id 
-                          ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]' 
-                          : 'border-gray-50 bg-[#F8FAFC] text-gray-400 hover:border-gray-200'
-                        }`}
-                      >
-                        <cat.icon size={24} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">{cat.label}</span>
-                      </button>
-                    ))}
+                  <div className="wizard-actions" style={{ marginTop: '24px' }}>
+                    <button className="back-btn" onClick={handleBack}>Back</button>
+                    <button className="submit-btn" onClick={handleNext} style={{ marginBottom: 0 }}>
+                      Continue <ArrowRight size={16} style={{ marginLeft: '6px' }} />
+                    </button>
                   </div>
+                </div>
+              )}
 
-                  <div className="pt-4 space-y-4">
-                    <p className="text-[11px] text-gray-400 text-center font-medium px-8">
-                      By completing signup, you agree to our <span className="text-blue-600 font-bold">Terms of Service</span> and <span className="text-blue-600 font-bold">Privacy Policy</span>.
-                    </p>
-                    <div className="flex gap-4">
-                      <button onClick={handleBack} className="flex-1 py-4 bg-white border border-gray-100 text-gray-700 font-black rounded-2xl hover:bg-gray-50 transition-all">Back</button>
-                      <button onClick={handleSubmit} disabled={loading} className="flex-[2] py-4 bg-[#2563EB] text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-100">
-                        {loading ? 'Processing...' : 'Complete Signup'}
-                      </button>
+              {/* STEP 4 - Final Details */}
+              {step === 4 && (
+                <div>
+                  <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+                    Final Details
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px' }}>Almost there — just a few more things</p>
+
+                  {/* Budget input */}
+                  {!isBrand ? (
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ fontSize: '13px', color: '#888', display: 'block', marginBottom: '8px' }}>Expected budget per campaign</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '16px', fontWeight: '600', pointerEvents: 'none' }}>₹</span>
+                        <input
+                          type="number"
+                          placeholder="e.g. 50000"
+                          value={formData.expected_budget}
+                          onChange={(e) => updateField('expected_budget', e.target.value)}
+                          style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: '500', width: '100%', padding: '14px 16px 14px 36px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ fontSize: '13px', color: '#888', display: 'block', marginBottom: '8px' }}>Campaign budget range</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '16px', fontWeight: '600', pointerEvents: 'none' }}>₹</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1,00,000 - 5,00,000"
+                          value={formData.budget_range}
+                          onChange={(e) => updateField('budget_range', e.target.value)}
+                          style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '15px', fontWeight: '500', width: '100%', padding: '14px 16px 14px 36px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Brand extra fields */}
+                  {isBrand && (
+                    <div className="input-group" style={{ marginBottom: '20px' }}>
+                      <input
+                        type="text"
+                        placeholder="Target audience (e.g. 18-25 urban youth)"
+                        value={formData.target_audience}
+                        onChange={(e) => updateField('target_audience', e.target.value)}
+                        style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '14px 16px', outline: 'none', width: '100%' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Campaign goal (e.g. brand awareness)"
+                        value={formData.campaign_goal}
+                        onChange={(e) => updateField('campaign_goal', e.target.value)}
+                        style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '14px 16px', outline: 'none', width: '100%' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Category grid */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ fontSize: '13px', color: '#888', display: 'block', marginBottom: '12px' }}>Pick your primary niche</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                      {categories.map(({ id, label, icon: Icon }) => {
+                        const isActive = formData.category === id;
+                        return (
+                          <div
+                            key={id}
+                            onClick={() => updateField('category', id)}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '16px 8px',
+                              background: isActive ? 'rgba(37,99,235,0.08)' : '#1a1a1a',
+                              border: `1px solid ${isActive ? '#2563EB' : '#333'}`,
+                              borderRadius: '12px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                            }}
+                            onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderColor = '#555'; }}
+                            onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderColor = '#333'; }}
+                          >
+                            <Icon size={20} color={isActive ? '#2563EB' : '#666'} />
+                            <span style={{ fontSize: '12px', fontWeight: '500', color: isActive ? '#fff' : '#666' }}>{label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
 
-          <div className="mt-8 text-center">
-            <p className="text-gray-500 font-bold">
-              Already have an account? <Link to="/login" className="text-[#2563EB] hover:underline">Sign in</Link>
-            </p>
-          </div>
+                  {/* Terms */}
+                  <p style={{ fontSize: '12px', color: '#666', textAlign: 'center', marginBottom: '20px', lineHeight: '1.6' }}>
+                    By signing up you agree to our{' '}
+                    <span style={{ color: '#888', cursor: 'pointer' }}>Terms of Service</span>
+                    {' '}and{' '}
+                    <span style={{ color: '#888', cursor: 'pointer' }}>Privacy Policy</span>
+                  </p>
+
+                  {error && (
+                    <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>{error}</p>
+                  )}
+
+                  <div className="wizard-actions">
+                    <button className="back-btn" onClick={handleBack} disabled={loading}>Back</button>
+                    <button
+                      className="submit-btn"
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      style={{ marginBottom: 0, opacity: loading ? 0.7 : 1 }}
+                    >
+                      {loading ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <svg style={{ animation: 'spin 1s linear infinite', width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 12a9 9 0 11-6.219-8.56" />
+                          </svg>
+                          Creating account...
+                        </span>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          Complete Signup <Check size={16} />
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </motion.div>
+          </AnimatePresence>
         </div>
+
+        {/* FOOTER */}
+        <p className="signup-text" style={{ marginTop: '24px' }}>
+          Already have an account?{' '}
+          <Link to="/login"><span>Sign in</span></Link>
+        </p>
       </div>
+
+      {/* Spinner keyframes */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
