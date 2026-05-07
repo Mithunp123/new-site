@@ -7,9 +7,9 @@ export default function AdminLayout() {
   return (
     <div className="page-wrapper">
       <AdminSidebar />
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen">
         <AdminTopBar />
-        <main className="page-content">
+        <main className="page-content py-6">
           <Outlet />
         </main>
       </div>

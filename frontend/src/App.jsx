@@ -15,6 +15,7 @@ import PerformanceAnalyticsPage from './pages/PerformanceAnalyticsPage';
 import LeadManagementPage from './pages/LeadManagementPage';
 import SettingsPage from './pages/SettingsPage';
 import LandingPage from './pages/LandingPage';
+import ChatPage from './pages/ChatPage';
 
 // Brand Components
 import BrandRegisterPage from './pages/BrandRegisterPage';
@@ -27,6 +28,7 @@ import CampaignTracking from './pages/brand/CampaignTracking';
 import RoiAnalytics from './pages/brand/RoiAnalytics';
 import LeadManagement from './pages/brand/LeadManagement';
 import BrandSettings from './pages/brand/Settings';
+import BrandChatPage from './pages/brand/ChatPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Admin Components
@@ -110,6 +112,7 @@ export default function App() {
             <Route path="/analytics" element={<PerformanceAnalyticsPage />} />
             <Route path="/leads" element={<LeadManagementPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/chat" element={<ChatPage />} />
           </Route>
 
           {/* BRAND ROUTES */}
@@ -124,6 +127,7 @@ export default function App() {
             <Route path="/brand/roi-analytics" element={<ErrorBoundary><RoiAnalytics /></ErrorBoundary>} />
             <Route path="/brand/lead-management" element={<ErrorBoundary><LeadManagement /></ErrorBoundary>} />
             <Route path="/brand/settings" element={<ErrorBoundary><BrandSettings /></ErrorBoundary>} />
+            <Route path="/brand/chat" element={<ErrorBoundary><BrandChatPage /></ErrorBoundary>} />
           </Route>
 
           {/* ADMIN ROUTES */}

@@ -96,7 +96,7 @@ const SendRequest = () => {
   if (!creator) return null;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 font-dm">
+    <div className="relative min-h-full bg-white py-6 sm:py-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <header className="flex justify-between items-start">
         <div className="space-y-1">

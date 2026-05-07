@@ -1,58 +1,40 @@
-export default function Badge({ status, className = '' }) {
-  const styles = {
-    'active': 'bg-green-100 text-green-700',
-    'creator_accepted': 'bg-purple-100 text-purple-700',
-    'agreement_locked': 'bg-indigo-100 text-indigo-700',
-    'in_review': 'bg-orange-100 text-orange-700',
-    'content_uploaded': 'bg-orange-100 text-orange-700',
-    'brief_ready': 'bg-blue-100 text-blue-700',
-    'request_sent': 'bg-blue-100 text-blue-700',
-    'completed': 'bg-slate-100 text-slate-600',
-    'campaign_closed': 'bg-slate-100 text-slate-600',
-    'escrow_released': 'bg-green-100 text-green-700',
-    'brand_approved': 'bg-green-100 text-green-700',
-    'posted_live': 'bg-green-100 text-green-700',
-    'analytics_collected': 'bg-blue-100 text-blue-700',
-    // Escrow
-    'held': 'bg-orange-100 text-orange-700',
-    'locked': 'bg-orange-100 text-orange-700',
-    'released': 'bg-green-100 text-green-700',
-    'pending': 'bg-slate-100 text-slate-500',
-    // Payment
-    'in_escrow': 'bg-orange-100 text-orange-700',
-    'paid': 'bg-green-100 text-green-700',
-    'declined': 'bg-red-100 text-red-600',
-  };
+const statusMap = {
+  // Campaign statuses
+  request_sent:        { label: 'Sent',            cls: 'bg-blue-50 text-blue-700' },
+  creator_accepted:    { label: 'Accepted',         cls: 'bg-emerald-50 text-emerald-700' },
+  agreement_locked:    { label: 'Active',           cls: 'bg-emerald-50 text-emerald-700' },
+  escrow_locked:       { label: 'Escrow Locked',    cls: 'bg-indigo-50 text-indigo-700' },
+  content_uploaded:    { label: 'In Review',        cls: 'bg-amber-50 text-amber-700' },
+  brand_approved:      { label: 'Approved',         cls: 'bg-emerald-50 text-emerald-700' },
+  posted_live:         { label: 'Live',             cls: 'bg-emerald-50 text-emerald-700' },
+  analytics_collected: { label: 'Metrics In',       cls: 'bg-blue-50 text-blue-700' },
+  payment_released:    { label: 'Paid',             cls: 'bg-emerald-50 text-emerald-700' },
+  escrow_released:     { label: 'Released',         cls: 'bg-emerald-50 text-emerald-700' },
+  campaign_closed:     { label: 'Closed',           cls: 'bg-slate-100 text-slate-600' },
+  declined:            { label: 'Declined',         cls: 'bg-red-50 text-red-700' },
+  // Payment statuses
+  paid:                { label: 'Paid',             cls: 'bg-emerald-50 text-emerald-700' },
+  pending:             { label: 'Pending',          cls: 'bg-amber-50 text-amber-700' },
+  processing:          { label: 'Processing',       cls: 'bg-blue-50 text-blue-700' },
+  // Escrow
+  locked:              { label: 'Locked',           cls: 'bg-indigo-50 text-indigo-700' },
+  released:            { label: 'Released',         cls: 'bg-emerald-50 text-emerald-700' },
+  // Generic
+  active:              { label: 'Active',           cls: 'bg-emerald-50 text-emerald-700' },
+  completed:           { label: 'Completed',        cls: 'bg-slate-100 text-slate-600' },
+  verified:            { label: 'Verified',         cls: 'bg-emerald-50 text-emerald-700' },
+  unverified:          { label: 'Unverified',       cls: 'bg-amber-50 text-amber-700' },
+  open:                { label: 'Open',             cls: 'bg-red-50 text-red-700' },
+  resolved:            { label: 'Resolved',         cls: 'bg-emerald-50 text-emerald-700' },
+};
 
-  const labels = {
-    'request_sent': 'Brief Sent',
-    'creator_accepted': 'Accepted',
-    'agreement_locked': 'Escrow Locked',
-    'content_uploaded': 'In Review',
-    'brand_approved': 'Approved',
-    'posted_live': 'Live',
-    'analytics_collected': 'Metrics In',
-    'escrow_released': 'Payment Released',
-    'campaign_closed': 'Completed',
-    'held': '🔒 Locked',
-    'locked': '🔒 Locked',
-    'released': 'Released',
-    'pending': 'Pending',
-    'in_escrow': 'In Escrow',
-    'paid': 'Paid',
-    'active': 'Active',
-    'in_review': 'In Review',
-    'brief_ready': 'Brief Ready',
-    'completed': 'Completed',
-    'declined': 'Declined',
-  };
-
-  const style = styles[status] || 'bg-slate-100 text-slate-500';
-  const label = labels[status] || status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
+export default function Badge({ status }) {
+  const key = (status || '').toLowerCase().replace(/\s+/g, '_');
+  const meta = statusMap[key] || { label: status || '—', cls: 'bg-slate-100 text-slate-600' };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium ${style} ${className}`}>
-      {label}
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold ${meta.cls}`}>
+      {meta.label}
     </span>
   );
 }

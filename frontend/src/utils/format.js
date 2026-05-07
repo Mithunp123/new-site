@@ -1,21 +1,25 @@
 export const formatINR = (amount) => {
-  if (amount === null || amount === undefined) return '₹0';
-  if (amount >= 10000000) return '₹' + (amount / 10000000).toFixed(2) + 'Cr';
-  if (amount >= 100000) return '₹' + (amount / 100000).toFixed(2) + 'L';
-  if (amount >= 1000) return '₹' + (amount / 1000).toFixed(1) + 'K';
-  return '₹' + amount;
+  const n = Number(amount || 0);
+  if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + 'Cr';
+  if (n >= 100000) return '₹' + (n / 100000).toFixed(2) + 'L';
+  if (n >= 1000) return '₹' + (n / 1000).toFixed(1) + 'K';
+  return '₹' + n;
 };
 
 export const formatCount = (num) => {
-  if (num === null || num === undefined) return '0';
-  if (num >= 100000) return (num / 100000).toFixed(1) + 'L';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
+  const n = Number(num || 0);
+  if (n >= 100000) return (n / 100000).toFixed(1) + 'L';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toString();
 };
 
 export const formatROI = (spend, revenue) => {
   if (!spend || !revenue) return '—';
-  return (revenue / spend).toFixed(1) + 'x';
+  return (Number(revenue) / Number(spend)).toFixed(1) + 'x';
+};
+
+export const safeFixed = (value, decimals = 1) => {
+  return Number(value || 0).toFixed(decimals);
 };
 
 export const getInitials = (name) => {

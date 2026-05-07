@@ -1,8 +1,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
-import { Target, Users, Zap, TrendingUp, BarChart2 } from 'lucide-react';
-import { formatINR, formatCount } from '../../utils/format';
+import {
+  Target, Users, TrendingUp, BarChart3,
+  Repeat2, Zap, ArrowUpRight,
+} from 'lucide-react';
+import { formatINR, formatCount, safeFixed } from '../../utils/format';
 import { motion } from 'framer-motion';
 
 export default function LeadManagement() {
@@ -13,10 +16,19 @@ export default function LeadManagement() {
 
   if (isLoading) {
     return (
-      <div className="p-8 max-w-7xl mx-auto space-y-6 animate-pulse">
-        <div className="h-32 bg-gray-100 rounded-3xl" />
-        <div className="grid grid-cols-4 gap-6">
-          {[1,2,3,4].map(i => <div key={i} className="h-28 bg-gray-100 rounded-3xl" />)}
+      <div className="space-y-6 animate-pulse">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-7 w-48 bg-slate-100 rounded-xl" />
+            <div className="h-4 w-64 bg-slate-100 rounded-xl" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-2xl" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="h-80 bg-slate-100 rounded-2xl" />
+          <div className="h-80 bg-slate-100 rounded-2xl" />
         </div>
       </div>
     );
@@ -24,98 +36,153 @@ export default function LeadManagement() {
 
   if (error) {
     return (
-      <div className="p-8 text-center text-red-500">
-        Failed to load lead management data. {error.message}
+      <div className="card p-12 text-center">
+        <Target size={36} className="text-slate-200 mx-auto mb-3" />
+        <p className="text-sm font-semibold text-slate-700">Failed to load lead data</p>
+        <p className="text-xs text-slate-400 mt-1">{error.message}</p>
       </div>
     );
   }
 
-  const stats = leads?.stats || {};
-  const ranking = leads?.creator_ranking || [];
+  const stats        = leads?.stats || {};
+  const ranking      = leads?.creator_ranking || [];
   const responseRates = leads?.response_rate_by_campaign || [];
 
+  const responseRate  = safeFixed(stats.response_rate, 0);
+  const repeatPct     = safeFixed(stats.repeat_collab_pct, 0);
+  const topCreator    = stats.top_creator;
+  const totalLeads    = formatCount(stats.total_leads_generated || 0);
+
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 font-dm">
-      {/* Hero Banner */}
-      <div className="bg-gradient-to-br from-[#EF4444] to-[#F97316] rounded-3xl p-8 text-white shadow-xl shadow-orange-100 flex items-center justify-between">
-        <div className="space-y-3">
-          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-            <Target className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-extrabold font-jakarta">Lead Management</h1>
-          <p className="text-orange-50 font-medium opacity-90 max-w-lg">
-            Track creator response rates, performance rankings, and repeat collaboration rates. This is Gradix's key differentiator.
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6"
+    >
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Lead Management</h1>
+          <p className="page-subtitle">
+            Track creator response rates, performance rankings, and repeat collaboration rates.
           </p>
         </div>
-        <Zap className="w-24 h-24 text-white/10 hidden lg:block" />
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          label="Response Rate"
-          value={`${parseFloat(stats.response_rate || 0).toFixed(0)}%`}
-          sub="Creator acceptance rate"
-          type="gradient"
-        />
-        <StatCard
-          label="Repeat Collab %"
-          value={`${parseFloat(stats.repeat_collab_pct || 0).toFixed(0)}%`}
-          sub="Creators rehired"
-        />
-        <StatCard
-          label="Top Creator"
-          value={stats.top_creator?.creator_name || '—'}
-          sub={stats.top_creator ? `${parseFloat(stats.top_creator.engagement_rate || 0).toFixed(1)}% ER · ${formatINR(stats.top_creator.sales || 0)} sales` : 'No data yet'}
-        />
-        <StatCard
-          label="Total Leads Generated"
-          value={formatCount(stats.total_leads_generated || 0)}
-          sub="From all campaigns"
-        />
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Response Rate — blue accent */}
+        <motion.div whileHover={{ y: -2 }} className="rounded-2xl p-5 bg-[#2563EB] text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)]">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200">Response Rate</p>
+            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+              <Zap size={15} className="text-white" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold">{responseRate}%</p>
+          <p className="text-xs text-blue-200 mt-1.5 flex items-center gap-1">
+            <ArrowUpRight size={12} />
+            Creator acceptance rate
+          </p>
+        </motion.div>
+
+        {/* Repeat Collab */}
+        <motion.div whileHover={{ y: -2 }} className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Repeat Collab %</p>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <Repeat2 size={15} className="text-emerald-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{repeatPct}%</p>
+          <p className="text-xs text-emerald-600 mt-1.5">Creators rehired</p>
+        </motion.div>
+
+        {/* Top Creator */}
+        <motion.div whileHover={{ y: -2 }} className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Top Creator</p>
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <Target size={15} className="text-amber-600" />
+            </div>
+          </div>
+          <p className="text-base font-bold text-slate-900 truncate">
+            {topCreator?.creator_name || '—'}
+          </p>
+          <p className="text-xs text-slate-400 mt-1.5 truncate">
+            {topCreator
+              ? `${safeFixed(topCreator.engagement_rate, 1)}% ER · ${formatINR(topCreator.sales || 0)} sales`
+              : 'No data yet'}
+          </p>
+        </motion.div>
+
+        {/* Total Leads */}
+        <motion.div whileHover={{ y: -2 }} className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Leads</p>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <BarChart3 size={15} className="text-[#2563EB]" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{totalLeads}</p>
+          <p className="text-xs text-slate-400 mt-1.5">From all campaigns</p>
+        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
         {/* Creator Performance Ranking */}
-        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 font-jakarta mb-6 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" />
-            Creator Performance Ranking
-          </h2>
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100">
+            <Users size={17} className="text-[#2563EB]" />
+            <h2 className="section-title">Creator Performance Ranking</h2>
+          </div>
+
           {ranking.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <BarChart2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No campaign data yet. Start collaborating with creators!</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+              <BarChart3 size={36} className="text-slate-200 mb-3" />
+              <p className="text-sm font-semibold text-slate-500">No campaign data yet</p>
+              <p className="text-xs text-slate-400 mt-1">Start collaborating with creators to see rankings</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-xs font-bold text-gray-400 tracking-widest uppercase border-b border-gray-50">
-                    <th className="pb-4">Rank</th>
-                    <th className="pb-4">Creator</th>
-                    <th className="pb-4">ER</th>
-                    <th className="pb-4">Sales</th>
-                    <th className="pb-4">Repeat</th>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Creator</th>
+                    <th>ER</th>
+                    <th>Sales</th>
+                    <th>Repeat</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {ranking.map((creator, i) => (
-                    <tr key={i} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3">
-                        <span className={`font-bold text-sm ${i < 3 ? 'text-blue-600' : 'text-gray-400'}`}>
-                          #{i + 1}
+                    <motion.tr
+                      key={i}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <td>
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
+                          i === 0 ? 'bg-amber-50 text-amber-600' :
+                          i === 1 ? 'bg-slate-100 text-slate-600' :
+                          i === 2 ? 'bg-orange-50 text-orange-600' :
+                          'bg-slate-50 text-slate-400'
+                        }`}>
+                          {i + 1}
                         </span>
                       </td>
-                      <td className="py-3 font-bold text-gray-900 text-sm">{creator.creator_name}</td>
-                      <td className="py-3 text-sm font-bold text-green-600">
-                        {parseFloat(creator.engagement_rate || 0).toFixed(1)}%
+                      <td className="font-semibold text-slate-900">{creator.creator_name}</td>
+                      <td className="font-semibold text-emerald-600">
+                        {safeFixed(creator.engagement_rate, 1)}%
                       </td>
-                      <td className="py-3 text-sm font-bold text-gray-900">{formatINR(creator.sales || 0)}</td>
-                      <td className="py-3">
-                        <RepeatBadge type={creator.repeat} />
-                      </td>
-                    </tr>
+                      <td className="font-semibold text-slate-900">{formatINR(creator.sales || 0)}</td>
+                      <td><RepeatBadge type={creator.repeat} /></td>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>
@@ -124,69 +191,65 @@ export default function LeadManagement() {
         </div>
 
         {/* Response Rate by Campaign */}
-        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 font-jakarta mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-orange-500" />
-            Response Rate by Campaign
-          </h2>
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp size={17} className="text-[#2563EB]" />
+            <h2 className="section-title">Response Rate by Campaign</h2>
+          </div>
+
           {responseRates.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No campaigns sent yet.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <TrendingUp size={36} className="text-slate-200 mb-3" />
+              <p className="text-sm font-semibold text-slate-500">No campaigns sent yet</p>
+              <p className="text-xs text-slate-400 mt-1">Send requests to creators to track response rates</p>
             </div>
           ) : (
             <div className="space-y-5">
-              {responseRates.map((item, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-bold text-gray-900 truncate max-w-[200px]">{item.campaign_title}</span>
-                    <span className="font-extrabold text-blue-600 ml-2">
-                      {parseFloat(item.response_rate_pct || 0).toFixed(0)}%
-                    </span>
+              {responseRates.map((item, i) => {
+                const pct = Math.min(Number(item.response_rate_pct || 0), 100);
+                const color = pct >= 70 ? '#10B981' : pct >= 40 ? '#2563EB' : '#F59E0B';
+                return (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-900 truncate max-w-[200px]">
+                        {item.campaign_title}
+                      </span>
+                      <span className="text-sm font-bold ml-3 flex-shrink-0" style={{ color }}>
+                        {safeFixed(item.response_rate_pct, 0)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.7, delay: i * 0.08, ease: 'easeOut' }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{item.sent || 0} sent</span>
+                      <span>{item.accepted || 0} accepted</span>
+                    </div>
                   </div>
-                  <div className="h-2.5 bg-gray-50 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(item.response_rate_pct || 0, 100)}%` }}
-                      transition={{ duration: 0.8, delay: i * 0.1 }}
-                      className="h-full bg-blue-600 rounded-full"
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-const StatCard = ({ label, value, sub, type }) => (
-  <motion.div
-    whileHover={{ y: -4 }}
-    className={`p-6 rounded-3xl relative overflow-hidden ${
-      type === 'gradient'
-        ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-100'
-        : 'bg-white border border-gray-100 shadow-sm'
-    }`}
-  >
-    <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${type === 'gradient' ? 'text-blue-100' : 'text-gray-400'}`}>
-      {label}
-    </p>
-    <h3 className="text-2xl font-extrabold mb-1 font-jakarta truncate">{value}</h3>
-    <p className={`text-xs font-bold ${type === 'gradient' ? 'text-blue-50' : 'text-green-600'}`}>{sub}</p>
-  </motion.div>
-);
-
 const RepeatBadge = ({ type }) => {
   const styles = {
-    Yes: 'bg-green-100 text-green-700 border-green-200',
-    No: 'bg-gray-100 text-gray-500 border-gray-200',
-    Invite: 'bg-blue-50 text-blue-600 border-blue-200',
+    Yes:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+    No:     'bg-slate-100 text-slate-500 border-slate-200',
+    Invite: 'bg-blue-50 text-[#2563EB] border-blue-200',
   };
   return (
-    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${styles[type] || styles.No}`}>
+    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${styles[type] || styles.No}`}>
       {type || 'No'}
     </span>
   );

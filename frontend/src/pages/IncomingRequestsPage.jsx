@@ -2,22 +2,21 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Check, X, MessageSquare, Calendar, Link2, Lock, ChevronDown, ChevronUp, Bell, Inbox, ArrowRight } from 'lucide-react';
+import { Search, Check, X, ArrowRight, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
 import { getRequests, acceptCampaign, declineCampaign } from '../api/creatorApi';
 import { useCampaignSocket } from '../hooks/useCampaignSocket';
 
-const tabs = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'accepted', label: 'Accepted' },
+const TABS = [
+  { key: 'all',       label: 'All' },
+  { key: 'pending',   label: 'Pending' },
+  { key: 'accepted',  label: 'Accepted' },
   { key: 'completed', label: 'Completed' },
 ];
 
-// Status values that mean the creator has already accepted (any post-acceptance state)
 const ACCEPTED_STATUSES = [
   'creator_accepted', 'agreement_locked', 'escrow_locked',
   'content_uploaded', 'brand_approved', 'posted_live',
-  'analytics_collected', 'payment_released', 'escrow_released', 'campaign_closed'
+  'analytics_collected', 'payment_released', 'escrow_released', 'campaign_closed',
 ];
 
 export default function IncomingRequestsPage() {
@@ -29,7 +28,7 @@ export default function IncomingRequestsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests', activeTab, search],
-    queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data.data)
+    queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data.data),
   });
 
   const acceptMut = useMutation({
@@ -37,7 +36,7 @@ export default function IncomingRequestsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    }
+    },
   });
 
   const declineMut = useMutation({
@@ -45,230 +44,203 @@ export default function IncomingRequestsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    }
+    },
   });
 
-  const counts = data?.counts || { pending: 0, accepted: 0, completed: 0, total: 0 };
+  const counts    = data?.counts    || { pending: 0, accepted: 0, completed: 0, total: 0 };
   const campaigns = data?.campaigns || [];
-
-  // Subscribe to WebSocket for all campaign IDs in the list
-  const campaignIds = campaigns.map(c => c.campaign_id || c.id).filter(Boolean);
-  useCampaignSocket(campaignIds);
+  const ids       = campaigns.map(c => c.campaign_id || c.id).filter(Boolean);
+  useCampaignSocket(ids);
 
   if (isLoading) {
     return (
-      <div className="page-content">
-        <div className="animate-pulse space-y-6">
-          <div className="h-10 w-64 bg-slate-200 rounded"></div>
-          <div className="h-40 w-full bg-white rounded-2xl"></div>
-        </div>
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 w-64 bg-slate-100 rounded-lg" />
+        <div className="h-40 bg-slate-100 rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="page-content" style={{ maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Section Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
+
+      {/* Header */}
+      <div className="page-header">
         <div>
-          <div className="text-[34px] font-[900] text-[#0f172a] tracking-tight uppercase leading-none mb-3" style={{ fontFamily: "'Inter', sans-serif", letterSpacing: '-0.05em' }}>
-            Collaboration Requests
-          </div>
-          <div className="text-[14px] text-slate-500 font-medium">
-            {counts.pending} new requests need your response within 48 hours
-          </div>
+          <h1 className="page-title">Collaboration Requests</h1>
+          <p className="page-subtitle">{counts.pending} new requests need your response within 48 hours</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <span className="badge" style={{ padding: '6px 12px', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.pending} Pending</span>
-          <span className="badge" style={{ padding: '6px 12px', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.accepted} Accepted</span>
-          <span className="badge" style={{ padding: '6px 12px', background: '#F3F4F6', color: '#4B5563', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>{counts.completed} Completed</span>
+        <div className="flex items-center gap-2">
+          <span className="badge badge-red">{counts.pending} Pending</span>
+          <span className="badge badge-green">{counts.accepted} Accepted</span>
+          <span className="badge badge-gray">{counts.completed} Completed</span>
         </div>
       </div>
 
-      {/* Tabs Row */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {tabs.map(tab => (
-          <button 
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`btn btn-sm ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`}
-            style={{ 
-                padding: '8px 16px', 
-                borderRadius: '10px', 
-                fontSize: '13px', 
-                fontWeight: '700',
-                background: activeTab === tab.key ? 'var(--blue)' : 'white',
-                color: activeTab === tab.key ? 'white' : '#64748b',
-                border: activeTab === tab.key ? 'none' : '1px solid #e2e8f0'
-            }}
-          >
-            {tab.label} ({tab.key === 'all' ? counts.total : counts[tab.key] || 0})
-          </button>
-        ))}
+      {/* Tabs + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.key
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-1.5 text-xs ${activeTab === tab.key ? 'text-[#2563EB]' : 'text-slate-400'}`}>
+                ({tab.key === 'all' ? counts.total : counts[tab.key] || 0})
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search requests..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input pl-9 w-64"
+          />
+        </div>
       </div>
 
-      {/* Campaigns List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* List */}
+      <div className="space-y-3">
         {campaigns.length > 0 ? (
-          campaigns.map((c) => {
-            const isPending = c.status === 'request_sent';
+          campaigns.map(c => {
+            const isPending  = c.status === 'request_sent';
             const isAccepted = ACCEPTED_STATUSES.includes(c.status);
             const isDeclined = c.status === 'declined';
             const isExpanded = expandedId === c.campaign_id;
-            
-            const iconBg = c.platform === 'instagram' ? '#fff3e0' : '#fce4ec';
-            const iconColor = c.platform === 'instagram' ? '#e65100' : '#c2185b';
-            
-            // Border Left colors
-            let leftBorder = '4px solid #e2e8f0';
-            if (isPending) leftBorder = '4px solid #ef4444';
-            else if (isAccepted) leftBorder = '4px solid #10b981';
-            else if (isDeclined) leftBorder = '4px solid #94a3b8';
 
-            // Safe field access with fallbacks
-            const brandName = c.brand_name || c.brand || 'Brand';
+            const brandName  = c.brand_name || c.brand || 'Brand';
             const deliverable = c.deliverable || c.content_type || '—';
-            const amount = c.amount ?? c.campaign_amount ?? 0;
-            const respondBy = c.respond_by ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null;
+            const amount     = c.amount ?? c.campaign_amount ?? 0;
+            const respondBy  = c.respond_by
+              ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : null;
 
             return (
-              <div key={c.campaign_id} className="card" style={{ borderLeft: leftBorder, background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <div className="card-body" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '20px', paddingRight: '20px' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' }}>
-                    {/* Brand Initial Circle */}
-                    <div style={{ 
-                      width: '44px', 
-                      height: '44px', 
-                      borderRadius: '12px', 
-                      background: iconBg, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      fontWeight: '800', 
-                      fontSize: '14px', 
-                      color: iconColor, 
-                      flexShrink: 0 
-                    }}>
+              <motion.div
+                key={c.campaign_id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`card overflow-hidden border-l-4 ${
+                  isPending  ? 'border-l-red-400' :
+                  isAccepted ? 'border-l-emerald-400' :
+                  isDeclined ? 'border-l-slate-300' : 'border-l-slate-200'
+                }`}
+              >
+                <div className="p-5">
+                  <div className="flex flex-wrap items-start gap-4">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-[#2563EB] text-sm flex-shrink-0">
                       {c.brand_initials || brandName?.[0]?.toUpperCase() || 'B'}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: '200px' }}>
-                      {/* Title & Price Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                    <div className="flex-1 min-w-0">
+                      {/* Title row */}
+                      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-1)' }}>
-                            {brandName} — {c.title}
-                          </div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
-                            {deliverable} {c.content_type && c.content_type !== deliverable ? `· ${c.content_type}` : ''}
-                          </div>
+                          <p className="font-semibold text-slate-900">{brandName} — {c.title}</p>
+                          <p className="text-sm text-slate-400 mt-0.5">{deliverable}</p>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', fontWeight: '800', color: 'var(--blue)' }}>
-                            ₹{Number(amount).toLocaleString('en-IN')}
-                          </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xl font-bold text-[#2563EB]">₹{Number(amount).toLocaleString('en-IN')}</p>
                           {isPending && respondBy && (
-                            <span className="badge badge-red" style={{ gap: '6px' }}>
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }}></span>
-                              Respond by {respondBy}
-                            </span>
+                            <span className="badge badge-red mt-1">Respond by {respondBy}</span>
                           )}
-                          {isAccepted && (
-                            <span style={{ padding: '3px 10px', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>
-                              ✓ Accepted
-                            </span>
-                          )}
-                          {isDeclined && (
-                            <span style={{ padding: '3px 10px', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '11px', fontWeight: '700' }}>
-                              Declined
-                            </span>
-                          )}
+                          {isAccepted && <span className="badge badge-green mt-1">✓ Accepted</span>}
+                          {isDeclined && <span className="badge badge-red mt-1">Declined</span>}
                         </div>
                       </div>
 
-                      {/* Campaign Brief */}
-                      {(isPending || isExpanded) && c.brief && (
-                        <div style={{ background: 'var(--bg-page)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', marginBottom: '6px', textTransform: 'uppercase' }}>CAMPAIGN BRIEF</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.6' }}>{c.brief}</div>
-                        </div>
-                      )}
+                      {/* Brief */}
+                      <AnimatePresence>
+                        {(isPending || isExpanded) && c.brief && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="bg-slate-50 rounded-xl p-4 mb-3 border border-slate-100"
+                          >
+                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Campaign Brief</p>
+                            <p className="text-sm text-slate-600 leading-relaxed">{c.brief}</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-                      {/* Metadata Row */}
+                      {/* Meta */}
                       {(isPending || isExpanded) && (
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                          {c.timeline_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>📅 Timeline: <strong>{c.timeline_label}</strong></div>}
-                          {c.tracking_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>🔗 Tracking Link: <strong>{c.tracking_label}</strong></div>}
-                          {c.escrow_label && <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>💰 Escrow: <strong>{c.escrow_label}</strong></div>}
+                        <div className="flex flex-wrap gap-4 mb-3 text-sm text-slate-500">
+                          {c.timeline_label && <span>📅 {c.timeline_label}</span>}
+                          {c.tracking_label  && <span>🔗 {c.tracking_label}</span>}
+                          {c.escrow_label    && <span>💰 {c.escrow_label}</span>}
                         </div>
                       )}
 
-                      {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {/* Actions */}
+                      <div className="flex flex-wrap items-center gap-2">
                         {isPending ? (
                           <>
-                            <button 
+                            <button
                               onClick={() => acceptMut.mutate(c.campaign_id)}
-                              className="btn btn-primary"
                               disabled={acceptMut.isPending}
-                              style={{ padding: '8px 20px' }}
+                              className="btn-primary"
                             >
-                              ✓ {acceptMut.isPending ? 'Accepting...' : 'Accept Collaboration'}
+                              <Check size={14} /> {acceptMut.isPending ? 'Accepting...' : 'Accept'}
                             </button>
-                            <button className="btn btn-outline" style={{ background: 'transparent' }}>
-                              Negotiate Rate
-                            </button>
-                            <button 
+                            <button className="btn-secondary">Negotiate Rate</button>
+                            <button
                               onClick={() => declineMut.mutate(c.campaign_id)}
-                              className="btn btn-sm" 
-                              style={{ color: 'var(--red)', background: 'transparent', border: 'none', fontWeight: '700' }}
+                              className="text-sm text-red-500 hover:text-red-600 font-medium px-2 py-1"
                             >
-                              ✕ Decline
+                              Decline
                             </button>
                           </>
                         ) : isAccepted ? (
                           <>
-                            <button 
-                              onClick={() => navigate('/campaigns')}
-                              className="btn btn-primary"
-                              style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                            >
+                            <button onClick={() => navigate('/campaigns')} className="btn-primary">
                               View Campaign <ArrowRight size={14} />
                             </button>
-                            <button 
+                            <button
                               onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                              className="btn btn-outline"
-                              style={{ background: 'transparent' }}
+                              className="btn-secondary"
                             >
-                              {isExpanded ? 'Close Brief' : 'View Brief'}
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              {isExpanded ? 'Hide Brief' : 'View Brief'}
                             </button>
                           </>
                         ) : isDeclined ? (
-                          <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>This request was declined.</span>
+                          <span className="text-sm text-slate-400">This request was declined.</span>
                         ) : (
-                          <button 
+                          <button
                             onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                            className="btn btn-outline"
-                            style={{ background: 'transparent' }}
+                            className="btn-secondary"
                           >
-                            {isExpanded ? 'Close Brief' : 'View Full Brief'}
+                            {isExpanded ? 'Hide Brief' : 'View Brief'}
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         ) : (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '60px 20px', textAlign: 'center', border: '2px dashed #e2e8f0' }}>
-            <Inbox size={40} className="text-slate-200 mx-auto mb-4" />
-            <div style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>No Requests Found</div>
-            <p style={{ color: '#94a3b8', marginTop: '4px' }}>We couldn't find any campaign requests in this category.</p>
+          <div className="card p-16 text-center border-dashed">
+            <Inbox size={36} className="text-slate-200 mx-auto mb-4" />
+            <p className="text-base font-semibold text-slate-700">No Requests Found</p>
+            <p className="text-sm text-slate-400 mt-1">No campaign requests in this category.</p>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
