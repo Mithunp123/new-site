@@ -7,7 +7,7 @@ export default function BrandLayout() {
   return (
     <div className="page-wrapper">
       <BrandSidebar />
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-[#F4F6FB]">
         <BrandTopBar />
         <main className="page-content py-6">
           <Outlet />

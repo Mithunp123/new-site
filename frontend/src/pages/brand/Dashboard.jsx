@@ -72,7 +72,7 @@ const BrandDashboard = () => {
           <p className="page-subtitle">A clear view of spend, creators, approvals, and ROI.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate('/brand/discover')} className="btn-primary">
+          <button onClick={() => navigate('/brand/discover')} className="btn-primary-purple">
             <Sparkles size={15} /> Discover Creators
           </button>
           <button onClick={() => navigate('/brand/campaign-tracking')} className="btn-secondary">
@@ -83,10 +83,10 @@ const BrandDashboard = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Campaign Spend" value={formatINR(totalSpend)}          change={spendChange}  changeLabel="this month"          icon={BarChart3}  variant="blue" index={0} />
-        <StatCard label="Active Campaigns"      value={String(activeCampaignCount)}   changeLabel={`${pendingApproval} pending approval`}      icon={Briefcase}               index={1} />
-        <StatCard label="Avg Campaign ROI"      value={`${avgRoi.toFixed(1)}x`}       change={roiChange}    changeLabel="vs last quarter"     icon={TrendingUp}              index={2} />
-        <StatCard label="Creators Hired"        value={String(creatorsHired)}         changeLabel={`Across ${campaignsCount} campaigns`}       icon={Users}                   index={3} />
+        <StatCard label="Total Campaign Spend" value={formatINR(totalSpend)}          change={spendChange}  changeLabel="this month"          icon={BarChart3}  variant="purple" index={0} />
+        <StatCard label="Active Campaigns"      value={String(activeCampaignCount)}   changeLabel={`${pendingApproval} pending approval`}      icon={Briefcase}  variant="blue"   index={1} />
+        <StatCard label="Avg Campaign ROI"      value={`${avgRoi.toFixed(1)}x`}       change={roiChange}    changeLabel="vs last quarter"     icon={TrendingUp}  variant="green"  index={2} />
+        <StatCard label="Creators Hired"        value={String(creatorsHired)}         changeLabel={`Across ${campaignsCount} campaigns`}       icon={Users}       variant="amber"  index={3} />
       </div>
 
       {/* Pending approval banner */}

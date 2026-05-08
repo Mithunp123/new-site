@@ -86,10 +86,10 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Earnings This Month"  value={fmt(d.earnings_this_month?.amount)} change={d.earnings_this_month?.change_pct} changeLabel="vs last month" icon={Zap}      variant="blue" index={0} />
-        <StatCard label="Active Campaigns"     value={d.active_campaigns?.count || 0}                                                  changeLabel="On track"      icon={Briefcase}              index={1} />
-        <StatCard label="Pending Requests"     value={d.pending_requests?.count || d.new_requests?.length || 0}                        changeLabel="Respond in 48h" icon={Inbox}                  index={2} />
-        <StatCard label="Profile Views (7d)"   value={d.creator?.profile_views || 0}                              change={8}           changeLabel="This week"     icon={Eye}                    index={3} />
+        <StatCard label="Earnings This Month"  value={fmt(d.earnings_this_month?.amount)} change={d.earnings_this_month?.change_pct} changeLabel="vs last month" icon={Zap}      variant="blue"   index={0} />
+        <StatCard label="Active Campaigns"     value={d.active_campaigns?.count || 0}                                                  changeLabel="On track"      icon={Briefcase} variant="green"  index={1} />
+        <StatCard label="Pending Requests"     value={d.pending_requests?.count || d.new_requests?.length || 0}                        changeLabel="Respond in 48h" icon={Inbox}    variant="amber"  index={2} />
+        <StatCard label="Profile Views (7d)"   value={d.creator?.profile_views || 0}                              change={8}           changeLabel="This week"     icon={Eye}       variant="purple" index={3} />
       </div>
 
       {/* Main Grid */}

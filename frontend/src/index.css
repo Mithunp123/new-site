@@ -4,6 +4,9 @@
   --color-brand-blue: #2563EB;
   --color-brand-blue-dark: #1D4ED8;
   --color-brand-blue-light: #EFF6FF;
+  --color-brand-purple: #7C3AED;
+  --color-brand-purple-dark: #6D28D9;
+  --color-brand-purple-light: #F5F3FF;
   --color-accent-green: #10B981;
   --color-accent-orange: #F59E0B;
   --color-accent-red: #EF4444;
@@ -13,20 +16,23 @@
   --color-text-primary: #0F172A;
   --color-text-secondary: #64748B;
   --color-text-muted: #94A3B8;
-  --font-heading: 'Plus Jakarta Sans', sans-serif;
-  --font-body: 'Inter', 'DM Sans', sans-serif;
+  --font-heading: 'Sora', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 :root {
-  --blue:        #2563EB;
-  --blue-dark:   #1D4ED8;
-  --blue-light:  #EFF6FF;
-  --green:       #10B981;
-  --orange:      #F59E0B;
-  --red:         #EF4444;
-  --sidebar-w:   240px;
+  --blue:          #2563EB;
+  --blue-dark:     #1D4ED8;
+  --blue-light:    #EFF6FF;
+  --purple:        #7C3AED;
+  --purple-dark:   #6D28D9;
+  --purple-light:  #F5F3FF;
+  --green:         #10B981;
+  --orange:        #F59E0B;
+  --red:           #EF4444;
+  --sidebar-w:     240px;
 
-  /* Landing page CSS variables — required by Hero, Navbar, etc. */
+  /* Landing page CSS variables */
   --color-bg:        #FFFFFF;
   --color-bg-alt:    #F8FAFF;
   --color-navy:      #0F172A;
@@ -44,10 +50,12 @@ html { scroll-behavior: smooth; }
 @layer base {
   body {
     @apply bg-white text-slate-900 antialiased;
-    font-family: 'Inter', 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Sora', sans-serif;
     @apply font-bold text-slate-900 leading-tight tracking-tight;
   }
 }
@@ -60,7 +68,8 @@ html { scroll-behavior: smooth; }
 
 .page-wrapper {
   margin-left: var(--sidebar-w);
-  @apply min-h-screen bg-[#F8FAFC];
+  min-height: 100vh;
+  background-color: #F4F6FB;
 }
 
 .page-content {
@@ -79,27 +88,38 @@ html { scroll-behavior: smooth; }
 /* ── BUTTONS ──────────────────────────────────────── */
 .btn-primary {
   @apply inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 active:scale-[0.97] disabled:opacity-50 shadow-[0_1px_3px_rgba(37,99,235,0.3),0_4px_12px_rgba(37,99,235,0.2)];
+  font-family: 'Inter', sans-serif;
+}
+
+.btn-primary-purple {
+  @apply inline-flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 active:scale-[0.97] disabled:opacity-50 shadow-[0_1px_3px_rgba(124,58,237,0.3),0_4px_12px_rgba(124,58,237,0.2)];
+  font-family: 'Inter', sans-serif;
 }
 
 .btn-secondary {
   @apply inline-flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 active:scale-[0.97] shadow-[0_1px_3px_rgba(0,0,0,0.06)];
+  font-family: 'Inter', sans-serif;
 }
 
 .btn-ghost {
   @apply inline-flex items-center justify-center gap-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150;
+  font-family: 'Inter', sans-serif;
 }
 
 .btn-danger {
   @apply inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 shadow-[0_1px_3px_rgba(239,68,68,0.3)];
+  font-family: 'Inter', sans-serif;
 }
 
 /* ── TABLES ───────────────────────────────────────── */
 table th {
   @apply text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/80 px-5 py-3.5 text-left border-b border-slate-100;
+  font-family: 'Inter', sans-serif;
 }
 
 table td {
   @apply px-5 py-3.5 text-sm text-slate-600 border-b border-slate-50;
+  font-family: 'Inter', sans-serif;
 }
 
 tr:last-child td { @apply border-b-0; }
@@ -108,6 +128,7 @@ tr:hover td { @apply bg-slate-50/50; }
 /* ── BADGES ───────────────────────────────────────── */
 .badge {
   @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold;
+  font-family: 'Inter', sans-serif;
 }
 
 .badge-blue   { @apply bg-blue-50 text-blue-700; }
@@ -120,10 +141,12 @@ tr:hover td { @apply bg-slate-50/50; }
 /* ── FORM INPUTS ──────────────────────────────────── */
 .input {
   @apply w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all duration-150;
+  font-family: 'Inter', sans-serif;
 }
 
 .input-label {
   @apply block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5;
+  font-family: 'Inter', sans-serif;
 }
 
 /* ── PAGE HEADER ──────────────────────────────────── */
@@ -133,10 +156,12 @@ tr:hover td { @apply bg-slate-50/50; }
 
 .page-title {
   @apply text-2xl font-bold text-slate-900 tracking-tight;
+  font-family: 'Sora', sans-serif;
 }
 
 .page-subtitle {
   @apply text-sm text-slate-500 mt-0.5;
+  font-family: 'Inter', sans-serif;
 }
 
 /* ── SECTION HEADER ───────────────────────────────── */
@@ -146,6 +171,7 @@ tr:hover td { @apply bg-slate-50/50; }
 
 .section-title {
   @apply text-[15px] font-semibold text-slate-900;
+  font-family: 'Sora', sans-serif;
 }
 
 /* ── STAT CARD ────────────────────────────────────── */
@@ -164,10 +190,18 @@ tr:hover td { @apply bg-slate-50/50; }
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-[#2563EB] to-blue-400;
   }
+  .text-gradient-purple {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#7C3AED] to-purple-400;
+  }
   .shadow-premium {
     box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.06);
   }
   .shadow-blue {
     box-shadow: 0 4px 16px rgba(37,99,235,0.25);
   }
+  .shadow-purple {
+    box-shadow: 0 4px 16px rgba(124,58,237,0.25);
+  }
+  .font-sora { font-family: 'Sora', sans-serif; }
+  .font-inter { font-family: 'Inter', sans-serif; }
 }

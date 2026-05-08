@@ -1,13 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Upload, Download, X } from 'lucide-react';
+import { Upload, Download, X, BarChart2, Eye, Users, TrendingUp, MousePointer } from 'lucide-react';
 import { getMyCampaigns, uploadContent } from '../api/creatorApi';
 import Badge from '../components/ui/Badge';
 import ProgressStepper from '../components/ui/ProgressStepper';
 import { useCampaignSocket } from '../hooks/useCampaignSocket';
+import { formatCount } from '../utils/format';
+import api from '../api/axios';
 
 const pct = (step) => Math.round(((step + 1) / 9) * 100);
+
+// Statuses where metrics should be visible to the creator
+const METRICS_STATUSES = ['analytics_collected', 'escrow_released', 'campaign_closed', 'payment_released'];
+
+// Metric tile sub-component
+const MetricTile = ({ icon: Icon, label, value, highlight }) => (
+  <div className={`rounded-xl p-3 flex flex-col gap-1 ${highlight ? 'bg-blue-50 border border-blue-100' : 'bg-white border border-slate-100'}`}>
+    <div className="flex items-center gap-1.5">
+      <Icon size={13} className={highlight ? 'text-[#2563EB]' : 'text-slate-400'} />
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+    </div>
+    <p className={`text-lg font-bold ${highlight ? 'text-[#2563EB]' : 'text-slate-900'}`}>{value || '—'}</p>
+  </div>
+);
 
 export default function MyCampaignsPage() {
   const [uploadingId, setUploadingId] = useState(null);
@@ -32,6 +48,19 @@ export default function MyCampaignsPage() {
   const campaignIds = campaigns.map(c => c.campaign_id || c.id).filter(Boolean);
   useCampaignSocket(campaignIds);
 
+  const featured = campaigns[0] || null;
+
+  // Fetch analytics for featured campaign when it reaches metrics stage
+  const { data: featuredAnalytics } = useQuery({
+    queryKey: ['creator-campaign-analytics', featured?.campaign_id || featured?.id],
+    queryFn: async () => {
+      const id = featured?.campaign_id || featured?.id;
+      const res = await api.get(`/api/campaign/${id}/detail`);
+      return res.data.data?.analytics || null;
+    },
+    enabled: !!featured && METRICS_STATUSES.includes(featured?.status),
+    staleTime: 0,
+  });
   const safeBrand       = (c) => c.brand_name || c.brand || '—';
   const safeDeliverable = (c) => c.deliverable || c.content_type || '—';
   const safeAmount      = (c) => Number(c.campaign_amount ?? c.amount ?? 0).toLocaleString('en-IN');
@@ -53,7 +82,7 @@ export default function MyCampaignsPage() {
   }
 
   const d        = data || {};
-  const featured = campaigns[0] || null;
+  // featured is already declared above
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
@@ -131,9 +160,31 @@ export default function MyCampaignsPage() {
             </div>
           )}
 
+          {/* Campaign Metrics — shown when analytics are collected or campaign is closed */}
+          {featuredAnalytics && METRICS_STATUSES.includes(featured.status) && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-5 rounded-xl border border-slate-100 bg-slate-50 p-4"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart2 size={15} className="text-[#2563EB]" />
+                <p className="text-[12px] font-bold uppercase tracking-wider text-slate-500">Campaign Metrics</p>
+                <span className="ml-auto text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  {featured.status === 'campaign_closed' ? 'Final' : 'Live'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <MetricTile icon={Eye}         label="Views"           value={formatCount(featuredAnalytics.views)} />
+                <MetricTile icon={Users}        label="Reach"           value={formatCount(featuredAnalytics.reach)} />
+                <MetricTile icon={TrendingUp}   label="Engagement Rate" value={`${Number(featuredAnalytics.engagement_rate || 0).toFixed(1)}%`} highlight />
+                <MetricTile icon={MousePointer} label="Clicks"          value={formatCount(featuredAnalytics.clicks)} />
+              </div>
+            </motion.div>
+          )}
+
           {/* Meta grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-5 pt-5 border-t border-slate-100">
-            {[
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-5 pt-5 border-t border-slate-100">            {[
               { label: 'Brand',           value: safeBrand(featured) },
               { label: 'Deliverable',     value: safeDeliverable(featured) },
               { label: 'Amount',          value: `₹${safeAmount(featured)}` },

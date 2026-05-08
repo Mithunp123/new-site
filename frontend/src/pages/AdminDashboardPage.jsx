@@ -6,6 +6,30 @@ import { formatCount } from '../utils/format';
 import StatCard from '../components/ui/StatCard';
 import Badge from '../components/ui/Badge';
 
+// Resolve follower count from multiple possible field names the API may return
+const resolveFollowers = (item, platform) => {
+  if (platform === 'instagram') {
+    return Number(
+      item.instagram_followers ??
+      item.ig_followers ??
+      item.social_profiles?.instagram?.followers ??
+      item.social_profiles?.instagram_followers ??
+      0
+    );
+  }
+  if (platform === 'youtube') {
+    return Number(
+      item.youtube_followers ??
+      item.yt_followers ??
+      item.youtube_subscribers ??
+      item.social_profiles?.youtube?.followers ??
+      item.social_profiles?.youtube_followers ??
+      0
+    );
+  }
+  return 0;
+};
+
 export default function AdminDashboardPage() {
   const [dashboard, setDashboard]           = useState(null);
   const [loading, setLoading]               = useState(true);
@@ -67,11 +91,11 @@ export default function AdminDashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Total Users"   value={((dashboard?.total_creators || 0) + (dashboard?.total_brands || 0)).toLocaleString()} changeLabel="Platform total"                                                icon={Users}     index={0} />
-        <StatCard label="Creators"      value={dashboard?.total_creators?.toLocaleString() || '0'}                                    change={dashboard?.new_creators_this_month} changeLabel="New this month" icon={Users}     index={1} />
-        <StatCard label="Brands"        value={dashboard?.total_brands?.toLocaleString() || '0'}                                      change={dashboard?.new_brands_this_month}   changeLabel="New this month" icon={Building2} index={2} />
-        <StatCard label="Commissions"   value={fmtCurrency(dashboard?.commission_this_month)}                                         changeLabel="This month"                                                 icon={Zap}       variant="blue" index={3} />
-        <StatCard label="Campaigns"     value={dashboard?.active_campaigns || 0}                                                      changeLabel="Across platform"                                            icon={TrendingUp} index={4} />
+        <StatCard label="Total Users"   value={((dashboard?.total_creators || 0) + (dashboard?.total_brands || 0)).toLocaleString()} changeLabel="Platform total"                                                icon={Users}     variant="blue"   index={0} />
+        <StatCard label="Creators"      value={dashboard?.total_creators?.toLocaleString() || '0'}                                    change={dashboard?.new_creators_this_month} changeLabel="New this month" icon={Users}     variant="purple" index={1} />
+        <StatCard label="Brands"        value={dashboard?.total_brands?.toLocaleString() || '0'}                                      change={dashboard?.new_brands_this_month}   changeLabel="New this month" icon={Building2} variant="cyan"   index={2} />
+        <StatCard label="Commissions"   value={fmtCurrency(dashboard?.commission_this_month)}                                         changeLabel="This month"                                                 icon={Zap}       variant="amber"  index={3} />
+        <StatCard label="Campaigns"     value={dashboard?.active_campaigns || 0}                                                      changeLabel="Across platform"                                            icon={TrendingUp} variant="green" index={4} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -122,17 +146,20 @@ export default function AdminDashboardPage() {
                       </td>
                       <td>
                         <div className="space-y-0.5">
-                          {item.instagram_followers > 0 && (
+                          {resolveFollowers(item, 'instagram') > 0 && (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] font-semibold text-pink-500">IG</span>
-                              <span className="text-xs font-medium text-slate-700">{formatCount(Number(item.instagram_followers))}</span>
+                              <span className="text-xs font-medium text-slate-700">{formatCount(resolveFollowers(item, 'instagram'))}</span>
                             </div>
                           )}
-                          {item.youtube_followers > 0 && (
+                          {resolveFollowers(item, 'youtube') > 0 && (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] font-semibold text-red-500">YT</span>
-                              <span className="text-xs font-medium text-slate-700">{formatCount(Number(item.youtube_followers))}</span>
+                              <span className="text-xs font-medium text-slate-700">{formatCount(resolveFollowers(item, 'youtube'))}</span>
                             </div>
+                          )}
+                          {resolveFollowers(item, 'instagram') === 0 && resolveFollowers(item, 'youtube') === 0 && (
+                            <span className="text-xs text-slate-400">—</span>
                           )}
                         </div>
                       </td>

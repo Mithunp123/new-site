@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { useEffect } from 'react';
 import useAuthStore from './store/authStore';
 
 // Creator Components
@@ -35,6 +36,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import AdminLayout from './components/layout/AdminLayout';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminCreatorManagementPage from './pages/AdminCreatorManagementPage';
+import AdminVerifyCreatorsPage from './pages/AdminVerifyCreatorsPage';
 import AdminBrandManagementPage from './pages/AdminBrandManagementPage';
 import AdminCampaignManagementPage from './pages/AdminCampaignManagementPage';
 import AdminDisputeManagementPage from './pages/AdminDisputeManagementPage';
@@ -71,16 +73,48 @@ function BrandProtectedRoute({ children }) {
 // Protected Route for Admin
 function AdminProtectedRoute({ children }) {
   const { isAuthenticated, user } = useAuthStore();
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'moderator';
+  // Re-read from localStorage as a fallback in case Zustand hydration is stale
+  const storedRole = localStorage.getItem('gradix_role');
+  const role = user?.role || storedRole;
+  const isAdmin = role === 'admin' || role === 'super_admin' || role === 'moderator';
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isAdmin) return children;
   return <Navigate to="/login" replace />;
 }
 
 export default function App() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, initialized, initializeAuth } = useAuthStore();
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const isGoogleConfigured = googleClientId && googleClientId !== 'your_google_client_id_here';
+
+  // Verify the stored token against the server on every app load.
+  // This prevents a stale/expired admin session from auto-redirecting to /admin/dashboard.
+  useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  // Don't render routes until token verification is complete.
+  if (!initialized) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#F4F6FB',
+      }}>
+        <div style={{
+          width: 36,
+          height: 36,
+          border: '3px solid #E2E8F0',
+          borderTopColor: '#2563EB',
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   const content = (
     <QueryClientProvider client={queryClient}>
@@ -134,7 +168,7 @@ export default function App() {
           <Route element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
             <Route path="/admin/creators" element={<AdminCreatorManagementPage />} />
-            <Route path="/admin/verify-creators" element={<AdminCreatorManagementPage />} />
+            <Route path="/admin/verify-creators" element={<AdminVerifyCreatorsPage />} />
             <Route path="/admin/brands" element={<AdminBrandManagementPage />} />
             <Route path="/admin/campaigns" element={<AdminCampaignManagementPage />} />
             <Route path="/admin/disputes" element={<AdminDisputeManagementPage />} />

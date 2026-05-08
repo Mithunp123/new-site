@@ -126,6 +126,28 @@ exports.login = async (req, res, next) => {
   }
 };
 
+exports.logout = async (req, res, next) => {
+  try {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const token = auth.split(' ')[1];
+      // Store revoked token until its natural expiry (7 days)
+      try {
+        await pool.query(
+          'INSERT IGNORE INTO revoked_tokens (token, revoked_at) VALUES (?, NOW())',
+          [token]
+        );
+      } catch {
+        // revoked_tokens table may not exist yet — run migrate-sessions.js to create it
+        // Logout still succeeds; token will expire naturally via JWT expiry
+      }
+    }
+    success(res, { message: 'Logged out successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getMe = async (req, res, next) => {
   try {
     let table = '';

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Flag, Trash2, Eye, TrendingDown } from 'lucide-react';
-import AdminLayout from '../components/layout/AdminLayout';
 import * as adminApi from '../api/adminApi';
 
 export default function AdminFakeDetectionPage() {
@@ -68,8 +67,7 @@ export default function AdminFakeDetectionPage() {
   });
 
   return (
-    <AdminLayout>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-100 mb-2">Fake Account Detection</h1>
@@ -239,6 +237,5 @@ export default function AdminFakeDetectionPage() {
           )}
         </div>
       </motion.div>
-    </AdminLayout>
   );
 }

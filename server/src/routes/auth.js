@@ -14,5 +14,6 @@ router.post('/login', validate(['email', 'password']), authController.login);
 router.post('/google-login', authController.googleLogin);
 
 router.get('/me', verifyToken, authController.getMe);
+router.post('/logout', verifyToken, authController.logout);
 
 module.exports = router;
