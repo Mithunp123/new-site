@@ -231,4 +231,5 @@ tr:hover td { @apply bg-slate-50/50; }
   }
   .font-sora { font-family: 'Sora', sans-serif; }
   .font-inter { font-family: 'Inter', sans-serif; }
+  .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
 }

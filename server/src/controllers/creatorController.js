@@ -6,31 +6,39 @@ const { broadcastCampaignUpdate } = require('../websocket');
 exports.getRequests = async (req, res, next) => {
   try {
     const creator_id = req.user.id;
+    const { status = 'all', search = '' } = req.query;
     
-    // Fetch ALL campaigns for this creator to be absolutely sure we get the data
+    // Fetch ALL campaigns for this creator
     const [rows] = await pool.query(`
       SELECT 
         c.*, 
         c.id AS campaign_id,
         c.budget AS amount,
-        c.number_of_posts AS deliverable,
-        b.name AS brand_name, 
+        COALESCE(c.number_of_posts, c.content_type, '1 Post') AS deliverable,
+        COALESCE(b.name, 'Unknown Brand') AS brand_name, 
         b.logo_url AS brand_logo,
-        UPPER(LEFT(COALESCE(b.name, 'Brand'), 2)) AS brand_initials,
-        CASE WHEN c.tracking_link_provided = true THEN 'Provided' ELSE 'Not Provided' END AS tracking_label,
-        CASE c.escrow_status WHEN 'held' THEN 'Secured' WHEN 'pending' THEN 'Pending' WHEN 'released' THEN 'Released' ELSE c.escrow_status END AS escrow_label,
-        CONCAT(DATE_FORMAT(c.start_date, '%b %d'), ' - ', DATE_FORMAT(c.deadline, '%b %d')) AS timeline_label
+        UPPER(LEFT(COALESCE(b.name, 'B'), 2)) AS brand_initials,
+        CASE WHEN c.tracking_link_provided = 1 THEN 'Provided' ELSE 'Not Provided' END AS tracking_label,
+        CASE c.escrow_status 
+          WHEN 'held' THEN 'Secured' 
+          WHEN 'pending' THEN 'Pending' 
+          WHEN 'released' THEN 'Released' 
+          ELSE c.escrow_status 
+        END AS escrow_label,
+        CASE 
+          WHEN c.start_date IS NOT NULL AND c.deadline IS NOT NULL 
+          THEN CONCAT(DATE_FORMAT(c.start_date, '%b %d'), ' - ', DATE_FORMAT(c.deadline, '%b %d'))
+          ELSE 'Flexible Timeline'
+        END AS timeline_label
       FROM campaigns c 
       LEFT JOIN brands b ON b.id = c.brand_id 
       WHERE c.creator_id = ?
       ORDER BY c.created_at DESC
     `, [creator_id]);
 
-    // Filter in Javascript to avoid any SQL complexity issues
-    const { status = 'all', search = '' } = req.query;
-    
     let filtered = rows;
     
+    // Filter by status
     if (status === 'pending') {
       filtered = rows.filter(r => r.status === 'request_sent');
     } else if (status === 'accepted') {
@@ -39,11 +47,12 @@ exports.getRequests = async (req, res, next) => {
       filtered = rows.filter(r => ['campaign_closed', 'escrow_released'].includes(r.status));
     }
 
+    // Filter by search
     if (search) {
       const s = search.toLowerCase();
       filtered = filtered.filter(r => 
-        (r.brand_name && r.brand_name.toLowerCase().includes(s)) || 
-        (r.title && r.title.toLowerCase().includes(s))
+        (r.title && r.title.toLowerCase().includes(s)) || 
+        (r.brand_name && r.brand_name.toLowerCase().includes(s))
       );
     }
 

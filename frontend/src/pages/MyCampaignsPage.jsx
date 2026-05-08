@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Upload, Download, X, BarChart2, Eye, Users, TrendingUp, MousePointer } from 'lucide-react';
 import { getMyCampaigns, uploadContent } from '../api/creatorApi';
+import useAuthStore from '../store/authStore';
 import Badge from '../components/ui/Badge';
 import ProgressStepper from '../components/ui/ProgressStepper';
 import { useCampaignSocket } from '../hooks/useCampaignSocket';
@@ -29,10 +30,12 @@ export default function MyCampaignsPage() {
   const [uploadingId, setUploadingId] = useState(null);
   const [uploadUrl, setUploadUrl]     = useState('');
   const queryClient = useQueryClient();
+  const userId = useAuthStore(state => state.user?.id);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['myCampaigns'],
+    queryKey: ['myCampaigns', userId],
     queryFn: () => getMyCampaigns({}).then(r => r.data.data),
+    enabled: !!userId,
   });
 
   const uploadMut = useMutation({

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Check, X, ArrowRight, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
 import { getRequests, acceptCampaign, declineCampaign } from '../api/creatorApi';
 import { useCampaignSocket } from '../hooks/useCampaignSocket';
+import useAuthStore from '../store/authStore';
 
 const TABS = [
   { key: 'all',       label: 'All' },
@@ -26,9 +27,12 @@ export default function IncomingRequestsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  const userId = useAuthStore(state => state.user?.id);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['requests', activeTab, search],
+    queryKey: ['requests', userId, activeTab, search],
     queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data.data),
+    enabled: !!userId,
   });
 
   const acceptMut = useMutation({
@@ -46,11 +50,10 @@ export default function IncomingRequestsPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
-
   const counts    = data?.counts    || { pending: 0, accepted: 0, completed: 0, total: 0 };
   const campaigns = data?.campaigns || [];
-  const ids       = campaigns.map(c => c.campaign_id || c.id).filter(Boolean);
-  useCampaignSocket(ids);
+  const campaignIds = data?.campaigns?.map(c => c.campaign_id) || [];
+  useCampaignSocket(campaignIds);
 
   if (isLoading) {
     return (

@@ -3,6 +3,7 @@ import * as creatorApi from '../api/creatorApi.js';
 import * as brandApi from '../api/brandApi.js';
 import * as adminApi from '../api/adminApi.js';
 import api from '../api/axios.js';
+import { queryClient } from '../queryClient.js';
 
 const safeParse = (val) => {
   if (!val || val === 'undefined') return null;
@@ -166,6 +167,7 @@ const useAuthStore = create((set, get) => ({
         // Proceed with local logout even if server call fails
       }
     }
+    queryClient.clear(); // Clear React Query cache
     clearSession();
     set({ token: null, user: null, role: null, sessionId: null, loginAt: null, isAuthenticated: false });
     // Broadcast logout to all other tabs
@@ -174,6 +176,7 @@ const useAuthStore = create((set, get) => ({
 
   // ── Instant local logout (no server call — for 401 responses) ────────────
   forceLogout: () => {
+    queryClient.clear(); // Clear React Query cache
     clearSession();
     set({ token: null, user: null, role: null, sessionId: null, loginAt: null, isAuthenticated: false });
     bc?.postMessage({ type: 'LOGOUT' });

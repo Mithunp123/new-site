@@ -35,21 +35,23 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const userId = user?.id;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard'],
+    queryKey: ['dashboard', userId],
     queryFn: () => getDashboard().then(r => r.data.data),
     refetchInterval: 60000,
+    enabled: !!userId,
   });
 
   const acceptMut = useMutation({
     mutationFn: (id) => acceptCampaign(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard', userId] }),
   });
 
   const declineMut = useMutation({
     mutationFn: (id) => declineCampaign(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard', userId] }),
   });
 
   if (isLoading) return <Skeleton />;

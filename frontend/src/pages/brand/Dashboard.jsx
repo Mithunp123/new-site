@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import api from '../../api/axios';
+import useAuthStore from '../../store/authStore';
 import { formatCount, formatINR, getAvatarColor, getInitials } from '../../utils/format';
 import {
   ArrowRight, BarChart3, Briefcase, CalendarClock,
@@ -16,13 +17,15 @@ import StatCard from '../../components/ui/StatCard';
 
 const BrandDashboard = () => {
   const navigate = useNavigate();
+  const userId = useAuthStore(state => state.user?.id);
 
   const { data: dashboard, isLoading } = useQuery({
-    queryKey: ['brand-dashboard'],
+    queryKey: ['brand-dashboard', userId],
     queryFn: async () => {
       const res = await api.get('/api/brand/dashboard');
       return res.data.data;
     },
+    enabled: !!userId,
   });
 
   if (isLoading) return <DashboardSkeleton />;

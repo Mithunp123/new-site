@@ -29,6 +29,10 @@ export default function TopBar() {
       } catch (e) { /* ignore */ }
     };
     fetch();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetch, 30000);
+    return () => clearInterval(interval);
   }, [role]);
 
   const markRead = async (id) => {

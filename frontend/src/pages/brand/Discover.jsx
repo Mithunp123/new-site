@@ -60,9 +60,10 @@ const BrandDiscover = () => {
 
       {/* Filter Bar */}
       <div className="card p-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div className="w-full overflow-x-auto overflow-y-hidden pb-2" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex w-max min-w-full items-center gap-2 whitespace-nowrap">
           {/* Search */}
-          <div className="relative flex-shrink-0 w-52">
+          <div className="relative flex-shrink-0 w-48 sm:w-56 lg:w-60">
             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
@@ -73,16 +74,13 @@ const BrandDiscover = () => {
             />
           </div>
 
-          {/* Divider */}
-          <div className="w-px h-7 bg-slate-200 flex-shrink-0" />
-
           {/* Filter dropdowns */}
           {Object.entries(FILTER_OPTIONS).map(([key, { label, options }]) => (
             <div key={key} className="relative flex-shrink-0">
               <select
                 value={filters[key]}
                 onChange={e => setFilters(prev => ({ ...prev, [key]: e.target.value }))}
-                className={`appearance-none cursor-pointer pl-3 pr-7 py-2 rounded-lg text-sm font-medium border transition-all focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 whitespace-nowrap ${
+                className={`appearance-none cursor-pointer pl-3 ${key === 'sort_by' ? 'pr-2' : 'pr-7'} py-2 rounded-lg text-sm font-medium border transition-all focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 whitespace-nowrap ${
                   filters[key]
                     ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.25)]'
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
@@ -90,7 +88,7 @@ const BrandDiscover = () => {
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='${filters[key] ? 'white' : '%2394A3B8'}' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
                   backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 8px center',
+                  backgroundPosition: key === 'sort_by' ? 'right 2px center' : 'right 8px center',
                 }}
               >
                 <option value="">{label}</option>
@@ -112,9 +110,6 @@ const BrandDiscover = () => {
             Verified
           </button>
 
-          {/* Divider */}
-          <div className="w-px h-7 bg-slate-200 flex-shrink-0" />
-
           {/* Clear */}
           {activeCount > 0 && (
             <button
@@ -128,6 +123,7 @@ const BrandDiscover = () => {
           <button onClick={() => refetch()} className="btn-primary flex-shrink-0 py-2 ml-auto">
             <SlidersHorizontal size={14} /> Apply
           </button>
+          </div>
         </div>
       </div>
 
@@ -178,7 +174,7 @@ const CreatorCard = ({ creator }) => {
     } catch (err) { console.error(err); }
   };
 
-  const followers = Number(creator.instagram_followers || creator.youtube_subscribers || 0);
+  const followers = Number(creator.instagram_followers || creator.youtube_subscribers || creator.top_platform_stats?.followers_count || 0);
   const er = Number(creator.top_platform_stats?.engagement_rate || 0);
   const avgViews = Number(creator.top_platform_stats?.avg_views || 0);
 
@@ -208,9 +204,7 @@ const CreatorCard = ({ creator }) => {
             </div>
           )}
           {creator.is_verified && (
-            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-slate-100">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#2563EB] fill-[#2563EB]" />
-            </div>
+            <span className="absolute -bottom-1 -right-1 hidden" />
           )}
         </div>
         <div className="flex-1 min-w-0 pr-6">
@@ -222,6 +216,11 @@ const CreatorCard = ({ creator }) => {
             )}
             {creator.has_youtube && (
               <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">YT</span>
+            )}
+            {creator.is_verified && (
+              <span className="text-[10px] font-semibold text-[#2563EB] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                VERIFIED
+              </span>
             )}
           </div>
         </div>
@@ -251,6 +250,36 @@ const CreatorCard = ({ creator }) => {
           <p className="text-[10px] text-slate-400 mt-0.5">Avg Views</p>
         </div>
       </div>
+
+      {(creator.has_instagram || creator.has_youtube) && (
+        <div className="grid grid-cols-2 gap-2 mb-4 text-center text-xs">
+          {creator.has_instagram && creator.instagram_followers ? (
+            <div className="p-2 rounded-lg bg-pink-50 border border-pink-100">
+              <p className="text-pink-600 font-semibold">Instagram</p>
+              <p className="text-slate-900 font-bold mt-0.5">{formatCount(Number(creator.instagram_followers))}</p>
+              <p className="text-pink-600 text-[10px]">{Number(creator.instagram_engagement_rate || 0).toFixed(1)}% ER</p>
+            </div>
+          ) : (
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <p className="text-slate-500 font-semibold">Instagram</p>
+              <p className="text-slate-900 font-bold mt-0.5">N/A</p>
+            </div>
+          )}
+
+          {creator.has_youtube && creator.youtube_subscribers ? (
+            <div className="p-2 rounded-lg bg-red-50 border border-red-100">
+              <p className="text-red-600 font-semibold">YouTube</p>
+              <p className="text-slate-900 font-bold mt-0.5">{formatCount(Number(creator.youtube_subscribers))}</p>
+              <p className="text-red-600 text-[10px]">{Number(creator.youtube_engagement_rate || 0).toFixed(1)}% ER</p>
+            </div>
+          ) : (
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <p className="text-slate-500 font-semibold">YouTube</p>
+              <p className="text-slate-900 font-bold mt-0.5">N/A</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         onClick={() => navigate('/brand/send-request', { state: { creator } })}
