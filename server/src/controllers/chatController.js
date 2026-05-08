@@ -21,11 +21,13 @@ exports.getConversations = async (req, res, next) => {
           cr.name AS other_user_name,
           cr.profile_photo AS other_user_photo,
           'creator' AS other_user_type,
+          CASE WHEN bsc.id IS NOT NULL THEN true ELSE false END AS is_saved,
           (SELECT message FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
           (SELECT created_at FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
           (SELECT COUNT(*) FROM messages WHERE campaign_id=c.id AND sender_type='creator' AND is_read=false) AS unread_count
         FROM campaigns c
         JOIN creators cr ON cr.id = c.creator_id
+        LEFT JOIN brand_saved_creators bsc ON bsc.creator_id = cr.id AND bsc.brand_id = ?
         WHERE c.brand_id = ?
           AND c.status NOT IN ('request_sent', 'declined')
         ORDER BY last_message_at DESC, c.updated_at DESC
@@ -51,7 +53,8 @@ exports.getConversations = async (req, res, next) => {
       `;
     }
 
-    const [rows] = await pool.query(query, [id]);
+    const params = userType === 'brand' ? [id, id] : [id];
+    const [rows] = await pool.query(query, params);
     success(res, rows);
   } catch (err) {
     next(err);
@@ -121,6 +124,12 @@ exports.sendMessage = async (req, res, next) => {
     const isBrand = senderType === 'brand' && c.brand_id === id;
     const isCreator = senderType === 'creator' && c.creator_id === id;
     if (!isBrand && !isCreator) return error(res, 'Forbidden', 403);
+
+    // If sender is a brand, ensure they 'follow' (saved) the creator before allowing chat
+    if (senderType === 'brand') {
+      const [follows] = await pool.query('SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?', [id, c.creator_id]);
+      if (!follows.length) return error(res, 'You must follow the creator to send messages', 403);
+    }
 
     const [result] = await pool.query(
       'INSERT INTO messages (campaign_id, sender_type, sender_id, message) VALUES (?, ?, ?, ?)',

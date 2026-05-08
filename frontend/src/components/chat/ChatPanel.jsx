@@ -301,24 +301,30 @@ export default function ChatPanel() {
                 </div>
 
                 {/* Input */}
-                <div className="p-3 border-t border-slate-100 flex gap-2">
-                  <textarea
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message... (Enter to send)"
-                    rows={1}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 max-h-24"
-                    style={{ minHeight: '40px' }}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!draft.trim()}
-                    className="w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
-                  >
-                    <Send size={16} />
-                  </button>
-                </div>
+                {(() => {
+                  const brandBlocked = myType === 'brand' && activeConv && activeConv.is_saved === false;
+                  return (
+                    <div className="p-3 border-t border-slate-100 flex gap-2">
+                      <textarea
+                        value={draft}
+                        onChange={e => setDraft(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={brandBlocked ? 'Follow the creator to send messages' : 'Type a message... (Enter to send)'}
+                        rows={1}
+                        disabled={brandBlocked}
+                        className={`flex-1 px-3 py-2 ${brandBlocked ? 'bg-slate-100' : 'bg-slate-50'} border border-slate-200 rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 max-h-24`}
+                        style={{ minHeight: '40px' }}
+                      />
+                      <button
+                        onClick={handleSend}
+                        disabled={brandBlocked || !draft.trim()}
+                        className="w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </motion.div>

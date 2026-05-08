@@ -74,6 +74,15 @@ function setupWebSocket(server) {
             (senderType === 'creator' && c.creator_id === meta.userId);
           if (!allowed) return;
 
+          // If sender is a brand, ensure they 'follow' (saved) the creator before allowing chat
+          if (senderType === 'brand') {
+            const [follows] = await pool.query(
+              'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+              [meta.userId, c.creator_id]
+            );
+            if (!follows.length) return; // silently ignore messages from brands who don't follow the creator
+          }
+
           // Persist to DB
           const [result] = await pool.query(
             'INSERT INTO messages (campaign_id, sender_type, sender_id, message) VALUES (?, ?, ?, ?)',
