@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { User, Bell, Shield, CreditCard, Plug, AlertTriangle, Save, Camera } from 'lucide-react';
-import { getProfile, updateProfile, updatePassword, deleteAccount } from '../api/creatorApi';
+import { getProfile, getSocialProfiles, updateProfile, upsertSocialProfile, updatePassword, deleteAccount } from '../api/creatorApi';
 import useAuthStore from '../store/authStore';
 
 const MENU = [
   { key: 'profile',       label: 'Profile',        icon: User },
+  { key: 'social',        label: 'Social Profiles', icon: Camera },
   { key: 'notifications', label: 'Notifications',  icon: Bell },
   { key: 'security',      label: 'Security',       icon: Shield },
   { key: 'payout',        label: 'Payout Method',  icon: CreditCard },
@@ -14,17 +15,55 @@ const MENU = [
   { key: 'danger',        label: 'Danger Zone',    icon: AlertTriangle, danger: true },
 ];
 
+function extractInstagramUsername(url) {
+  if (!url) return null;
+  const clean = url.trim().replace(/\/$/, '');
+  const match = clean.match(/instagram\.com\/([^/?#]+)/i);
+  if (match) return match[1];
+  return !clean.includes('/') && !clean.includes('.') ? clean : null;
+}
+
+function extractYouTubeIdentifier(url) {
+  if (!url) return null;
+  const clean = url.trim().replace(/\/$/, '');
+  const channelMatch = clean.match(/youtube\.com\/channel\/(UC[\w-]+)/i);
+  if (channelMatch) return { type: 'channelId', id: channelMatch[1] };
+  const handleMatch = clean.match(/youtube\.com\/@([\w-]+)/i);
+  if (handleMatch) return { type: 'handle', id: handleMatch[1] };
+  const userMatch = clean.match(/youtube\.com\/user\/([\w-]+)/i);
+  if (userMatch) return { type: 'username', id: userMatch[1] };
+  return !clean.includes('/') && !clean.includes('.') ? { type: 'handle', id: clean } : null;
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('profile');
   const { user } = useAuthStore();
   const [form, setForm]     = useState({});
+  const [socialForm, setSocialForm] = useState({
+    instagram_url: '',
+    instagram_followers: '',
+    instagram_avg_views: '',
+    instagram_er: '',
+    instagram_verified: false,
+    youtube_url: '',
+    youtube_subscribers: '',
+    youtube_avg_views: '',
+    youtube_er: '',
+  });
   const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
   const [msg, setMsg]       = useState('');
+  const [fetchingIG, setFetchingIG] = useState(false);
+  const [fetchingYT, setFetchingYT] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
     queryFn: () => getProfile().then(r => r.data.data),
+  });
+
+  const { data: socialProfiles } = useQuery({
+    queryKey: ['socialProfiles'],
+    queryFn: () => getSocialProfiles().then(r => r.data.data),
   });
 
   useEffect(() => {
@@ -43,6 +82,24 @@ export default function SettingsPage() {
       });
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!socialProfiles) return;
+    const rows = Array.isArray(socialProfiles) ? socialProfiles : [];
+    const instagram = rows.find(r => r.platform === 'instagram');
+    const youtube = rows.find(r => r.platform === 'youtube');
+    setSocialForm({
+      instagram_url: instagram?.profile_url || '',
+      instagram_followers: instagram?.followers_count || '',
+      instagram_avg_views: instagram?.avg_views || '',
+      instagram_er: instagram?.engagement_rate || '',
+      instagram_verified: !!instagram?.is_verified,
+      youtube_url: youtube?.profile_url || '',
+      youtube_subscribers: youtube?.followers_count || '',
+      youtube_avg_views: youtube?.avg_views || '',
+      youtube_er: youtube?.engagement_rate || '',
+    });
+  }, [socialProfiles]);
 
   const updateMut = useMutation({
     mutationFn: (data) => updateProfile(data),
@@ -80,6 +137,89 @@ export default function SettingsPage() {
       : [];
     const { email, ...rest } = form; // email is read-only, don't send it
     updateMut.mutate({ ...rest, languages_known: langs });
+  };
+
+  const handleSaveSocial = () => {
+    const saves = [];
+    saves.push(upsertSocialProfile({
+      platform: 'instagram',
+      profile_url: socialForm.instagram_url,
+      followers_count: Number(socialForm.instagram_followers) || 0,
+      avg_views: Number(socialForm.instagram_avg_views) || 0,
+      engagement_rate: Number(socialForm.instagram_er) || 0,
+    }));
+    saves.push(upsertSocialProfile({
+      platform: 'youtube',
+      profile_url: socialForm.youtube_url,
+      followers_count: Number(socialForm.youtube_subscribers) || 0,
+      avg_views: Number(socialForm.youtube_avg_views) || 0,
+      engagement_rate: Number(socialForm.youtube_er) || 0,
+    }));
+
+    Promise.all(saves)
+      .then(() => {
+        queryClient.invalidateQueries(['socialProfiles']);
+        setMsg('Social profiles updated successfully!');
+        setTimeout(() => setMsg(''), 3000);
+      })
+      .catch((err) => {
+        const message = err?.response?.data?.error || err?.message || 'Failed to update social profiles.';
+        setMsg(message);
+        setTimeout(() => setMsg(''), 4000);
+      });
+  };
+
+  const fetchIGStats = async () => {
+    const username = extractInstagramUsername(socialForm.instagram_url);
+    if (!username) {
+      setMsg('Enter a valid Instagram handle or URL first.');
+      setTimeout(() => setMsg(''), 3000);
+      return;
+    }
+    setFetchingIG(true);
+    try {
+      const res = await fetch(`http://localhost:3000/api/social/instagram?username=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      const d = data?.data || data;
+      if (d) {
+        setSocialForm(prev => ({
+          ...prev,
+          instagram_followers: d.followers ?? prev.instagram_followers,
+          instagram_avg_views: d.avg_views ?? prev.instagram_avg_views,
+          instagram_er: d.engagement_rate ?? prev.instagram_er,
+          instagram_verified: d.is_verified ?? prev.instagram_verified,
+        }));
+      }
+    } finally {
+      setFetchingIG(false);
+    }
+  };
+
+  const fetchYTStats = async () => {
+    const result = extractYouTubeIdentifier(socialForm.youtube_url);
+    if (!result) {
+      setMsg('Enter a valid YouTube URL or handle first.');
+      setTimeout(() => setMsg(''), 3000);
+      return;
+    }
+    setFetchingYT(true);
+    try {
+      const res = await fetch(
+        `http://localhost:3000/api/social/youtube?type=${encodeURIComponent(result.type)}&identifier=${encodeURIComponent(result.id)}`
+      );
+      const data = await res.json();
+      const d = data?.data || data;
+      if (d) {
+        setSocialForm(prev => ({
+          ...prev,
+          youtube_subscribers: d.subscribers ?? prev.youtube_subscribers,
+          youtube_avg_views: d.avg_views ?? prev.youtube_avg_views,
+          youtube_er: d.engagement_rate ?? prev.youtube_er,
+        }));
+      }
+    } finally {
+      setFetchingYT(false);
+    }
   };
 
   const handlePasswordUpdate = () => {
@@ -193,6 +333,88 @@ export default function SettingsPage() {
                   <label className="input-label">Languages</label>
                   <input value={form.languages_known || ''} onChange={e => setForm({ ...form, languages_known: e.target.value })} placeholder="English, Hindi, etc." className="input" />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'social' && (
+            <div className="card p-6 space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 mb-1">Social Profiles</h3>
+                <p className="text-sm text-slate-500">Update your handles and refresh follower stats for admin and brand views.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6">
+                <div className="rounded-2xl border border-slate-100 p-5 bg-slate-50/70">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">Instagram</h4>
+                      <p className="text-xs text-slate-500">Handle, follower count, average views, and engagement rate</p>
+                    </div>
+                    <button type="button" onClick={fetchIGStats} disabled={fetchingIG} className="btn-secondary text-xs">
+                      {fetchingIG ? 'Fetching...' : 'Fetch Stats'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="input-label">Instagram Handle / URL</label>
+                      <input value={socialForm.instagram_url || ''} onChange={e => setSocialForm({ ...socialForm, instagram_url: e.target.value })} placeholder="instagram.com/yourname or @yourname" className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Followers</label>
+                      <input value={socialForm.instagram_followers || ''} onChange={e => setSocialForm({ ...socialForm, instagram_followers: e.target.value })} className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Avg Views</label>
+                      <input value={socialForm.instagram_avg_views || ''} onChange={e => setSocialForm({ ...socialForm, instagram_avg_views: e.target.value })} className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Engagement Rate</label>
+                      <input value={socialForm.instagram_er || ''} onChange={e => setSocialForm({ ...socialForm, instagram_er: e.target.value })} className="input" />
+                    </div>
+                    <div className="flex items-end">
+                      <div className={`w-full rounded-xl px-4 py-2.5 text-sm border ${socialForm.instagram_verified ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
+                        Verified: {socialForm.instagram_verified ? 'Yes' : 'No'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 p-5 bg-slate-50/70">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">YouTube</h4>
+                      <p className="text-xs text-slate-500">Channel, subscribers, average views, and engagement rate</p>
+                    </div>
+                    <button type="button" onClick={fetchYTStats} disabled={fetchingYT} className="btn-secondary text-xs">
+                      {fetchingYT ? 'Fetching...' : 'Fetch Stats'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="input-label">YouTube Handle / URL</label>
+                      <input value={socialForm.youtube_url || ''} onChange={e => setSocialForm({ ...socialForm, youtube_url: e.target.value })} placeholder="youtube.com/@yourname or channel URL" className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Subscribers</label>
+                      <input value={socialForm.youtube_subscribers || ''} onChange={e => setSocialForm({ ...socialForm, youtube_subscribers: e.target.value })} className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Avg Views</label>
+                      <input value={socialForm.youtube_avg_views || ''} onChange={e => setSocialForm({ ...socialForm, youtube_avg_views: e.target.value })} className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">Engagement Rate</label>
+                      <input value={socialForm.youtube_er || ''} onChange={e => setSocialForm({ ...socialForm, youtube_er: e.target.value })} className="input" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button type="button" onClick={handleSaveSocial} className="btn-primary">
+                  <Save size={15} /> Save Social Profiles
+                </button>
               </div>
             </div>
           )}

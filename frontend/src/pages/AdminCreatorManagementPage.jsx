@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, CheckCircle, XCircle, Flag, Filter,
-  Download, MoreVertical,
+  Download,
 } from 'lucide-react';
 
 // ── Inline social icons (lucide-react doesn't include these) ───────────────
@@ -127,22 +127,22 @@ export default function AdminCreatorsPage() {
 
       {/* Controls */}
       <div className="card p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <div className="flex flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+          <Search size={15} className="shrink-0 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by name, handle or category…"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="input pl-12"
+            className="w-full border-0 bg-transparent p-0 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0"
           />
         </div>
-        <div className="relative">
-          <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <div className="flex min-w-[190px] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+          <Filter size={15} className="shrink-0 text-slate-400 pointer-events-none" />
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="input pl-12 pr-8 appearance-none cursor-pointer min-w-[160px]"
+            className="w-full border-0 bg-transparent p-0 text-sm text-slate-900 focus:outline-none focus:ring-0 cursor-pointer"
           >
             <option value="all">All Status</option>
             <option value="verified">Verified</option>
@@ -172,7 +172,7 @@ export default function AdminCreatorsPage() {
                   <th>Category</th>
                   <th>Reach</th>
                   <th>Status</th>
-                  <th className="text-right">Actions</th>
+                  <th className="w-[180px] text-left pl-6">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,12 +240,12 @@ export default function AdminCreatorsPage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="align-middle whitespace-nowrap text-left pl-6">
+                        <div className="inline-flex items-center justify-start gap-1.5">
                           {creator.verification_status !== 'verified' && (
                             <button
                               onClick={() => openModal(creator, 'verify')}
-                              className="p-2 rounded-xl hover:bg-emerald-50 text-emerald-500 transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl hover:bg-emerald-50 text-emerald-500 transition-colors"
                               title="Verify"
                             >
                               <CheckCircle size={16} />
@@ -253,25 +253,18 @@ export default function AdminCreatorsPage() {
                           )}
                           <button
                             onClick={() => openModal(creator, 'flag')}
-                            className="p-2 rounded-xl hover:bg-red-50 text-red-400 transition-colors"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl hover:bg-red-50 text-red-400 transition-colors"
                             title="Flag"
                           >
                             <Flag size={16} />
                           </button>
-                          <div className="relative group">
-                            <button className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
-                              <MoreVertical size={16} />
-                            </button>
-                            <div className="absolute right-0 top-full mt-1 hidden group-hover:block w-36 bg-white border border-slate-100 rounded-xl shadow-lg z-10 py-1">
-                              <button
-                                onClick={() => openModal(creator, 'deactivate')}
-                                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                              >
-                                <XCircle size={13} />
-                                Deactivate
-                              </button>
-                            </div>
-                          </div>
+                          <button
+                            onClick={() => openModal(creator, 'deactivate')}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl hover:bg-red-50 text-red-500 transition-colors"
+                            title="Deactivate"
+                          >
+                            <XCircle size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
