@@ -170,7 +170,11 @@ export default function AdminDashboardPage() {
                             disabled={!!processingId}
                             onClick={async () => {
                               setProcessingId(item.id);
-                              try { await adminApi.verifyCreator(item.id); setPendingCreators(prev => prev.filter(p => p.id !== item.id)); }
+                              try {
+                                await adminApi.verifyCreator(item.id);
+                                setPendingCreators(prev => prev.filter(p => p.id !== item.id));
+                                window.dispatchEvent(new Event('admin:counts-refresh'));
+                              }
                               catch (err) { console.error(err); }
                               finally { setProcessingId(null); }
                             }}
@@ -182,7 +186,11 @@ export default function AdminDashboardPage() {
                             disabled={!!processingId}
                             onClick={async () => {
                               setProcessingId(item.id);
-                              try { await adminApi.deactivateCreator(item.id); setPendingCreators(prev => prev.filter(p => p.id !== item.id)); }
+                              try {
+                                await adminApi.deactivateCreator(item.id);
+                                setPendingCreators(prev => prev.filter(p => p.id !== item.id));
+                                window.dispatchEvent(new Event('admin:counts-refresh'));
+                              }
                               catch (err) { console.error(err); }
                               finally { setProcessingId(null); }
                             }}

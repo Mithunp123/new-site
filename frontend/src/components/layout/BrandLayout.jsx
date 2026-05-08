@@ -5,7 +5,7 @@ import BrandTopBar from './BrandTopBar';
 
 export default function BrandLayout() {
   return (
-    <div className="page-wrapper">
+    <div className="page-wrapper brand-theme">
       <BrandSidebar />
       <div className="flex flex-col min-h-screen bg-[#F4F6FB]">
         <BrandTopBar />

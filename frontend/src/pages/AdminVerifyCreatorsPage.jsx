@@ -214,6 +214,7 @@ export default function AdminVerifyCreatorsPage() {
     try {
       await adminApi.verifyCreator(id);
       setCreators(prev => prev.filter(c => c.id !== id));
+      window.dispatchEvent(new Event('admin:counts-refresh'));
       showToast('Creator approved successfully');
     } catch (err) {
       console.error(err);
@@ -228,6 +229,7 @@ export default function AdminVerifyCreatorsPage() {
     try {
       await adminApi.deactivateCreator(id);
       setCreators(prev => prev.filter(c => c.id !== id));
+      window.dispatchEvent(new Event('admin:counts-refresh'));
       showToast('Creator rejected');
     } catch (err) {
       console.error(err);

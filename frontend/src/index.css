@@ -78,12 +78,39 @@ html { scroll-behavior: smooth; }
 
 /* ── PREMIUM CARDS ────────────────────────────────── */
 .card {
-  @apply bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)];
+  @apply bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-300;
 }
 
 .card-hover {
   @apply bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:border-slate-200 hover:shadow-[0_4px_24px_rgba(0,0,0,0.08)] hover:-translate-y-0.5;
 }
+
+/* Brand theme: use purple as the accent inside brand pages */
+.brand-theme {
+  --blue: var(--purple);
+  --blue-dark: var(--purple-dark);
+  --blue-light: var(--purple-light);
+}
+
+/* Smooth background and shadow transition on hover for cards */
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+}
+
+/* When inside the brand theme, prefer purple for blue accents and primary buttons */
+.brand-theme .btn-primary {
+  background-color: var(--purple) !important;
+  box-shadow: 0 1px 3px rgba(124,58,237,0.3), 0 4px 12px rgba(124,58,237,0.2);
+}
+.brand-theme .btn-primary:hover { background-color: var(--purple-dark) !important; }
+.brand-theme .btn-primary:active { transform: scale(.98); }
+
+/* Override common blue utility usages inside brand pages */
+.brand-theme [class*="text-[#2563EB]"] { color: var(--purple) !important; }
+.brand-theme [class*="bg-[#2563EB]"] { background-color: var(--purple) !important; }
+.brand-theme [class*="border-[#2563EB]"] { border-color: var(--purple) !important; }
+.brand-theme .shadow-blue { box-shadow: 0 4px 16px rgba(124,58,237,0.25); }
 
 /* ── BUTTONS ──────────────────────────────────────── */
 .btn-primary {

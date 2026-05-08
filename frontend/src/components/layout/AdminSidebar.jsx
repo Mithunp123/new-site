@@ -37,7 +37,7 @@ export default function AdminSidebar() {
   const { logout, user } = useAuthStore();
   const [counts, setCounts] = React.useState({ approvals: 0, disputes: 0 });
 
-  React.useEffect(() => {
+  const refreshCounts = React.useCallback(() => {
     adminApi.getAdminDashboard()
       .then(res => setCounts({
         approvals: res.data.data.pending_verifications || 0,
@@ -45,6 +45,17 @@ export default function AdminSidebar() {
       }))
       .catch(() => {});
   }, []);
+
+  React.useEffect(() => {
+    const handleCountsRefresh = () => refreshCounts();
+
+    refreshCounts();
+    window.addEventListener('admin:counts-refresh', handleCountsRefresh);
+
+    return () => {
+      window.removeEventListener('admin:counts-refresh', handleCountsRefresh);
+    };
+  }, [refreshCounts]);
 
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
