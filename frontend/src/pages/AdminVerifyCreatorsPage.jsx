@@ -37,6 +37,7 @@ const resolveFollowers = (item, platform) => {
       item.youtube_followers ??
       item.yt_followers ??
       item.youtube_subscribers ??
+      item.social_profiles?.youtube?.subscribers ??
       item.social_profiles?.youtube?.followers ??
       item.social_profiles?.youtube_followers ??
       0
@@ -305,13 +306,13 @@ export default function AdminVerifyCreatorsPage() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
           type="text"
           placeholder="Search by name, email or category…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="input pl-10"
+          className="input pl-12"
         />
       </div>
 

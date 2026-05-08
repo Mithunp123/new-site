@@ -69,13 +69,13 @@ export default function AdminBrandManagementPage() {
         {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-slate-500" size={20} />
+              <Search className="absolute left-4 top-3 text-slate-500 pointer-events-none" size={20} />
             <input
               type="text"
               placeholder="Search brands..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-12 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 

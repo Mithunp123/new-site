@@ -38,6 +38,7 @@ const resolveFollowers = (item, platform) => {
       item.youtube_followers ??
       item.yt_followers ??
       item.youtube_subscribers ??
+      item.social_profiles?.youtube?.subscribers ??
       item.social_profiles?.youtube?.followers ??
       item.social_profiles?.youtube_followers ??
       0
@@ -127,21 +128,21 @@ export default function AdminCreatorsPage() {
       {/* Controls */}
       <div className="card p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by name, handle or category…"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="input pl-10"
+            className="input pl-12"
           />
         </div>
         <div className="relative">
-          <Filter size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="input pl-10 pr-8 appearance-none cursor-pointer min-w-[160px]"
+            className="input pl-12 pr-8 appearance-none cursor-pointer min-w-[160px]"
           >
             <option value="all">All Status</option>
             <option value="verified">Verified</option>

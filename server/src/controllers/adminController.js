@@ -133,7 +133,48 @@ exports.verifyCreator = async (req, res, next) => {
 exports.unverifyCreator = async (req, res, next) => {
   try {
     await pool.query('UPDATE creators SET is_verified=false WHERE id=?', [req.params.id]);
+    await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Profile Unverified', 'Your profile verification was removed by admin.')", [req.params.id]);
     success(res, { is_verified: false });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * fakeCheck: run heuristic checks against social profile to decide if account is suspicious.
+ * If `auto_flag` is provided in body and true, will perform the same actions as flagFake.
+ */
+exports.fakeCheck = async (req, res, next) => {
+  try {
+    const creatorId = req.params.id;
+    const { auto_flag, reason } = req.body;
+
+    const [profiles] = await pool.query('SELECT platform, followers_count, avg_views, engagement_rate FROM creator_social_profiles WHERE creator_id=?', [creatorId]);
+    if (!profiles.length) return success(res, { suspicious: false, reason: 'No social profiles found' });
+
+    const issues = [];
+    profiles.forEach(p => {
+      const followers = Number(p.followers_count) || 0;
+      const avgViews = Number(p.avg_views) || 0;
+      const er = Number(p.engagement_rate) || 0;
+      if (er > 20) issues.push(`${p.platform}: engagement rate unusually high (${er}%)`);
+      if (followers > 100000 && avgViews < 1000) issues.push(`${p.platform}: high followers (${followers}) but very low views (${avgViews})`);
+      if (avgViews > 0 && followers / avgViews > 200) issues.push(`${p.platform}: followers-to-views ratio suspicious (${Math.round(followers / Math.max(1, avgViews))})`);
+    });
+
+    const suspicious = issues.length > 0;
+
+    if (suspicious && auto_flag) {
+      // Reuse flagFake behavior: mark unverified + inactive, insert creator_flags and notify
+      const flagReason = reason || issues.join('; ');
+      await pool.query('UPDATE creators SET is_verified=false, is_active=false WHERE id=?', [creatorId]);
+      await pool.query("INSERT INTO creator_flags (creator_id, flagged_by, reason, action) VALUES (?, ?, ?, 'flagged')", [creatorId, req.user.id, flagReason]);
+      const [adminRow] = await pool.query('SELECT name FROM admins WHERE id=?', [req.user.id]);
+      const adminName = adminRow[0]?.name || 'Admin';
+      await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Account Flagged', ?)", [creatorId, `${adminName} flagged your account as fake. Reason: ${flagReason}`]);
+    }
+
+    success(res, { suspicious, issues });
   } catch (err) {
     next(err);
   }
@@ -164,6 +205,11 @@ exports.flagFake = async (req, res, next) => {
     const { reason } = req.body;
     await pool.query('UPDATE creators SET is_verified=false, is_active=false WHERE id=?', [req.params.id]);
     await pool.query("INSERT INTO creator_flags (creator_id, flagged_by, reason, action) VALUES (?, ?, ?, 'flagged')", [req.params.id, req.user.id, reason]);
+    // Notify the creator
+    const [adminRow] = await pool.query('SELECT name FROM admins WHERE id=?', [req.user.id]);
+    const adminName = adminRow[0]?.name || 'Admin';
+    await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Account Flagged', ?)", [req.params.id, `${adminName} flagged your account as fake. Reason: ${reason || 'Not provided'}`]);
+
     success(res, null, 'Creator flagged as fake');
   } catch (err) {
     next(err);
@@ -174,6 +220,11 @@ exports.clearFlag = async (req, res, next) => {
   try {
     await pool.query('UPDATE creators SET is_verified=true, is_active=true WHERE id=?', [req.params.id]);
     await pool.query("INSERT INTO creator_flags (creator_id, flagged_by, action) VALUES (?, ?, 'cleared')", [req.params.id, req.user.id]);
+    // Notify the creator
+    const [adminRow] = await pool.query('SELECT name FROM admins WHERE id=?', [req.user.id]);
+    const adminName = adminRow[0]?.name || 'Admin';
+    await pool.query("INSERT INTO notifications (user_type, user_id, title, message) VALUES ('creator', ?, 'Flag Cleared', ?)", [req.params.id, `${adminName} cleared the fake flag on your account.`]);
+
     success(res, null, 'Flag cleared');
   } catch (err) {
     next(err);

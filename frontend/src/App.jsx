@@ -17,6 +17,7 @@ import LeadManagementPage from './pages/LeadManagementPage';
 import SettingsPage from './pages/SettingsPage';
 import LandingPage from './pages/LandingPage';
 import ChatPage from './pages/ChatPage';
+import SocialProfilesPage from './pages/SocialProfilesPage';
 
 // Brand Components
 import BrandRegisterPage from './pages/BrandRegisterPage';
@@ -146,6 +147,7 @@ export default function App() {
             <Route path="/analytics" element={<PerformanceAnalyticsPage />} />
             <Route path="/leads" element={<LeadManagementPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/social-profiles" element={<SocialProfilesPage />} />
             <Route path="/chat" element={<ChatPage />} />
           </Route>
 

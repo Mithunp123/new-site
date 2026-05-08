@@ -41,3 +41,7 @@ export const getLeads = () => api.get('/api/creator/leads');
 // Notifications
 export const getNotifications = () => api.get('/api/creator/notifications');
 export const markNotificationRead = (id) => api.patch(`/api/creator/notifications/${id}/read`);
+
+// Social Profiles
+export const getSocialProfiles = () => api.get('/api/creator/social-profiles');
+export const upsertSocialProfile = (data) => api.post('/api/creator/social-profiles', data);

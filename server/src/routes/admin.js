@@ -17,6 +17,7 @@ router.put('/creator/:id/activate', adminController.activateCreator);
 router.put('/creator/:id/deactivate', adminController.deactivateCreator);
 router.put('/creator/:id/flag-fake', adminController.flagFake);
 router.put('/creator/:id/clear-flag', adminController.clearFlag);
+router.put('/creator/:id/fake-check', adminController.fakeCheck);
 
 // Brands
 router.get('/brands', adminController.getBrands);

@@ -334,11 +334,34 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, display_name, bio, location, languages_known, phone, upi_id } = req.body;
+    const { name, display_name, bio, location, languages_known, phone, upi_id,
+      instagram_url, instagram_followers, instagram_avg_views, instagram_er,
+      youtube_url, youtube_subscribers, youtube_avg_views, youtube_er } = req.body;
+
+    // Update basic creator profile
     await pool.query(
       'UPDATE creators SET name=?, display_name=?, bio=?, location=?, languages_known=?, phone=?, upi_id=? WHERE id=?',
       [name, display_name, bio, location, JSON.stringify(languages_known || []), phone, upi_id || null, req.user.id]
     );
+
+    // Upsert social profiles when provided (non-fatal if fails)
+    try {
+      if (instagram_url !== undefined) {
+        await pool.query(
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?, avg_views=?, engagement_rate=?',
+          [req.user.id, 'instagram', instagram_url || null, instagram_followers || 0, instagram_avg_views || 0, instagram_er || 0, instagram_url || null, instagram_followers || 0, instagram_avg_views || 0, instagram_er || 0]
+        );
+      }
+      if (youtube_url !== undefined) {
+        await pool.query(
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?, avg_views=?, engagement_rate=?',
+          [req.user.id, 'youtube', youtube_url || null, youtube_subscribers || 0, youtube_avg_views || 0, youtube_er || 0, youtube_url || null, youtube_subscribers || 0, youtube_avg_views || 0, youtube_er || 0]
+        );
+      }
+    } catch (e) {
+      console.error('Failed to upsert social profiles:', e.message);
+    }
+
     success(res, null, 'Profile updated');
   } catch (err) { next(err); }
 };

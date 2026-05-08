@@ -22,6 +22,7 @@ const resolveFollowers = (item, platform) => {
       item.youtube_followers ??
       item.yt_followers ??
       item.youtube_subscribers ??
+      item.social_profiles?.youtube?.subscribers ??
       item.social_profiles?.youtube?.followers ??
       item.social_profiles?.youtube_followers ??
       0
