@@ -89,9 +89,52 @@ exports.getCampaignDetail = async (req, res, next) => {
     const [timeline] = await pool.query('SELECT * FROM campaign_timeline WHERE campaign_id = ? ORDER BY changed_at ASC', [id]);
     const [analytics] = await pool.query('SELECT * FROM campaign_analytics WHERE campaign_id = ?', [id]);
     const [negotiations] = await pool.query('SELECT * FROM campaign_negotiations WHERE campaign_id = ? ORDER BY created_at ASC', [id]);
-    const [content_submissions] = await pool.query('SELECT * FROM content_submissions WHERE campaign_id = ? ORDER BY submitted_at DESC', [id]);
+    const [all_submissions] = await pool.query(
+      'SELECT * FROM content_submissions WHERE campaign_id = ? ORDER BY submitted_at ASC, id ASC',
+      [id]
+    );
 
-    success(res, { campaign, timeline, analytics: analytics[0], negotiations, content_submissions });
+    // Group submissions into rounds by upload batch.
+    // A new round starts whenever the submitted_at timestamp differs from the previous row
+    // by more than 5 seconds (same-batch rows are inserted within milliseconds of each other).
+    const rounds = [];
+    let currentRound = [];
+    let lastTs = null;
+
+    for (const sub of all_submissions) {
+      const ts = new Date(sub.submitted_at).getTime();
+      if (lastTs === null || Math.abs(ts - lastTs) <= 5000) {
+        currentRound.push(sub);
+      } else {
+        if (currentRound.length) rounds.push(currentRound);
+        currentRound = [sub];
+      }
+      lastTs = ts;
+    }
+    if (currentRound.length) rounds.push(currentRound);
+
+    // Latest round = current submissions shown to brand for review
+    // Previous rounds = revision history
+    const latest_submissions  = rounds.length ? rounds[rounds.length - 1] : [];
+    const previous_rounds     = rounds.length > 1
+      ? rounds.slice(0, rounds.length - 1).reverse().map((round, idx) => ({
+          round: rounds.length - 1 - idx,   // round number (1-based, descending)
+          submitted_at: round[0].submitted_at,
+          submissions: round,
+          // Carry the rejection_note from any revision_requested row in this round
+          rejection_note: round.find(s => s.rejection_note)?.rejection_note || null,
+        }))
+      : [];
+
+    // Keep content_submissions as the latest round for backward compat
+    success(res, {
+      campaign,
+      timeline,
+      analytics: analytics[0],
+      negotiations,
+      content_submissions: latest_submissions,
+      previous_rounds,
+    });
   } catch (err) {
     next(err);
   }
