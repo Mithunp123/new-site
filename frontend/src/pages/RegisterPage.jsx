@@ -11,6 +11,7 @@ import creatorBg from '../assets/login-bg-v2.png';
 import brandBg from '../assets/brand-bg-v2.png';
 import { registerUser, updateProfile } from '../api/creatorApi';
 import { brandRegister, setBrandDetails } from '../api/brandApi';
+import { getInstagramConnectUrl, getInstagramProfile, saveCurrentInstagramConnection } from '../api/instagramApi';
 import useAuthStore from '../store/authStore';
 import '../components/LoginPage.css';
 
@@ -29,15 +30,6 @@ const steps = [
   { id: 3, title: 'Profile', sub: 'Tell us more' },
   { id: 4, title: 'Finish', sub: 'Setup complete' },
 ];
-
-function extractInstagramUsername(url) {
-  if (!url) return null;
-  const clean = url.trim().replace(/\/$/, '');
-  const match = clean.match(/instagram\.com\/([^/?#]+)/i);
-  if (match) return match[1];
-  if (!clean.includes('/') && !clean.includes('.')) return clean;
-  return null;
-}
 
 function extractYouTubeIdentifier(url) {
   if (!url) return null;
@@ -67,6 +59,7 @@ const RegisterPage = () => {
   const [fetchingYT, setFetchingYT] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [instagramConnection, setInstagramConnection] = useState(null);
 
   const [formData, setFormData] = useState({
     name: googleUser?.name || '',
@@ -76,6 +69,8 @@ const RegisterPage = () => {
     location: '',
     category: '',
     instagram_url: '',
+    instagram_username: '',
+    instagram_profile_picture: '',
     instagram_followers: '',
     instagram_avg_views: '',
     instagram_er: '',
@@ -129,29 +124,32 @@ const RegisterPage = () => {
   // AND when user clicks "Continue with Google" directly on this page
   const activeGoogleUser = googleUserState;
 
-  const fetchIGStats = useCallback(async () => {
-    const username = extractInstagramUsername(formData.instagram_url);
-    if (!username) return;
+  const refreshInstagramConnection = useCallback(async () => {
     setFetchingIG(true);
     try {
-      const res = await fetch(`http://localhost:3000/api/social/instagram?username=${username}`);
-      const data = await res.json();
-      if (data && data.data) {
-        const d = data.data;
+      const res = await getInstagramProfile();
+      const d = res.data?.data?.profile;
+      if (d) {
+        setInstagramConnection(d);
         setFormData((prev) => ({
           ...prev,
-          instagram_followers: d.followers || prev.instagram_followers,
+          instagram_url: d.username ? `https://www.instagram.com/${d.username}` : prev.instagram_url,
+          instagram_username: d.username || prev.instagram_username,
+          instagram_profile_picture: d.profile_picture_url || prev.instagram_profile_picture,
+          instagram_followers: d.followers_count || prev.instagram_followers,
           instagram_avg_views: d.avg_views || prev.instagram_avg_views,
           instagram_er: d.engagement_rate || prev.instagram_er,
           instagram_verified: d.is_verified ?? prev.instagram_verified,
         }));
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      if (location.search.includes('instagram_connected=true')) {
+        setError(err.response?.data?.error || 'Instagram connection could not be loaded.');
+      }
     } finally {
       setFetchingIG(false);
     }
-  }, [formData.instagram_url]);
+  }, [location.search]);
 
   const fetchYTStats = useCallback(async () => {
     const result = extractYouTubeIdentifier(formData.youtube_url);
@@ -178,14 +176,11 @@ const RegisterPage = () => {
     }
   }, [formData.youtube_url]);
 
-  // Debounced Instagram auto-fetch — triggers automatically when URL changes
   useEffect(() => {
-    if (!formData.instagram_url) return;
-    const timer = setTimeout(() => {
-      fetchIGStats();
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [formData.instagram_url, fetchIGStats]);
+    if (location.search.includes('instagram_connected=true')) {
+      refreshInstagramConnection();
+    }
+  }, [location.search, refreshInstagramConnection]);
 
   // Debounced YouTube auto-fetch — triggers automatically when URL changes
   useEffect(() => {
@@ -201,8 +196,8 @@ const RegisterPage = () => {
   const handleNext = () => {
     setError('');
     if (step === 3 && !isBrand) {
-      if (!formData.instagram_url && !formData.youtube_url) {
-        setError('Please add at least one social media URL to continue.');
+      if (!instagramConnection && !formData.youtube_url) {
+        setError('Please connect Instagram or add a YouTube channel to continue.');
         return;
       }
     }
@@ -254,14 +249,12 @@ const RegisterPage = () => {
         });
         const { token, creator } = res.data.data;
         setSession(token, { ...creator, role: 'creator' });
+        if (instagramConnection) {
+          await saveCurrentInstagramConnection();
+        }
         await updateProfile({
           location: formData.location,
           category: formData.category,
-          instagram_url: formData.instagram_url,
-          instagram_followers: Number(formData.instagram_followers) || 0,
-          instagram_avg_views: Number(formData.instagram_avg_views) || 0,
-          instagram_er: Number(formData.instagram_er) || 0,
-          instagram_verified: formData.instagram_verified,
           youtube_url: formData.youtube_url,
           youtube_subscribers: Number(formData.youtube_subscribers) || 0,
           youtube_avg_views: Number(formData.youtube_avg_views) || 0,
@@ -702,7 +695,7 @@ const RegisterPage = () => {
                       {/* Instagram Section */}
                       <div style={{ marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>Instagram Stats</span>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>Instagram Connection</span>
                           {fetchingIG && (
                             <span style={{ fontSize: '11px', color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <svg style={{ animation: 'spin 1s linear infinite', width: '12px', height: '12px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -712,48 +705,56 @@ const RegisterPage = () => {
                             </span>
                           )}
                         </div>
-                        <div className="input-group" style={{ marginBottom: '8px' }}>
-                          <div className="input-wrapper">
-                            <Camera size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666', pointerEvents: 'none' }} />
-                            <input
-                              type="url"
-                              placeholder="Instagram profile URL"
-                              value={formData.instagram_url}
-                              onChange={(e) => updateField('instagram_url', e.target.value)}
-                              style={{ paddingLeft: '48px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', width: '100%', padding: '14px 16px 14px 48px', outline: 'none' }}
-                            />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <input
-                              type="number"
-                              placeholder="Followers"
-                              value={formData.instagram_followers}
-                              onChange={(e) => updateField('instagram_followers', e.target.value)}
-                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Avg Views"
-                              value={formData.instagram_avg_views}
-                              onChange={(e) => updateField('instagram_avg_views', e.target.value)}
-                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Engagement Rate %"
-                              value={formData.instagram_er}
-                              onChange={(e) => updateField('instagram_er', e.target.value)}
-                              style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontSize: '14px', padding: '12px 14px', outline: 'none', width: '100%' }}
-                            />
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '12px 14px' }}>
-                              <input
-                                type="checkbox"
-                                checked={formData.instagram_verified}
-                                onChange={(e) => updateField('instagram_verified', e.target.checked)}
-                                style={{ accentColor: '#2563EB', width: '14px', height: '14px' }}
-                              />
-                              <span style={{ fontSize: '13px', color: '#fff' }}>Verified</span>
-                            </label>
+                        <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '16px', padding: '16px' }}>
+                          {instagramConnection ? (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                                {formData.instagram_profile_picture ? (
+                                  <img src={formData.instagram_profile_picture} alt={formData.instagram_username} style={{ width: '46px', height: '46px', borderRadius: '14px', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '46px', height: '46px', borderRadius: '14px', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                                    <Camera size={18} />
+                                  </div>
+                                )}
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <p style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>@{formData.instagram_username}</p>
+                                    <span style={{ color: '#22c55e', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.24)', borderRadius: '999px', padding: '3px 8px', fontSize: '11px', fontWeight: 700 }}>Connected</span>
+                                  </div>
+                                  <p style={{ color: '#888', fontSize: '12px', marginTop: '2px' }}>Official Meta Instagram Graph API</p>
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
+                                <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '10px' }}>
+                                  <p style={{ color: '#777', fontSize: '11px' }}>Followers</p>
+                                  <p style={{ color: '#fff', fontWeight: 700 }}>{Number(formData.instagram_followers || 0).toLocaleString()}</p>
+                                </div>
+                                <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '10px' }}>
+                                  <p style={{ color: '#777', fontSize: '11px' }}>Avg Views</p>
+                                  <p style={{ color: '#fff', fontWeight: 700 }}>{Number(formData.instagram_avg_views || 0).toLocaleString()}</p>
+                                </div>
+                                <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '10px' }}>
+                                  <p style={{ color: '#777', fontSize: '11px' }}>ER</p>
+                                  <p style={{ color: '#fff', fontWeight: 700 }}>{Number(formData.instagram_er || 0).toFixed(2)}%</p>
+                                </div>
+                              </div>
+                              <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/register'); }} className="outline-btn" style={{ width: '100%', height: '44px', borderRadius: '12px' }}>
+                                Reconnect Instagram
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { window.location.href = getInstagramConnectUrl('/register'); }}
+                              disabled={fetchingIG}
+                              style={{ width: '100%', height: '48px', border: 'none', borderRadius: '12px', background: '#1877F2', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                            >
+                              <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', color: '#1877F2', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>f</span>
+                              Connect Instagram
+                            </button>
+                          )}
+                          <div style={{ marginTop: '10px', color: '#777', fontSize: '11px', lineHeight: 1.5 }}>
+                            Requires an Instagram Business or Creator account connected to a Facebook Page.
                           </div>
                         </div>
                       </div>

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { User, Bell, Shield, CreditCard, Plug, AlertTriangle, Save, Camera } from 'lucide-react';
 import { getProfile, getSocialProfiles, updateProfile, upsertSocialProfile, updatePassword, deleteAccount } from '../api/creatorApi';
+import { getInstagramConnectUrl, getInstagramProfile, saveCurrentInstagramConnection, disconnectInstagram } from '../api/instagramApi';
 import useAuthStore from '../store/authStore';
 
 const MENU = [
@@ -14,14 +15,6 @@ const MENU = [
   { key: 'integrations',  label: 'Integrations',   icon: Plug },
   { key: 'danger',        label: 'Danger Zone',    icon: AlertTriangle, danger: true },
 ];
-
-function extractInstagramUsername(url) {
-  if (!url) return null;
-  const clean = url.trim().replace(/\/$/, '');
-  const match = clean.match(/instagram\.com\/([^/?#]+)/i);
-  if (match) return match[1];
-  return !clean.includes('/') && !clean.includes('.') ? clean : null;
-}
 
 function extractYouTubeIdentifier(url) {
   if (!url) return null;
@@ -55,6 +48,12 @@ export default function SettingsPage() {
   const [msg, setMsg]       = useState('');
   const [fetchingIG, setFetchingIG] = useState(false);
   const [fetchingYT, setFetchingYT] = useState(false);
+  const [instagramConnection, setInstagramConnection] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'social') setActiveTab('social');
+  }, []);
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
@@ -90,16 +89,56 @@ export default function SettingsPage() {
     const youtube = rows.find(r => r.platform === 'youtube');
     setSocialForm({
       instagram_url: instagram?.profile_url || '',
+      instagram_username: instagram?.instagram_username || '',
+      instagram_profile_picture: instagram?.instagram_profile_picture || '',
       instagram_followers: instagram?.followers_count || '',
       instagram_avg_views: instagram?.avg_views || '',
       instagram_er: instagram?.engagement_rate || '',
       instagram_verified: !!instagram?.is_verified,
+      instagram_connected: !!instagram?.instagram_connected,
       youtube_url: youtube?.profile_url || '',
       youtube_subscribers: youtube?.followers_count || '',
       youtube_avg_views: youtube?.avg_views || '',
       youtube_er: youtube?.engagement_rate || '',
     });
+    if (instagram?.instagram_connected) setInstagramConnection(instagram);
   }, [socialProfiles]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('instagram_connected')) return;
+
+    const finishInstagramConnection = async () => {
+      setFetchingIG(true);
+      try {
+        const profileRes = await getInstagramProfile();
+        const profileData = profileRes.data?.data?.profile;
+        await saveCurrentInstagramConnection();
+        setInstagramConnection(profileData);
+        setSocialForm(prev => ({
+          ...prev,
+          instagram_url: profileData?.username ? `https://www.instagram.com/${profileData.username}` : prev.instagram_url,
+          instagram_username: profileData?.username || prev.instagram_username,
+          instagram_profile_picture: profileData?.profile_picture_url || prev.instagram_profile_picture,
+          instagram_followers: profileData?.followers_count ?? prev.instagram_followers,
+          instagram_avg_views: profileData?.avg_views ?? prev.instagram_avg_views,
+          instagram_er: profileData?.engagement_rate ?? prev.instagram_er,
+          instagram_verified: profileData?.is_verified ?? prev.instagram_verified,
+          instagram_connected: true,
+        }));
+        queryClient.invalidateQueries(['socialProfiles']);
+        setMsg('Instagram connected successfully!');
+      } catch (err) {
+        setMsg(err?.response?.data?.error || 'Instagram connection failed.');
+      } finally {
+        setFetchingIG(false);
+        window.history.replaceState({}, '', window.location.pathname);
+        setTimeout(() => setMsg(''), 4000);
+      }
+    };
+
+    finishInstagramConnection();
+  }, [queryClient]);
 
   const updateMut = useMutation({
     mutationFn: (data) => updateProfile(data),
@@ -142,13 +181,6 @@ export default function SettingsPage() {
   const handleSaveSocial = () => {
     const saves = [];
     saves.push(upsertSocialProfile({
-      platform: 'instagram',
-      profile_url: socialForm.instagram_url,
-      followers_count: Number(socialForm.instagram_followers) || 0,
-      avg_views: Number(socialForm.instagram_avg_views) || 0,
-      engagement_rate: Number(socialForm.instagram_er) || 0,
-    }));
-    saves.push(upsertSocialProfile({
       platform: 'youtube',
       profile_url: socialForm.youtube_url,
       followers_count: Number(socialForm.youtube_subscribers) || 0,
@@ -169,29 +201,56 @@ export default function SettingsPage() {
       });
   };
 
-  const fetchIGStats = async () => {
-    const username = extractInstagramUsername(socialForm.instagram_url);
-    if (!username) {
-      setMsg('Enter a valid Instagram handle or URL first.');
-      setTimeout(() => setMsg(''), 3000);
-      return;
-    }
+  const refreshInstagramStats = async () => {
     setFetchingIG(true);
     try {
-      const res = await fetch(`http://localhost:3000/api/social/instagram?username=${encodeURIComponent(username)}`);
-      const data = await res.json();
-      const d = data?.data || data;
+      const res = await getInstagramProfile();
+      const d = res.data?.data?.profile;
       if (d) {
         setSocialForm(prev => ({
           ...prev,
-          instagram_followers: d.followers ?? prev.instagram_followers,
+          instagram_url: d.username ? `https://www.instagram.com/${d.username}` : prev.instagram_url,
+          instagram_username: d.username ?? prev.instagram_username,
+          instagram_profile_picture: d.profile_picture_url ?? prev.instagram_profile_picture,
+          instagram_followers: d.followers_count ?? prev.instagram_followers,
           instagram_avg_views: d.avg_views ?? prev.instagram_avg_views,
           instagram_er: d.engagement_rate ?? prev.instagram_er,
           instagram_verified: d.is_verified ?? prev.instagram_verified,
+          instagram_connected: true,
         }));
+        setInstagramConnection(d);
+        setMsg('Instagram stats refreshed.');
       }
+    } catch (err) {
+      setMsg(err?.response?.data?.error || 'Connect Instagram first.');
     } finally {
       setFetchingIG(false);
+      setTimeout(() => setMsg(''), 3000);
+    }
+  };
+
+  const handleDisconnectInstagram = async () => {
+    setFetchingIG(true);
+    try {
+      await disconnectInstagram();
+      setInstagramConnection(null);
+      setSocialForm(prev => ({
+        ...prev,
+        instagram_connected: false,
+        instagram_username: '',
+        instagram_profile_picture: '',
+        instagram_followers: '',
+        instagram_avg_views: '',
+        instagram_er: '',
+        instagram_verified: false,
+      }));
+      queryClient.invalidateQueries(['socialProfiles']);
+      setMsg('Instagram disconnected.');
+    } catch (err) {
+      setMsg(err?.response?.data?.error || 'Failed to disconnect Instagram.');
+    } finally {
+      setFetchingIG(false);
+      setTimeout(() => setMsg(''), 3000);
     }
   };
 
@@ -349,35 +408,68 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between gap-3 mb-4">
                     <div>
                       <h4 className="text-sm font-semibold text-slate-900">Instagram</h4>
-                      <p className="text-xs text-slate-500">Handle, follower count, average views, and engagement rate</p>
+                      <p className="text-xs text-slate-500">Official Meta connection for profile and reel insights</p>
                     </div>
-                    <button type="button" onClick={fetchIGStats} disabled={fetchingIG} className="btn-secondary text-xs">
-                      {fetchingIG ? 'Fetching...' : 'Fetch Stats'}
-                    </button>
+                    {socialForm.instagram_connected && (
+                      <button type="button" onClick={refreshInstagramStats} disabled={fetchingIG} className="btn-secondary text-xs">
+                        {fetchingIG ? 'Refreshing...' : 'Refresh'}
+                      </button>
+                    )}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="sm:col-span-2">
-                      <label className="input-label">Instagram Handle / URL</label>
-                      <input value={socialForm.instagram_url || ''} onChange={e => setSocialForm({ ...socialForm, instagram_url: e.target.value })} placeholder="instagram.com/yourname or @yourname" className="input" />
-                    </div>
-                    <div>
-                      <label className="input-label">Followers</label>
-                      <input value={socialForm.instagram_followers || ''} onChange={e => setSocialForm({ ...socialForm, instagram_followers: e.target.value })} className="input" />
-                    </div>
-                    <div>
-                      <label className="input-label">Avg Views</label>
-                      <input value={socialForm.instagram_avg_views || ''} onChange={e => setSocialForm({ ...socialForm, instagram_avg_views: e.target.value })} className="input" />
-                    </div>
-                    <div>
-                      <label className="input-label">Engagement Rate</label>
-                      <input value={socialForm.instagram_er || ''} onChange={e => setSocialForm({ ...socialForm, instagram_er: e.target.value })} className="input" />
-                    </div>
-                    <div className="flex items-end">
-                      <div className={`w-full rounded-xl px-4 py-2.5 text-sm border ${socialForm.instagram_verified ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
-                        Verified: {socialForm.instagram_verified ? 'Yes' : 'No'}
+                  {socialForm.instagram_connected ? (
+                    <div className="rounded-xl border border-emerald-100 bg-white p-4">
+                      <div className="flex items-center gap-4">
+                        {socialForm.instagram_profile_picture ? (
+                          <img src={socialForm.instagram_profile_picture} alt={socialForm.instagram_username} className="w-14 h-14 rounded-2xl object-cover" />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center">
+                            <Camera size={20} />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-slate-900">@{socialForm.instagram_username || 'instagram'}</p>
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">Connected</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">Instagram Business/Creator account</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-4">
+                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                          <p className="text-[11px] text-slate-400">Followers</p>
+                          <p className="text-sm font-bold text-slate-900">{Number(socialForm.instagram_followers || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                          <p className="text-[11px] text-slate-400">Avg Views</p>
+                          <p className="text-sm font-bold text-slate-900">{Number(socialForm.instagram_avg_views || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                          <p className="text-[11px] text-slate-400">ER</p>
+                          <p className="text-sm font-bold text-slate-900">{Number(socialForm.instagram_er || 0).toFixed(2)}%</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                        <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-secondary text-xs">
+                          Reconnect
+                        </button>
+                        <button type="button" onClick={handleDisconnectInstagram} disabled={fetchingIG} className="btn-danger text-xs">
+                          Disconnect
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Instagram is not connected</p>
+                          <p className="text-xs text-slate-500 mt-1">Connect through Facebook OAuth to fetch official profile and reel metrics.</p>
+                        </div>
+                        <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-primary whitespace-nowrap">
+                          Connect Instagram
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-slate-100 p-5 bg-slate-50/70">

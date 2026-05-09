@@ -7,7 +7,17 @@ const errorHandler = require('./src/middleware/errorHandler');
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: '*', credentials: true }));
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -26,6 +36,7 @@ app.use('/api/content',       require('./src/routes/content'));
 app.use('/api/social',        require('./src/routes/social'));
 app.use('/api/chat',          require('./src/routes/chat'));
 app.use('/api/notifications', require('./src/routes/notifications'));
+app.use('/',                  require('./src/routes/instagram'));
 
 app.use(errorHandler);
 module.exports = app;

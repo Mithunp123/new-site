@@ -4,18 +4,17 @@
  *
  * YouTube: Uses youtube_date_key (Data API v3) — fetches real viewCount, likeCount, commentCount.
  *
- * Instagram: Uses RAPIDAPI_KEY with instagram-data1.p.rapidapi.com (scraper-based).
- *   - Returns real public metrics: views/plays, likes, comments.
- *   - reach/impressions are PRIVATE metrics on Instagram — not available via any public scraper.
- *     We estimate reach as views × 0.9 (industry standard for Reels).
- *   - Falls back to creator profile estimates if the API fails.
- *
- * For true Instagram reach/impressions, the creator must connect their
- * Instagram Business account via Meta Graph API OAuth (future enhancement).
+ * Instagram: Uses Meta Instagram Graph API for connected Business/Creator accounts.
+ *   - Returns official media insights for content owned by the connected IG account.
+ *   - Falls back to creator profile estimates when Meta cannot match the submitted URL.
  */
 const axios = require('axios');
 const pool = require('../config/db');
 const { broadcastCampaignUpdate } = require('../websocket');
+const {
+  extractInstagramShortcode,
+  getMediaInsightsByPermalink,
+} = require('../services/metaInstagramService');
 
 // Env var is named youtube_date_key in .env
 const YT_DATA_KEY = process.env.youtube_date_key;
@@ -37,16 +36,6 @@ function extractYouTubeVideoId(url) {
     if (m) return m[1];
   }
   return null;
-}
-
-/**
- * Extract Instagram shortcode from URL.
- * Handles: instagram.com/p/CODE, instagram.com/reel/CODE, instagram.com/tv/CODE
- */
-function extractInstagramShortcode(url) {
-  if (!url) return null;
-  const m = url.match(/instagram\.com\/(?:p|reel|tv)\/([a-zA-Z0-9_-]+)/);
-  return m ? m[1] : null;
 }
 
 /**
@@ -83,76 +72,22 @@ async function fetchYouTubeVideoStats(videoId) {
   };
 }
 
-/**
- * Fetch Instagram post stats via RapidAPI (instagram-data1.p.rapidapi.com).
- *
- * What is REAL: views/plays, likes, comments (public metrics).
- * What is ESTIMATED: reach (private metric — not available via any scraper).
- *
- * Returns null if the API is unavailable or the key is not configured,
- * so the caller can fall back to profile-based estimates.
- */
-async function fetchInstagramPostStats(shortcode) {
-  const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-  const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'instagram-data1.p.rapidapi.com';
-
-  if (!RAPIDAPI_KEY) {
-    console.log('[Analytics] RAPIDAPI_KEY not set — skipping Instagram API fetch');
-    return null;
-  }
-
+async function fetchInstagramPostStats(contentUrl, creatorId) {
   try {
-    const res = await axios.get(`https://${RAPIDAPI_HOST}/post/info`, {
-      params: { shortcode },
-      headers: {
-        'x-rapidapi-key': RAPIDAPI_KEY,
-        'x-rapidapi-host': RAPIDAPI_HOST,
-      },
-      timeout: 15000,
-    });
-
-    const data = res.data;
-
-    // The API returns different shapes for photos vs videos vs reels
-    const views = parseInt(data.video_view_count || data.play_count || 0);
-    const likes = parseInt(
-      data.like_count ||
-      data.edge_media_preview_like?.count ||
-      data.edge_liked_by?.count ||
-      0
+    const [profiles] = await pool.query(
+      "SELECT instagram_access_token, instagram_business_id FROM creator_social_profiles WHERE creator_id=? AND platform='instagram' AND instagram_connected=true LIMIT 1",
+      [creatorId]
     );
-    const comments = parseInt(
-      data.edge_media_to_comment?.count ||
-      data.comments_count ||
-      0
-    );
-
-    if (views === 0 && likes === 0) {
-      console.log(`[Analytics] Instagram API returned empty data for shortcode ${shortcode}`);
+    const profile = profiles[0];
+    if (!profile?.instagram_access_token || !profile?.instagram_business_id) {
+      console.log(`[Analytics] Creator ${creatorId} has no connected Instagram Graph account`);
       return null;
     }
 
-    // Reach is a private metric — estimate at 90% of views for Reels
-    const baseForReach = views > 0 ? views : likes * 10;
-    const reach = Math.round(baseForReach * 0.9);
-    const engagement_rate = baseForReach > 0
-      ? ((likes + comments) / baseForReach) * 100
-      : 0;
-
-    return {
-      views: views || Math.round(likes * 8),
-      reach,
-      clicks: Math.round(reach * 0.04),
-      conversions: Math.round(reach * 0.008),
-      likes,
-      comments,
-      engagement_rate: parseFloat(engagement_rate.toFixed(2)),
-      platform: 'instagram',
-      data_source: 'instagram_api',
-    };
+    return await getMediaInsightsByPermalink(profile.instagram_business_id, profile.instagram_access_token, contentUrl);
   } catch (e) {
     const status = e.response?.status;
-    console.error(`[Analytics] Instagram RapidAPI failed (HTTP ${status || 'network error'}):`, e.message);
+    console.error(`[Analytics] Meta Instagram Graph API failed (HTTP ${status || 'network error'}):`, e.message);
     return null;
   }
 }
@@ -163,7 +98,7 @@ async function fetchInstagramPostStats(shortcode) {
  *
  * Priority order:
  *   1. YouTube Data API (if content_url is a YouTube link)
- *   2. Instagram RapidAPI (if content_url is an Instagram link)
+ *   2. Meta Instagram Graph API (if content_url is an Instagram link)
  *   3. Creator profile estimates (fallback — always succeeds)
  */
 async function autoCollectMetrics(campaignId, brandId) {
@@ -213,7 +148,7 @@ async function autoCollectMetrics(campaignId, brandId) {
       if (!stats) {
         const shortcode = extractInstagramShortcode(contentUrl);
         if (shortcode) {
-          stats = await fetchInstagramPostStats(shortcode);
+          stats = await fetchInstagramPostStats(contentUrl, campaign.creator_id);
           if (stats) {
             dataSource = 'instagram_api';
             console.log(`[Analytics] Instagram stats for campaign ${campaignId}:`, {

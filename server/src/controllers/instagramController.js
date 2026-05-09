@@ -1,0 +1,401 @@
+const crypto = require('crypto');
+const pool = require('../config/db');
+const {
+  buildFacebookLoginUrl,
+  exchangeCodeForToken,
+  getFacebookPages,
+  getInstagramBusinessAccount,
+  getInstagramProfile,
+  getInstagramMedia,
+  getInstagramInsights,
+  getMediaWithInsights,
+  calculateProfileStats,
+  normaliseInsightMetrics,
+} = require('../services/metaInstagramService');
+
+const COOKIE_NAME = 'gradix_ig_connection';
+const STATE_COOKIE_NAME = 'gradix_ig_oauth_state';
+const tokenStore = new Map();
+const stateStore = new Map();
+
+function parseCookies(req) {
+  return String(req.headers.cookie || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const index = part.indexOf('=');
+      if (index > -1) acc[part.slice(0, index)] = decodeURIComponent(part.slice(index + 1));
+      return acc;
+    }, {});
+}
+
+function setHttpOnlyCookie(res, name, value, maxAgeSeconds) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', [
+    `${name}=${encodeURIComponent(value)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`,
+  ]);
+}
+
+function appendHttpOnlyCookie(res, name, value, maxAgeSeconds) {
+  const existing = res.getHeader('Set-Cookie');
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  const cookie = `${name}=${encodeURIComponent(value)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
+  res.setHeader('Set-Cookie', Array.isArray(existing) ? [...existing, cookie] : [existing, cookie].filter(Boolean));
+}
+
+function getConnection(req) {
+  const connectionId = parseCookies(req)[COOKIE_NAME];
+  if (!connectionId) return null;
+  return tokenStore.get(connectionId) || null;
+}
+
+function requireConnection(req) {
+  const connection = getConnection(req);
+  if (!connection?.accessToken) {
+    const err = new Error('Instagram OAuth connection not found. Start with GET /auth/facebook.');
+    err.statusCode = 401;
+    throw err;
+  }
+  return connection;
+}
+
+function handleControllerError(res, err) {
+  const metaError = err.response?.data?.error;
+  const status = err.statusCode || err.response?.status || 500;
+
+  console.error('[Instagram Graph API]', metaError || err.message);
+
+  return res.status(status).json({
+    success: false,
+    error: metaError?.message || err.message || 'Instagram Graph API request failed',
+    meta: metaError
+      ? {
+          type: metaError.type,
+          code: metaError.code,
+          error_subcode: metaError.error_subcode,
+          fbtrace_id: metaError.fbtrace_id,
+        }
+      : undefined,
+  });
+}
+
+exports.redirectToFacebook = async (req, res) => {
+  try {
+    const state = crypto.randomBytes(24).toString('hex');
+    const returnTo = typeof req.query.return_to === 'string' && req.query.return_to.startsWith('/')
+      ? req.query.return_to
+      : '/register';
+    stateStore.set(state, { returnTo, createdAt: Date.now() });
+    setHttpOnlyCookie(res, STATE_COOKIE_NAME, state, 10 * 60);
+    return res.redirect(buildFacebookLoginUrl(state));
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.facebookCallback = async (req, res) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) return res.status(400).json({ success: false, error: error_description || error });
+    if (!code) return res.status(400).json({ success: false, error: 'Facebook OAuth code is required' });
+
+    const expectedState = parseCookies(req)[STATE_COOKIE_NAME];
+    if (expectedState && state && expectedState !== state) {
+      return res.status(400).json({ success: false, error: 'Invalid Facebook OAuth state' });
+    }
+
+    const accessToken = await exchangeCodeForToken(code);
+    const pages = await getFacebookPages(accessToken);
+    const page = pages[0];
+    if (!page) {
+      return res.status(404).json({ success: false, error: 'No Facebook Pages were returned for this account' });
+    }
+
+    const igAccount = await getInstagramBusinessAccount(page.page_id, page.page_access_token || accessToken);
+    if (!igAccount?.id) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Instagram Business/Creator account is connected to the selected Facebook Page',
+      });
+    }
+
+    const pageAccessToken = page.page_access_token || accessToken;
+    const profile = await getInstagramProfile(igAccount.id, pageAccessToken);
+    const media = await getMediaWithInsights(igAccount.id, pageAccessToken, 12);
+    const stats = calculateProfileStats(media);
+    const connectionId = crypto.randomUUID();
+    const stateRecord = stateStore.get(state);
+    const returnTo = stateRecord?.returnTo || '/register';
+
+    tokenStore.set(connectionId, {
+      accessToken,
+      pageAccessToken,
+      pages,
+      selectedPageId: page.page_id,
+      igId: igAccount.id,
+      igAccount,
+      profile: { ...profile, ...stats },
+      media,
+      createdAt: new Date().toISOString(),
+    });
+    stateStore.delete(state);
+
+    setHttpOnlyCookie(res, COOKIE_NAME, connectionId, 60 * 60 * 24 * 60);
+    appendHttpOnlyCookie(res, STATE_COOKIE_NAME, '', 0);
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const redirectUrl = new URL(returnTo, frontendUrl);
+    redirectUrl.searchParams.set('instagram_connected', 'true');
+    return res.redirect(redirectUrl.toString());
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.getPages = async (req, res) => {
+  try {
+    const connection = requireConnection(req);
+    const pages = await getFacebookPages(connection.accessToken);
+    connection.pages = pages;
+
+    return res.json({
+      success: true,
+      data: pages.map(({ page_id, page_name }) => ({ page_id, page_name })),
+    });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.getProfile = async (req, res) => {
+  try {
+    const connection = requireConnection(req);
+    if (connection.profile) {
+      return res.json({
+        success: true,
+        data: {
+          page_id: connection.selectedPageId,
+          instagram_account: connection.igAccount,
+          profile: connection.profile,
+          connected: true,
+        },
+      });
+    }
+
+    const pageId = req.query.pageId || connection.pages?.[0]?.page_id;
+    const pageAccessToken = connection.pages?.find((page) => page.page_id === pageId)?.page_access_token || connection.accessToken;
+    const igAccount = await getInstagramBusinessAccount(pageId, pageAccessToken);
+
+    if (!igAccount?.id) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Instagram Business/Creator account is connected to this Facebook Page',
+      });
+    }
+
+    const profile = await getInstagramProfile(igAccount.id, pageAccessToken);
+    const media = await getMediaWithInsights(igAccount.id, pageAccessToken, 12);
+    const stats = calculateProfileStats(media);
+    connection.selectedPageId = pageId;
+    connection.igId = igAccount.id;
+    connection.igAccount = igAccount;
+    connection.profile = { ...profile, ...stats };
+    connection.media = media;
+
+    return res.json({
+      success: true,
+      data: {
+        page_id: pageId,
+        instagram_account: igAccount,
+        profile: connection.profile,
+        connected: true,
+      },
+    });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.getMedia = async (req, res) => {
+  try {
+    const connection = requireConnection(req);
+    if (connection.media) {
+      return res.json({
+        success: true,
+        data: {
+          instagram_account_id: connection.igId,
+          media: connection.media,
+        },
+      });
+    }
+
+    const pageId = req.query.pageId || connection.selectedPageId || connection.pages?.[0]?.page_id;
+    const pageAccessToken = connection.pages?.find((page) => page.page_id === pageId)?.page_access_token || connection.accessToken;
+    const igAccount = connection.igId
+      ? { id: connection.igId }
+      : await getInstagramBusinessAccount(pageId, pageAccessToken);
+
+    if (!igAccount?.id) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Instagram Business/Creator account is connected to this Facebook Page',
+      });
+    }
+
+    const media = await getInstagramMedia(igAccount.id, pageAccessToken);
+    connection.selectedPageId = pageId;
+    connection.igId = igAccount.id;
+
+    return res.json({
+      success: true,
+      data: {
+        instagram_account_id: igAccount.id,
+        media,
+      },
+    });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.getInsights = async (req, res) => {
+  try {
+    const connection = requireConnection(req);
+    const pageId = req.query.pageId || connection.selectedPageId || connection.pages?.[0]?.page_id;
+    const pageAccessToken = connection.pages?.find((page) => page.page_id === pageId)?.page_access_token || connection.accessToken;
+    const insights = await getInstagramInsights(req.params.mediaId, pageAccessToken);
+
+    return res.json({
+      success: true,
+      data: {
+        media_id: req.params.mediaId,
+        metrics: normaliseInsightMetrics(insights),
+        raw: insights,
+      },
+    });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.saveCurrentConnection = async (req, res) => {
+  try {
+    const connection = requireConnection(req);
+    const creatorId = req.user.id;
+    const profile = connection.profile;
+
+    if (!profile?.id) {
+      return res.status(400).json({ success: false, error: 'No connected Instagram profile found to save' });
+    }
+
+    await pool.query(`
+      INSERT INTO creator_social_profiles
+        (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate,
+         is_verified, instagram_connected, instagram_access_token, facebook_page_id,
+         instagram_business_id, instagram_username, instagram_follows, instagram_media_count,
+         instagram_profile_picture, instagram_connected_at)
+      VALUES (?, 'instagram', ?, ?, ?, ?, ?, true, ?, ?, ?, ?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE
+        profile_url=VALUES(profile_url),
+        followers_count=VALUES(followers_count),
+        avg_views=VALUES(avg_views),
+        engagement_rate=VALUES(engagement_rate),
+        is_verified=VALUES(is_verified),
+        instagram_connected=true,
+        instagram_access_token=VALUES(instagram_access_token),
+        facebook_page_id=VALUES(facebook_page_id),
+        instagram_business_id=VALUES(instagram_business_id),
+        instagram_username=VALUES(instagram_username),
+        instagram_follows=VALUES(instagram_follows),
+        instagram_media_count=VALUES(instagram_media_count),
+        instagram_profile_picture=VALUES(instagram_profile_picture),
+        instagram_connected_at=NOW()
+    `, [
+      creatorId,
+      `https://www.instagram.com/${profile.username}`,
+      Number(profile.followers_count || 0),
+      Number(profile.avg_views || 0),
+      Number(profile.engagement_rate || 0),
+      Boolean(profile.is_verified || false),
+      connection.pageAccessToken || connection.accessToken,
+      connection.selectedPageId,
+      connection.igId,
+      profile.username,
+      Number(profile.follows_count || 0),
+      Number(profile.media_count || 0),
+      profile.profile_picture_url || null,
+    ]);
+
+    if (Array.isArray(connection.media) && connection.media.length > 0) {
+      for (const media of connection.media) {
+        await pool.query(`
+          INSERT INTO creator_instagram_media
+            (creator_id, instagram_media_id, caption, media_type, media_url, permalink, posted_at,
+             views, reach, likes, comments, shares, saves)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            caption=VALUES(caption),
+            media_type=VALUES(media_type),
+            media_url=VALUES(media_url),
+            permalink=VALUES(permalink),
+            posted_at=VALUES(posted_at),
+            views=VALUES(views),
+            reach=VALUES(reach),
+            likes=VALUES(likes),
+            comments=VALUES(comments),
+            shares=VALUES(shares),
+            saves=VALUES(saves),
+            updated_at=NOW()
+        `, [
+          creatorId,
+          media.id,
+          media.caption || null,
+          media.media_product_type || media.media_type || null,
+          media.media_url || null,
+          media.permalink || null,
+          media.timestamp ? new Date(media.timestamp) : null,
+          Number(media.insights?.views || 0),
+          Number(media.insights?.reach || 0),
+          Number(media.insights?.likes || media.like_count || 0),
+          Number(media.insights?.comments || media.comments_count || 0),
+          Number(media.insights?.shares || 0),
+          Number(media.insights?.saved || 0),
+        ]);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Instagram connection saved',
+      data: {
+        profile,
+        media: connection.media || [],
+      },
+    });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};
+
+exports.disconnect = async (req, res) => {
+  try {
+    const connectionId = parseCookies(req)[COOKIE_NAME];
+    if (connectionId) tokenStore.delete(connectionId);
+
+    await pool.query(`
+      UPDATE creator_social_profiles
+      SET instagram_connected=false,
+          instagram_access_token=NULL,
+          facebook_page_id=NULL,
+          instagram_business_id=NULL,
+          instagram_connected_at=NULL
+      WHERE creator_id=? AND platform='instagram'
+    `, [req.user.id]);
+
+    setHttpOnlyCookie(res, COOKIE_NAME, '', 0);
+    return res.json({ success: true, message: 'Instagram disconnected' });
+  } catch (err) {
+    return handleControllerError(res, err);
+  }
+};

@@ -4,6 +4,7 @@ const { hashPassword, comparePassword } = require('../helpers/bcrypt');
 const { getInitials, getAvatarColor, formatINR, formatROI } = require('../helpers/format');
 const { broadcastCampaignUpdate } = require('../websocket');
 const { autoCollectMetrics } = require('./analyticsController');
+const { getMediaInsightsByPermalink } = require('../services/metaInstagramService');
 
 // Preferences & Verification
 exports.upsertPreferences = async (req, res, next) => {
@@ -1245,7 +1246,7 @@ exports.goLive = async (req, res, next) => {
 
 /**
  * GET /api/brand/metrics
- * Fetch live metrics from YouTube Data API v3 + YouTube Analytics API + Instagram Lens API.
+ * Fetch live metrics from YouTube Data API v3 + Meta Instagram Graph API.
  *
  * YouTube Data API v3 (youtube_date_key):
  *   - Views, likes, comments, subscribers, video title, duration, upload date, thumbnail
@@ -1254,8 +1255,8 @@ exports.goLive = async (req, res, next) => {
  *   - Watch time, CTR, audience retention, traffic sources, revenue (if monetised)
  *   NOTE: Analytics API requires OAuth — if not available, we skip gracefully.
  *
- * Instagram Lens (INSTAGRAM_LENS_KEY via instagram-lens.p.rapidapi.com):
- *   - Views/plays, likes, comments, shares, saves, engagement rate
+ * Meta Instagram Graph API:
+ *   - Official media insights for submitted Instagram URLs owned by the connected account
  */
 exports.getLiveMetrics = async (req, res, next) => {
   try {
@@ -1264,7 +1265,7 @@ exports.getLiveMetrics = async (req, res, next) => {
 
     // Fetch all campaigns that have content submitted or are live/closed
     const [campaigns] = await pool.query(
-      `SELECT c.id, c.title, c.status, c.budget, c.platform AS campaign_platform,
+      `SELECT c.id, c.creator_id, c.title, c.status, c.budget, c.platform AS campaign_platform,
               cr.name AS creator_name
        FROM campaigns c
        JOIN creators cr ON cr.id = c.creator_id
@@ -1375,65 +1376,29 @@ exports.getLiveMetrics = async (req, res, next) => {
             stats = { error: 'Could not parse Instagram post URL' };
           } else {
             try {
-              const igRes = await axios.request({
-                method: 'POST',
-                url: 'https://instagram-lens.p.rapidapi.com/post',
-                headers: {
-                  'x-rapidapi-key':  process.env.INSTAGRAM_LENS_KEY || process.env.RAPIDAPI_KEY,
-                  'x-rapidapi-host': 'instagram-lens.p.rapidapi.com',
-                  'Content-Type':    'application/json',
-                },
-                data:    { postUrl },
-                timeout: 8000,
-              });
-
-              const d = igRes.data;
-
-              const views    = Number(d?.video_view_count || d?.play_count || d?.views || 0);
-              const likes    = Number(d?.like_count || d?.likes || d?.edge_media_preview_like?.count || 0);
-              const comments = Number(d?.comment_count || d?.comments || d?.edge_media_to_comment?.count || 0);
-              const shares   = Number(d?.share_count || d?.shares || 0);
-              const saves    = Number(d?.save_count  || d?.saves  || 0);
-
-              const base    = views > 0 ? views : likes * 10;
-              const engRate = base > 0
-                ? parseFloat(((likes + comments + shares + saves) / base * 100).toFixed(2))
-                : 0;
-
-              const caption  = d?.caption || d?.edge_media_to_caption?.edges?.[0]?.node?.text || null;
-              const postType = d?.product_type || d?.media_type || (views > 0 ? 'reel' : 'post');
-              const postDate = d?.taken_at_timestamp
-                ? new Date(d.taken_at_timestamp * 1000).toISOString().split('T')[0]
-                : (d?.timestamp ? d.timestamp.split('T')[0] : null);
-
-              if (views === 0 && likes === 0 && comments === 0) {
-                stats = { error: 'Instagram data unavailable — post may be private or API returned empty data' };
-              } else {
+              const [igProfiles] = await pool.query(
+                "SELECT instagram_access_token, instagram_business_id FROM creator_social_profiles WHERE creator_id=? AND platform='instagram' AND instagram_connected=true LIMIT 1",
+                [camp.creator_id]
+              );
+              const igProfile = igProfiles[0];
+              stats = igProfile?.instagram_access_token && igProfile?.instagram_business_id
+                ? await getMediaInsightsByPermalink(igProfile.instagram_business_id, igProfile.instagram_access_token, postUrl)
+                : null;
+              if (!stats) {
                 stats = {
-                  platform:        'instagram',
-                  views,
-                  likes,
-                  comments,
-                  shares,
-                  saves,
-                  engagement_rate: engRate,
-                  post_type:       postType,
-                  post_date:       postDate,
-                  caption:         caption ? caption.substring(0, 200) : null,
-                  post_url:        postUrl,
-                  data_source:     'instagram_lens_api',
+                  error: 'Instagram metrics unavailable through Meta Graph API. The post must belong to the connected Instagram Business/Creator account and be present in recent media.',
                 };
               }
             } catch (e) {
-              const isRateLimit = e?.response?.status === 429;
+              const isRateLimit = e?.response?.status === 4 || e?.response?.status === 17 || e?.response?.status === 32 || e?.response?.status === 429;
               const isTimeout   = e.code === 'ECONNABORTED' || e.message?.includes('timeout');
-              console.error(`[Metrics] Instagram Lens API failed for ${url}:`, e.message);
+              console.error(`[Metrics] Meta Instagram Graph API failed for ${url}:`, e.response?.data?.error || e.message);
               stats = {
                 error: isRateLimit
                   ? 'Instagram API rate limit reached — try again in a few minutes'
                   : isTimeout
                   ? 'Instagram API timed out — try refreshing in a moment'
-                  : 'Instagram data unavailable — API error',
+                  : 'Instagram data unavailable through Meta Graph API',
               };
             }
           }

@@ -17,8 +17,8 @@ ALTER TABLE campaigns
   ) DEFAULT 'request_sent';
 
 ALTER TABLE campaigns
-  ADD COLUMN IF NOT EXISTS negotiate_amount DECIMAL(10,2) NULL DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS negotiate_message TEXT NULL DEFAULT NULL;
+  ADD COLUMN negotiate_amount DECIMAL(10,2) NULL DEFAULT NULL,
+  ADD COLUMN negotiate_message TEXT NULL DEFAULT NULL;
 
 -- Task 1.2: Create campaign_negotiations table
 
@@ -36,5 +36,5 @@ CREATE TABLE IF NOT EXISTS campaign_negotiations (
 -- Task 1.3: Alter content_submissions table
 
 ALTER TABLE content_submissions
-  ADD COLUMN IF NOT EXISTS platform    VARCHAR(50)  NULL DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS content_url VARCHAR(500) NULL DEFAULT NULL;
+  ADD COLUMN platform    VARCHAR(50)  NULL DEFAULT NULL,
+  ADD COLUMN content_url VARCHAR(500) NULL DEFAULT NULL;
