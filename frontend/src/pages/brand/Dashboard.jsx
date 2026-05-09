@@ -316,7 +316,14 @@ const RequestRow = ({ request }) => {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-900 truncate">{request.creator_name}</p>
-        <p className="text-xs text-slate-400 truncate">{formatINR(request.amount)} · {request.campaign_title}</p>
+        <p className="text-xs text-slate-400 truncate">
+          {request.status === 'negotiating' && request.negotiate_amount ? (
+            <span className="text-amber-600 font-medium">{formatINR(request.negotiate_amount)}</span>
+          ) : (
+            formatINR(request.amount)
+          )}
+          {' · '}{request.campaign_title}
+        </p>
       </div>
       <span className={`badge ${statusMeta.badgeCls} flex-shrink-0`}>{statusMeta.label}</span>
     </div>
@@ -365,10 +372,11 @@ const getRequestStatusMeta = (status) => {
   const map = {
     pending:      { label: 'Pending',  badgeCls: 'badge-orange' },
     accepted:     { label: 'Accepted', badgeCls: 'badge-green' },
-    declined:     { label: 'Declined', badgeCls: 'badge-red' },
-    request_sent: { label: 'Sent',     badgeCls: 'badge-blue' },
+    declined:     { label: 'Declined',    badgeCls: 'badge-red' },
+    request_sent: { label: 'Sent',        badgeCls: 'badge-blue' },
+    negotiating:  { label: 'Negotiating', badgeCls: 'badge-orange' },
   };
-  return map[status] || { label: status || 'Sent', badgeCls: 'badge-blue' };
+  return map[status?.toLowerCase()] || { label: status || 'Sent', badgeCls: 'badge-blue' };
 };
 
 export default BrandDashboard;

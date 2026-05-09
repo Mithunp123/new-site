@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import useAuthStore from './store/authStore';
 import { queryClient } from './queryClient';
 
+
 // Creator Components
 import Layout from './components/layout/Layout';
 import LoginPage from './components/LoginPage';
@@ -180,6 +181,7 @@ export default function App() {
           } replace />} />
         </Routes>
       </BrowserRouter>
+
     </QueryClientProvider>
   );
 

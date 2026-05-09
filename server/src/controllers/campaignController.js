@@ -176,7 +176,10 @@ exports.submitNegotiation = async (req, res, next) => {
       [notifyType, notifyId, 'New Counter-Offer', `A new counter-offer of ₹${amount} has been submitted for "${camp.title}"`]
     );
 
-    broadcastCampaignUpdate(id, { status: 'negotiating' });
+    broadcastCampaignUpdate(id, { 
+      status: 'negotiating',
+      negotiate_amount: Number(amount)
+    });
 
     success(res, { negotiation_id: insertResult.insertId, status: 'negotiating' });
   } catch (err) {
@@ -207,12 +210,15 @@ exports.acceptOffer = async (req, res, next) => {
       return error(res, 'No active negotiation', 400);
     }
 
-    const agreedAmount = camp.negotiate_amount;
+    const agreedAmount = Number(camp.negotiate_amount);
+    const platform_fee_rate = parseFloat(process.env.PLATFORM_FEE_RATE) || 8.00;
+    const platform_fee = agreedAmount * (platform_fee_rate / 100);
+    const total_to_escrow = agreedAmount + platform_fee;
 
     // Update campaign
     await pool.query(
-      "UPDATE campaigns SET status = 'creator_accepted', budget = ?, updated_at = NOW() WHERE id = ?",
-      [agreedAmount, id]
+      "UPDATE campaigns SET status = 'creator_accepted', budget = ?, escrow_amount = ?, platform_fee = ?, total_to_escrow = ?, updated_at = NOW() WHERE id = ?",
+      [agreedAmount, total_to_escrow, platform_fee, total_to_escrow, id]
     );
 
     // Insert timeline row

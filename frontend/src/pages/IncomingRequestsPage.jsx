@@ -67,10 +67,14 @@ export default function IncomingRequestsPage() {
     mutationFn: ({ id, amount, message }) => submitNegotiation(id, { amount: Number(amount), message }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setNegotiatingId(null);
       setNegotiateAmount('');
       setNegotiateMessage('');
     },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Failed to submit offer. Please try again.');
+    }
   });
 
   const acceptOfferMut = useMutation({
@@ -156,7 +160,12 @@ export default function IncomingRequestsPage() {
 
             const brandName   = c.brand_name || c.brand || 'Brand';
             const deliverable = c.deliverable || c.content_type || '—';
-            const amount      = c.amount ?? c.campaign_amount ?? 0;
+            
+            // Show negotiate_amount if it exists and we're negotiating
+            const amount      = (isNegotiating && c.negotiate_amount) 
+              ? c.negotiate_amount 
+              : (c.amount ?? c.campaign_amount ?? 0);
+
             const respondBy   = c.respond_by
               ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
               : null;

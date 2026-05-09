@@ -56,6 +56,22 @@ exports.getRequests = async (req, res, next) => {
       );
     }
 
+    // Fetch negotiations for these campaigns
+    const campaignIds = filtered.map(c => c.id);
+    let negotiations = [];
+    if (campaignIds.length > 0) {
+      const [negRows] = await pool.query(
+        'SELECT * FROM campaign_negotiations WHERE campaign_id IN (?) ORDER BY created_at ASC',
+        [campaignIds]
+      );
+      negotiations = negRows;
+    }
+
+    const campaignsWithNegs = filtered.map(c => ({
+      ...c,
+      negotiations: negotiations.filter(n => n.campaign_id === c.id)
+    }));
+
     const counts = {
       total: rows.length,
       pending: rows.filter(r => r.status === 'request_sent').length,
@@ -65,7 +81,7 @@ exports.getRequests = async (req, res, next) => {
 
     success(res, {
       counts,
-      campaigns: filtered
+      campaigns: campaignsWithNegs
     });
   } catch (err) {
     console.error('Error in getRequests:', err);

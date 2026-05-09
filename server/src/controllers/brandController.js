@@ -146,13 +146,13 @@ exports.getDashboard = async (req, res, next) => {
 
     // Sent Requests
     const [qreq] = await pool.query(`
-      SELECT c.creator_id, cr.name AS creator_name, c.escrow_amount AS amount, c.title AS campaign_title, c.status
+      SELECT c.creator_id, cr.name AS creator_name, c.budget AS amount, c.title AS campaign_title, c.status, c.negotiate_amount
       FROM campaigns c
       JOIN creators cr ON cr.id = c.creator_id
       WHERE c.brand_id = ? ORDER BY c.created_at DESC LIMIT 3
     `, [id]);
 
-    const statusMap = { 'request_sent': 'Sent', 'creator_accepted': 'Pending', 'declined': 'Declined' };
+    const statusMap = { 'request_sent': 'Sent', 'creator_accepted': 'Pending', 'declined': 'Declined', 'negotiating': 'Negotiating' };
     const sent_requests = qreq.map(r => ({
       ...r,
       creator_initials: getInitials(r.creator_name),
@@ -366,16 +366,30 @@ exports.getCollaborationRequests = async (req, res, next) => {
   try {
     const id = req.user.id;
     const [rows] = await pool.query(`
-      SELECT c.id AS campaign_id, c.creator_id, cr.name AS creator_name, c.escrow_amount AS amount, c.title AS campaign_title, c.status
+      SELECT c.id AS campaign_id, c.creator_id, cr.name AS creator_name, 
+             c.budget AS original_budget, c.budget AS amount,
+             c.title AS campaign_title, c.status,
+             c.negotiate_amount, c.negotiate_message
       FROM campaigns c JOIN creators cr ON cr.id = c.creator_id
       WHERE c.brand_id = ? ORDER BY c.created_at DESC
     `, [id]);
+
+    // Fetch negotiations for these campaigns
+    const campaignIds = rows.map(r => r.campaign_id);
+    let negotiations = [];
+    if (campaignIds.length > 0) {
+      const [negRows] = await pool.query(
+        'SELECT * FROM campaign_negotiations WHERE campaign_id IN (?) ORDER BY created_at ASC',
+        [campaignIds]
+      );
+      negotiations = negRows;
+    }
 
     const requests = rows.map(r => ({
       ...r,
       creator_initials: getInitials(r.creator_name),
       avatar_color: getAvatarColor(r.creator_id),
-      // Keep raw status — frontend handles display labels
+      negotiations: negotiations.filter(n => n.campaign_id === r.campaign_id)
     }));
 
     const [pending] = await pool.query("SELECT COUNT(*) AS count FROM campaigns WHERE brand_id=? AND status='creator_accepted'", [id]);

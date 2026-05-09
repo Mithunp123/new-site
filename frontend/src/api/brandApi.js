@@ -40,6 +40,8 @@ export const rejectCampaignContent = (campaignId, data) => api.put(`/api/brand/c
 export const raiseCampaignDispute = (campaignId, data) => api.post(`/api/brand/campaign/${campaignId}/dispute`, data);
 export const markCampaignLive = (campaignId) => api.put(`/api/brand/campaign/${campaignId}/mark-live`);
 export const releasePayment = (campaignId) => api.put(`/api/brand/campaign/${campaignId}/release-payment`);
+export const negotiateCampaign = (id, data) => api.post(`/api/campaign/${id}/negotiate`, data);
+export const acceptNegotiationOffer = (id) => api.put(`/api/campaign/${id}/accept-offer`);
 
 // Analytics
 export const getBrandRoiAnalytics = (params) => api.get('/api/brand/roi-analytics', { params });
