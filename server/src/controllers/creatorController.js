@@ -138,7 +138,7 @@ exports.getCampaigns = async (req, res, next) => {
         b.logo_url AS brand_logo
       FROM campaigns c
       JOIN brands b ON b.id = c.brand_id
-      WHERE c.creator_id = ? AND c.status NOT IN ('request_sent','declined','campaign_closed')
+      WHERE c.creator_id = ? AND c.status NOT IN ('request_sent','declined','campaign_closed','escrow_released')
       ORDER BY c.updated_at DESC
     `, [creator_id]);
 

@@ -1,47 +1,43 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getLiveMetrics } from '../../api/brandApi';
 import {
   ExternalLink, AlertTriangle, Eye, ThumbsUp, MessageCircle,
   Share2, Bookmark, Clock, TrendingUp, BarChart2,
-  Calendar, User, Film, MousePointer, Tv, Play, RefreshCw
+  Calendar, User, Film, MousePointer, Tv, RefreshCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatCount, formatINR } from '../../utils/format';
 import useAuthStore from '../../store/authStore';
 
-/* ─── Animated shader blob background ─────────────────────────────────────── */
-function ShaderBlob({ color1 = '#7C3AED', color2 = '#4F46E5' }) {
+/* ─── Animated shader blob — single unified dark purple theme ──────────────── */
+function ShaderBlob() {
   return (
     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-      {/* Base dark gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0f0f1a] via-[#13111f] to-[#0a0a14]" />
-      {/* Animated blob 1 */}
+      {/* Base dark */}
+      <div className="absolute inset-0 bg-[#0d0d18]" />
+      {/* Primary blob — purple */}
       <motion.div
-        className="absolute rounded-full blur-3xl opacity-60"
+        className="absolute rounded-full blur-3xl opacity-50"
         style={{
-          width: '70%', height: '70%',
-          background: `radial-gradient(circle, ${color1}cc 0%, ${color1}44 60%, transparent 100%)`,
-          top: '10%', left: '20%',
+          width: '75%', height: '75%',
+          background: 'radial-gradient(circle, #7C3AED99 0%, #7C3AED22 60%, transparent 100%)',
+          top: '5%', left: '15%',
         }}
-        animate={{ x: [0, 20, -10, 0], y: [0, -15, 10, 0], scale: [1, 1.08, 0.95, 1] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ x: [0, 18, -10, 0], y: [0, -12, 8, 0], scale: [1, 1.07, 0.96, 1] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
       />
-      {/* Animated blob 2 */}
+      {/* Secondary blob — indigo */}
       <motion.div
-        className="absolute rounded-full blur-3xl opacity-40"
+        className="absolute rounded-full blur-3xl opacity-30"
         style={{
-          width: '50%', height: '50%',
-          background: `radial-gradient(circle, ${color2}bb 0%, ${color2}33 60%, transparent 100%)`,
-          bottom: '5%', right: '5%',
+          width: '55%', height: '55%',
+          background: 'radial-gradient(circle, #4F46E5aa 0%, #4F46E522 60%, transparent 100%)',
+          bottom: '0%', right: '0%',
         }}
-        animate={{ x: [0, -15, 10, 0], y: [0, 10, -8, 0], scale: [1, 0.92, 1.06, 1] }}
-        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+        animate={{ x: [0, -12, 8, 0], y: [0, 8, -6, 0], scale: [1, 0.93, 1.05, 1] }}
+        transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 2.5 }}
       />
-      {/* Subtle noise overlay */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-      }} />
     </div>
   );
 }
@@ -101,7 +97,7 @@ export default function BrandMetrics() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Campaign Metrics</h1>
-          <p className="page-subtitle">Live performance data from YouTube Data API v3 and Instagram Lens</p>
+          <p className="page-subtitle">Live performance data for your campaigns</p>
         </div>
         <button onClick={() => refetch()} disabled={isFetching} className="btn-secondary flex items-center gap-2">
           <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
@@ -133,11 +129,6 @@ function MetricCard({ camp, sub, index }) {
   const isInstagram = (sub?.platform || '').toLowerCase() === 'instagram';
   const hasError    = !!sub?.stats?.error;
 
-  // Blob colors per platform
-  const blobColor1 = isYouTube ? '#dc2626' : isInstagram ? '#db2777' : '#7C3AED';
-  const blobColor2 = isYouTube ? '#7C3AED' : isInstagram ? '#7C3AED' : '#4F46E5';
-
-  // Stat rows
   const rows = sub?.stats && !hasError ? buildRows(sub.stats, isYouTube, isInstagram) : [];
 
   return (
@@ -148,8 +139,8 @@ function MetricCard({ camp, sub, index }) {
       className="relative rounded-2xl overflow-hidden"
       style={{ minHeight: '380px' }}
     >
-      {/* Shader blob background */}
-      <ShaderBlob color1={blobColor1} color2={blobColor2} />
+      {/* Shader blob background — unified dark purple */}
+      <ShaderBlob />
 
       {/* Card content — sits above the blob */}
       <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '380px' }}>
@@ -173,18 +164,15 @@ function MetricCard({ camp, sub, index }) {
           )}
         </div>
 
-        {/* Platform badge */}
+        {/* Platform badge — no "via..." text */}
         {sub && (
           <div className="flex items-center gap-2 mb-4">
             {isYouTube
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-300 bg-red-500/15 border border-red-500/20 px-2.5 py-1 rounded-lg"><Tv size={11} /> YouTube</span>
+              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 bg-white/10 border border-white/10 px-2.5 py-1 rounded-lg"><Tv size={11} /> YouTube</span>
               : isInstagram
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-pink-300 bg-pink-500/15 border border-pink-500/20 px-2.5 py-1 rounded-lg"><Film size={11} /> Instagram</span>
+              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 bg-white/10 border border-white/10 px-2.5 py-1 rounded-lg"><Film size={11} /> Instagram</span>
               : <span className="text-[11px] text-white/40">{sub.platform}</span>
             }
-            {sub.stats?.data_source && !hasError && (
-              <span className="text-[10px] text-white/30">via {sub.stats.data_source.replace(/_/g, ' ')}</span>
-            )}
           </div>
         )}
 
@@ -231,10 +219,10 @@ function MetricCard({ camp, sub, index }) {
                 className={`flex items-center justify-between px-3.5 py-2.5 ${i < rows.length - 1 ? 'border-b border-white/5' : ''}`}
               >
                 <div className="flex items-center gap-2">
-                  <row.icon size={12} className={row.highlight ? (isYouTube ? 'text-red-400' : 'text-pink-400') : 'text-white/30'} />
+                  <row.icon size={12} className={row.highlight ? 'text-[#a78bfa]' : 'text-white/30'} />
                   <span className="text-[11px] text-white/50 font-medium">{row.label}</span>
                 </div>
-                <span className={`text-[13px] font-bold ${row.highlight ? (isYouTube ? 'text-red-300' : 'text-pink-300') : 'text-white/90'}`}>
+                <span className={`text-[13px] font-bold ${row.highlight ? 'text-[#a78bfa]' : 'text-white/90'}`}>
                   {row.value || '—'}
                 </span>
               </div>
