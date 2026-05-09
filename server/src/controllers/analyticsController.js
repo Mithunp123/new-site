@@ -180,7 +180,15 @@ async function autoCollectMetrics(campaignId, brandId) {
       return;
     }
 
-    const contentUrl = campaign.content_url;
+    // Priority: 1. Latest content_url from content_submissions, 2. campaign.content_url
+    let contentUrl = campaign.content_url;
+    const [latestSub] = await pool.query(
+      "SELECT content_url FROM content_submissions WHERE campaign_id = ? AND content_url IS NOT NULL ORDER BY id DESC LIMIT 1",
+      [campaignId]
+    );
+    if (latestSub.length > 0) {
+      contentUrl = latestSub[0].content_url;
+    }
     let stats = null;
     let dataSource = 'estimate';
 

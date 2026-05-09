@@ -1262,28 +1262,51 @@ exports.getLiveMetrics = async (req, res, next) => {
     const brand_id = req.user.id;
     const axios = require('axios');
 
-    // Fetch all live/closed campaigns for this brand
+    // Fetch all campaigns that have content submitted or are live/closed
     const [campaigns] = await pool.query(
       `SELECT c.id, c.title, c.status, c.budget, c.platform AS campaign_platform,
               cr.name AS creator_name
        FROM campaigns c
        JOIN creators cr ON cr.id = c.creator_id
-       WHERE c.brand_id = ? AND c.status IN ('posted_live', 'campaign_closed')
+       WHERE c.brand_id = ?
+         AND c.status IN ('content_uploaded','brand_approved','posted_live','campaign_closed','revision_requested')
        ORDER BY c.updated_at DESC`,
       [brand_id]
     );
 
     const results = [];
 
+    // Track content URLs we've already processed across ALL campaigns
+    // This prevents duplicate metric cards when the same URL appears in
+    // multiple campaign rows (e.g. after revision → re-upload flow)
+    const seenContentUrls = new Set();
+
     for (const camp of campaigns) {
-      // Fetch content submissions for this campaign
-      const [subs] = await pool.query(
-        `SELECT id, platform, content_url, file_path
-         FROM content_submissions
-         WHERE campaign_id = ? AND (content_url IS NOT NULL OR file_path IS NOT NULL)
-         ORDER BY submitted_at DESC`,
-        [camp.id]
+      // Fetch the latest submission for each platform
+      const [latestSubs] = await pool.query(
+        `SELECT cs.id, cs.platform, cs.content_url, cs.file_path, cs.submitted_at
+         FROM content_submissions cs
+         INNER JOIN (
+           SELECT platform, MAX(id) as max_id
+           FROM content_submissions
+           WHERE campaign_id = ? AND (content_url IS NOT NULL OR file_path IS NOT NULL)
+           GROUP BY platform
+         ) latest ON cs.id = latest.max_id
+         WHERE cs.campaign_id = ?
+         ORDER BY cs.submitted_at DESC`,
+        [camp.id, camp.id]
       );
+
+      // Filter out submissions whose content_url we've already seen
+      const subs = latestSubs.filter(s => {
+        const url = (s.content_url || s.file_path || '').trim();
+        if (!url || seenContentUrls.has(url)) return false;
+        seenContentUrls.add(url);
+        return true;
+      });
+
+      // Skip this campaign entirely if all its submissions are duplicates
+      if (subs.length === 0 && latestSubs.length > 0) continue;
 
       const submissionsWithStats = [];
 
@@ -1299,14 +1322,14 @@ exports.getLiveMetrics = async (req, res, next) => {
             stats = { error: 'Could not extract YouTube video ID from URL' };
           } else {
             try {
-              // 1. YouTube Data API v3 — video statistics + snippet
+              // YouTube Data API v3 — video statistics + snippet
               const ytDataRes = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
                 params: {
                   part: 'statistics,snippet,contentDetails',
                   id: videoId,
                   key: process.env.youtube_date_key
                 },
-                timeout: 10000
+                timeout: 8000
               });
 
               const item = ytDataRes.data?.items?.[0];
@@ -1317,73 +1340,26 @@ exports.getLiveMetrics = async (req, res, next) => {
                 const snippet = item.snippet;
                 const contentDetails = item.contentDetails;
 
-                const views       = Number(s.viewCount    || 0);
-                const likes       = Number(s.likeCount    || 0);
-                const comments    = Number(s.commentCount || 0);
-                const subscribers = Number(s.subscriberCount || 0);
-                const engRate     = views > 0 ? parseFloat(((likes + comments) / views * 100).toFixed(2)) : 0;
-
-                // Parse ISO 8601 duration (PT4M13S → "4:13")
+                const views    = Number(s.viewCount    || 0);
+                const likes    = Number(s.likeCount    || 0);
+                const comments = Number(s.commentCount || 0);
+                const engRate  = views > 0 ? parseFloat(((likes + comments) / views * 100).toFixed(2)) : 0;
                 const duration = parseDuration(contentDetails?.duration);
 
                 stats = {
-                  platform: 'youtube',
-                  // Data API v3 — real data
+                  platform:        'youtube',
                   views,
                   likes,
                   comments,
-                  subscribers,
                   engagement_rate: engRate,
-                  video_title:    snippet?.title || null,
-                  channel_name:   snippet?.channelTitle || null,
-                  upload_date:    snippet?.publishedAt ? snippet.publishedAt.split('T')[0] : null,
-                  thumbnail:      snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || null,
+                  video_title:     snippet?.title || null,
+                  channel_name:    snippet?.channelTitle || null,
+                  upload_date:     snippet?.publishedAt ? snippet.publishedAt.split('T')[0] : null,
+                  thumbnail:       snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || null,
                   duration,
-                  video_url:      url,
-                  // Analytics API fields — fetched below if key available
-                  watch_time_minutes: null,
-                  avg_view_duration:  null,
-                  ctr:                null,
-                  impressions:        null,
-                  traffic_sources:    null,
-                  data_source: 'youtube_data_api_v3',
+                  video_url:       url,
+                  data_source:     'youtube_data_api_v3',
                 };
-
-                // 2. YouTube Analytics API — watch time, CTR, impressions, traffic sources
-                // NOTE: Analytics API requires OAuth 2.0 for channel-level data.
-                // We use the API key for public video-level analytics where available.
-                if (process.env.youtube_analytics_key) {
-                  try {
-                    const today = new Date().toISOString().split('T')[0];
-                    const startDate = snippet?.publishedAt
-                      ? snippet.publishedAt.split('T')[0]
-                      : '2020-01-01';
-
-                    const ytAnalyticsRes = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
-                      params: {
-                        ids:        'channel==MINE',
-                        startDate,
-                        endDate:    today,
-                        metrics:    'estimatedMinutesWatched,averageViewDuration,impressions,impressionClickThroughRate',
-                        filters:    `video==${videoId}`,
-                        key:        process.env.youtube_analytics_key,
-                      },
-                      timeout: 10000
-                    });
-
-                    const rows = ytAnalyticsRes.data?.rows?.[0];
-                    if (rows) {
-                      stats.watch_time_minutes = Math.round(rows[0] || 0);
-                      stats.avg_view_duration  = Math.round(rows[1] || 0); // seconds
-                      stats.impressions        = Math.round(rows[2] || 0);
-                      stats.ctr                = rows[3] ? parseFloat((rows[3] * 100).toFixed(2)) : null; // as %
-                      stats.data_source        = 'youtube_data_api_v3+analytics';
-                    }
-                  } catch (analyticsErr) {
-                    // Analytics API requires OAuth — silently skip, Data API stats still shown
-                    console.log(`[Metrics] YouTube Analytics API skipped for video ${videoId}: ${analyticsErr.message}`);
-                  }
-                }
               }
             } catch (e) {
               console.error(`[Metrics] YouTube Data API failed for ${url}:`, e.message);
@@ -1408,24 +1384,22 @@ exports.getLiveMetrics = async (req, res, next) => {
                   'Content-Type':    'application/json',
                 },
                 data:    { postUrl },
-                timeout: 15000,
+                timeout: 8000,
               });
 
               const d = igRes.data;
 
-              // Instagram Lens returns different shapes — handle both
               const views    = Number(d?.video_view_count || d?.play_count || d?.views || 0);
               const likes    = Number(d?.like_count || d?.likes || d?.edge_media_preview_like?.count || 0);
               const comments = Number(d?.comment_count || d?.comments || d?.edge_media_to_comment?.count || 0);
               const shares   = Number(d?.share_count || d?.shares || 0);
               const saves    = Number(d?.save_count  || d?.saves  || 0);
 
-              const base     = views > 0 ? views : likes * 10;
-              const engRate  = base > 0
+              const base    = views > 0 ? views : likes * 10;
+              const engRate = base > 0
                 ? parseFloat(((likes + comments + shares + saves) / base * 100).toFixed(2))
                 : 0;
 
-              // Caption / description
               const caption  = d?.caption || d?.edge_media_to_caption?.edges?.[0]?.node?.text || null;
               const postType = d?.product_type || d?.media_type || (views > 0 ? 'reel' : 'post');
               const postDate = d?.taken_at_timestamp
@@ -1451,8 +1425,16 @@ exports.getLiveMetrics = async (req, res, next) => {
                 };
               }
             } catch (e) {
+              const isRateLimit = e?.response?.status === 429;
+              const isTimeout   = e.code === 'ECONNABORTED' || e.message?.includes('timeout');
               console.error(`[Metrics] Instagram Lens API failed for ${url}:`, e.message);
-              stats = { error: 'Instagram data unavailable — API error or timeout' };
+              stats = {
+                error: isRateLimit
+                  ? 'Instagram API rate limit reached — try again in a few minutes'
+                  : isTimeout
+                  ? 'Instagram API timed out — try refreshing in a moment'
+                  : 'Instagram data unavailable — API error',
+              };
             }
           }
         }
@@ -1479,7 +1461,10 @@ exports.getLiveMetrics = async (req, res, next) => {
       });
     }
 
-    success(res, results);
+    // Filter out campaigns that ended up with zero submissions (all duplicates)
+    const finalResults = results.filter(r => r.submissions.length > 0);
+
+    success(res, finalResults);
   } catch (err) {
     next(err);
   }

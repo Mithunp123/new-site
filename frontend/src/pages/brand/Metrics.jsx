@@ -86,9 +86,14 @@ export default function BrandMetrics() {
         cards.push({ camp, sub });
       });
     } else {
+      // Campaign has no submissions yet — show a placeholder card
       cards.push({ camp, sub: null });
     }
   });
+
+  // Separate campaigns with submissions from those without
+  const activeCards = cards.filter(c => c.sub !== null);
+  const pendingCards = cards.filter(c => c.sub === null);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
@@ -109,16 +114,81 @@ export default function BrandMetrics() {
         <div className="card p-16 text-center border-dashed">
           <BarChart2 size={36} className="text-slate-200 mx-auto mb-4" />
           <p className="text-base font-semibold text-slate-700">No metrics yet</p>
-          <p className="text-sm text-slate-400 mt-1">Metrics appear after a campaign goes live.</p>
+          <p className="text-sm text-slate-400 mt-1">Metrics appear after a creator submits content for a campaign.</p>
         </div>
       ) : (
-        /* 3–4 cards per row grid */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {cards.map(({ camp, sub }, i) => (
-            <MetricCard key={`${camp.campaign_id}-${i}`} camp={camp} sub={sub} index={i} />
-          ))}
+        <div className="space-y-6">
+          {/* Active metric cards — campaigns with content submissions */}
+          {activeCards.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {activeCards.map(({ camp, sub }, i) => (
+                <MetricCard key={`${camp.campaign_id}-${i}`} camp={camp} sub={sub} index={i} />
+              ))}
+            </div>
+          )}
+
+          {/* Pending campaigns — content not yet submitted */}
+          {pendingCards.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Awaiting Content</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {pendingCards.map(({ camp }, i) => (
+                  <PendingCard key={`pending-${camp.campaign_id}`} camp={camp} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+    </motion.div>
+  );
+}
+
+/* ─── Pending campaign card (no submissions yet) ───────────────────────────── */
+function PendingCard({ camp, index }) {
+  const statusLabel = {
+    content_uploaded:   'In Review',
+    revision_requested: 'Revision Requested',
+    brand_approved:     'Approved',
+  }[camp.status] || camp.status;
+
+  const statusColor = {
+    content_uploaded:   'bg-amber-500/20 text-amber-300',
+    revision_requested: 'bg-red-500/20 text-red-300',
+    brand_approved:     'bg-emerald-500/20 text-emerald-300',
+  }[camp.status] || 'bg-white/10 text-white/60';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.07, duration: 0.4 }}
+      className="relative rounded-2xl overflow-hidden"
+      style={{ minHeight: '200px' }}
+    >
+      <ShaderBlob />
+      <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '200px' }}>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-sm font-bold text-white leading-tight line-clamp-2">{camp.title}</h3>
+          <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
+            {statusLabel}
+          </span>
+        </div>
+        {camp.creator_name && (
+          <p className="text-[11px] text-white/50 flex items-center gap-1 mb-4">
+            <User size={10} /> {camp.creator_name}
+          </p>
+        )}
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-[11px] text-white/30 text-center">
+            {camp.status === 'content_uploaded'
+              ? 'Content submitted — metrics will appear once the campaign goes live.'
+              : camp.status === 'revision_requested'
+              ? 'Waiting for creator to re-upload corrected content.'
+              : 'No content submitted yet.'}
+          </p>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -150,11 +220,17 @@ function MetricCard({ camp, sub, index }) {
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <h3 className="text-sm font-bold text-white leading-tight line-clamp-2">{camp.title}</h3>
             <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              camp.status === 'campaign_closed'
-                ? 'bg-white/10 text-white/60'
-                : 'bg-emerald-500/20 text-emerald-300'
+              camp.status === 'campaign_closed'     ? 'bg-white/10 text-white/60' :
+              camp.status === 'content_uploaded'    ? 'bg-amber-500/20 text-amber-300' :
+              camp.status === 'revision_requested'  ? 'bg-red-500/20 text-red-300' :
+              camp.status === 'brand_approved'      ? 'bg-blue-500/20 text-blue-300' :
+              'bg-emerald-500/20 text-emerald-300'
             }`}>
-              {camp.status === 'campaign_closed' ? 'Closed' : 'Live'}
+              {camp.status === 'campaign_closed'    ? 'Closed' :
+               camp.status === 'content_uploaded'   ? 'In Review' :
+               camp.status === 'revision_requested' ? 'Revision' :
+               camp.status === 'brand_approved'     ? 'Approved' :
+               'Live'}
             </span>
           </div>
           {camp.creator_name && (

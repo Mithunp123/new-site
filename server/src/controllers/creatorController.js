@@ -216,18 +216,45 @@ exports.uploadContent = async (req, res, next) => {
       }
     }
 
-    // Insert one row per submission (file_path omitted — URL-based submissions have no file)
+    // Upsert: if a submission already exists for this campaign + platform, UPDATE it.
+    // This prevents duplicate rows when the creator re-uploads after a revision request.
     for (const sub of submissions) {
+      const platform = sub.platform || null;
+
+      // Check if a submission already exists for this campaign + platform
+      const [existing] = await pool.query(
+        'SELECT id FROM content_submissions WHERE campaign_id = ? AND creator_id = ? AND platform = ? LIMIT 1',
+        [campaignId, creatorId, platform]
+      );
+
+      if (existing.length > 0) {
+        // Update the existing row with the new URL
+        await pool.query(
+          "UPDATE content_submissions SET content_url = ?, status = 'submitted', submitted_at = NOW(), reviewed_at = NULL, rejection_note = NULL WHERE id = ?",
+          [sub.content_url, existing[0].id]
+        );
+      } else {
+        // First time uploading for this platform — insert new row
+        await pool.query(
+          "INSERT INTO content_submissions (campaign_id, creator_id, platform, content_url, status) VALUES (?, ?, ?, ?, 'submitted')",
+          [campaignId, creatorId, platform, sub.content_url]
+        );
+      }
+    }
+
+    // Update main campaign content_url with the first submitted URL for backward compatibility and auto-collect fallback
+    if (submissions[0]?.content_url) {
       await pool.query(
-        "INSERT INTO content_submissions (campaign_id, creator_id, platform, content_url, status) VALUES (?, ?, ?, ?, 'submitted')",
-        [campaignId, creatorId, sub.platform || null, sub.content_url]
+        "UPDATE campaigns SET content_url = ?, status = 'content_uploaded', updated_at = NOW() WHERE id = ?",
+        [submissions[0].content_url, campaignId]
+      );
+    } else {
+      await pool.query(
+        "UPDATE campaigns SET status = 'content_uploaded', updated_at = NOW() WHERE id = ?",
+        [campaignId]
       );
     }
 
-    await pool.query(
-      "UPDATE campaigns SET status = 'content_uploaded', updated_at = NOW() WHERE id = ?",
-      [campaignId]
-    );
     await pool.query(
       "INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'content_uploaded', 'creator')",
       [campaignId]
