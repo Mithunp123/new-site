@@ -14,29 +14,47 @@ import useAuthStore from '../../store/authStore';
 function ShaderBlob() {
   return (
     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-      {/* Base dark */}
-      <div className="absolute inset-0 bg-[#0d0d18]" />
-      {/* Primary blob — purple */}
+      {/* Base dark — refined slightly lighter shade for premium feel */}
+      <div className="absolute inset-0 bg-[#12121f]" />
+      
+      {/* Primary blob — purple glow */}
       <motion.div
-        className="absolute rounded-full blur-3xl opacity-50"
+        className="absolute rounded-full blur-[80px] opacity-[0.45]"
         style={{
-          width: '75%', height: '75%',
-          background: 'radial-gradient(circle, #7C3AED99 0%, #7C3AED22 60%, transparent 100%)',
-          top: '5%', left: '15%',
+          width: '80%', height: '80%',
+          background: 'radial-gradient(circle, #7C3AED 0%, #7C3AED44 50%, transparent 100%)',
+          top: '-10%', left: '10%',
         }}
-        animate={{ x: [0, 18, -10, 0], y: [0, -12, 8, 0], scale: [1, 1.07, 0.96, 1] }}
-        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ 
+          x: [0, 25, -15, 0], 
+          y: [0, -20, 15, 0], 
+          scale: [1, 1.15, 0.9, 1] 
+        }}
+        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
       />
-      {/* Secondary blob — indigo */}
+
+      {/* Secondary blob — indigo glow */}
       <motion.div
-        className="absolute rounded-full blur-3xl opacity-30"
+        className="absolute rounded-full blur-[60px] opacity-[0.25]"
         style={{
-          width: '55%', height: '55%',
-          background: 'radial-gradient(circle, #4F46E5aa 0%, #4F46E522 60%, transparent 100%)',
-          bottom: '0%', right: '0%',
+          width: '60%', height: '60%',
+          background: 'radial-gradient(circle, #4F46E5 0%, #4F46E533 60%, transparent 100%)',
+          bottom: '-10%', right: '-10%',
         }}
-        animate={{ x: [0, -12, 8, 0], y: [0, 8, -6, 0], scale: [1, 0.93, 1.05, 1] }}
-        transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 2.5 }}
+        animate={{ 
+          x: [0, -20, 12, 0], 
+          y: [0, 15, -10, 0], 
+          scale: [1, 0.9, 1.1, 1] 
+        }}
+        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+      />
+
+      {/* Tertiary subtle glow for depth */}
+      <div 
+        className="absolute inset-0 opacity-20"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, #ffffff11 0%, transparent 70%)'
+        }}
       />
     </div>
   );
@@ -163,7 +181,7 @@ function PendingCard({ camp, index }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden"
+      className="relative rounded-2xl overflow-hidden border border-white/5 shadow-2xl group transition-all duration-300 hover:border-white/10"
       style={{ minHeight: '200px' }}
     >
       <ShaderBlob />
@@ -206,7 +224,7 @@ function MetricCard({ camp, sub, index }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden"
+      className="relative rounded-2xl overflow-hidden border border-white/5 shadow-2xl transition-all duration-300 hover:border-white/10"
       style={{ minHeight: '380px' }}
     >
       {/* Shader blob background — unified dark purple */}
@@ -288,7 +306,7 @@ function MetricCard({ camp, sub, index }) {
 
         {/* Stat rows — vertical linear list */}
         {rows.length > 0 && (
-          <div className="flex-1 space-y-0 bg-white/5 rounded-xl border border-white/8 overflow-hidden">
+          <div className="flex-1 space-y-0 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
             {rows.map((row, i) => (
               <div
                 key={i}
@@ -312,7 +330,7 @@ function MetricCard({ camp, sub, index }) {
             href={sub.content_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-white/90 hover:bg-white text-slate-900 text-xs font-bold rounded-xl transition-all hover:shadow-lg hover:shadow-white/10"
+            className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-slate-50 text-slate-900 text-[11px] font-bold rounded-xl transition-all shadow-md active:scale-[0.98]"
           >
             <ExternalLink size={12} />
             View {isYouTube ? 'YouTube' : isInstagram ? 'Instagram' : ''} Post
