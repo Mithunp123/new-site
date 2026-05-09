@@ -37,10 +37,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const userId = user?.id;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard', userId],
     queryFn: () => getDashboard().then(r => r.data.data),
-    refetchInterval: 60000,
+    refetchInterval: 30000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     enabled: !!userId,
   });
 
@@ -63,8 +66,14 @@ export default function DashboardPage() {
           <X size={22} />
         </div>
         <h2 className="text-lg font-bold text-slate-900 mb-1">Failed to load dashboard</h2>
-        <p className="text-sm text-slate-500 mb-5 max-w-sm">Check if the server is running and the database is configured correctly.</p>
-        <button onClick={() => window.location.reload()} className="btn-primary">Try Again</button>
+        <p className="text-sm text-slate-500 mb-2 max-w-sm">
+          {error?.response?.data?.message || error?.message || 'Check if the server is running.'}
+        </p>
+        <p className="text-xs text-slate-400 mb-5">Status: {error?.response?.status || 'Network error'}</p>
+        <div className="flex gap-3">
+          <button onClick={() => refetch()} className="btn-primary">Try Again</button>
+          <button onClick={() => window.location.reload()} className="btn-secondary">Reload Page</button>
+        </div>
       </div>
     );
   }
@@ -199,9 +208,19 @@ export default function DashboardPage() {
 
           {/* New Requests */}
           <div className="card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Inbox size={17} className="text-amber-500" />
-              <h3 className="text-base font-semibold text-slate-900">New Requests</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Inbox size={17} className="text-amber-500" />
+                <h3 className="text-base font-semibold text-slate-900">New Requests</h3>
+                {d.pending_requests?.count > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                    {d.pending_requests.count}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => refetch()} className="text-xs text-slate-400 hover:text-[#2563EB] transition-colors">
+                ↻ Refresh
+              </button>
             </div>
             <div className="space-y-3">
               {d.new_requests?.length > 0 ? (

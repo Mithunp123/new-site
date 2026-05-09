@@ -69,18 +69,24 @@ function setupWebSocket(server) {
           if (!camp.length) return;
 
           const c = camp[0];
-          const allowed =
-            (senderType === 'brand' && c.brand_id === meta.userId) ||
-            (senderType === 'creator' && c.creator_id === meta.userId);
-          if (!allowed) return;
+          const isBrand = senderType === 'brand' && c.brand_id === meta.userId;
+          const isCreator = senderType === 'creator' && c.creator_id === meta.userId;
+          if (!isBrand && !isCreator) return;
 
-          // If sender is a brand, ensure they 'follow' (saved) the creator before allowing chat
-          if (senderType === 'brand') {
+          // Follow gate: brand must follow creator (saved). Creator can reply if brand follows them.
+          if (isBrand) {
             const [follows] = await pool.query(
               'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
               [meta.userId, c.creator_id]
             );
-            if (!follows.length) return; // silently ignore messages from brands who don't follow the creator
+            if (!follows.length) return; // silently ignore — brand doesn't follow creator
+          } else {
+            // Creator: brand must follow them
+            const [follows] = await pool.query(
+              'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+              [c.brand_id, meta.userId]
+            );
+            if (!follows.length) return; // silently ignore — brand doesn't follow creator
           }
 
           // Persist to DB

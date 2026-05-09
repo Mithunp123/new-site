@@ -29,6 +29,7 @@ import CollaborationRequests from './pages/brand/CollaborationRequests';
 import SendRequest from './pages/brand/SendRequest';
 import CampaignTracking from './pages/brand/CampaignTracking';
 import RoiAnalytics from './pages/brand/RoiAnalytics';
+import BrandMetrics from './pages/brand/Metrics';
 import LeadManagement from './pages/brand/LeadManagement';
 import BrandSettings from './pages/brand/Settings';
 import BrandChatPage from './pages/brand/ChatPage';
@@ -151,6 +152,7 @@ export default function App() {
             <Route path="/brand/requests" element={<ErrorBoundary><CollaborationRequests /></ErrorBoundary>} />
             <Route path="/brand/send-request" element={<ErrorBoundary><SendRequest /></ErrorBoundary>} />
             <Route path="/brand/campaign-tracking" element={<ErrorBoundary><CampaignTracking /></ErrorBoundary>} />
+            <Route path="/brand/metrics" element={<ErrorBoundary><BrandMetrics /></ErrorBoundary>} />
             <Route path="/brand/roi-analytics" element={<ErrorBoundary><RoiAnalytics /></ErrorBoundary>} />
             <Route path="/brand/lead-management" element={<ErrorBoundary><LeadManagement /></ErrorBoundary>} />
             <Route path="/brand/settings" element={<ErrorBoundary><BrandSettings /></ErrorBoundary>} />

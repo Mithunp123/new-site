@@ -43,6 +43,10 @@ router.put('/campaign/:campaignId/approve-content', brandController.approveConte
 router.put('/campaign/:campaignId/request-revision', brandController.requestRevision);
 router.put('/campaign/:campaignId/mark-live', brandController.markCampaignLive);
 router.put('/campaign/:campaignId/release-payment', brandController.releasePayment);
+router.put('/campaign/:campaignId/go-live', brandController.goLive);
+
+// Metrics
+router.get('/metrics', brandController.getLiveMetrics);
 
 // Analytics
 router.get('/roi-analytics', brandController.getROIAnalytics);

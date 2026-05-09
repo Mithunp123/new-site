@@ -45,3 +45,14 @@ export const markNotificationRead = (id) => api.patch(`/api/creator/notification
 // Social Profiles
 export const getSocialProfiles = () => api.get('/api/creator/social-profiles');
 export const upsertSocialProfile = (data) => api.post('/api/creator/social-profiles', data);
+
+// Negotiation
+export const submitNegotiation = (id, data) => api.post(`/api/campaign/${id}/negotiate`, data);
+export const acceptOffer = (id) => api.put(`/api/campaign/${id}/accept-offer`);
+
+// Multi-platform content upload
+export const uploadMultiContent = (id, submissions) =>
+  api.post(`/api/creator/campaigns/${id}/upload-content`, { submissions });
+
+// Bulk notifications
+export const markAllNotificationsRead = () => api.put('/api/notifications/read-all');

@@ -3,9 +3,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Check, X, ArrowRight, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
-import { getRequests, acceptCampaign, declineCampaign } from '../api/creatorApi';
+import {
+  getRequests,
+  acceptCampaign,
+  declineCampaign,
+  submitNegotiation,
+  acceptOffer,
+} from '../api/creatorApi';
 import { useCampaignSocket } from '../hooks/useCampaignSocket';
 import useAuthStore from '../store/authStore';
+import LottieIcon from '../components/ui/LottieIcon';
 
 const TABS = [
   { key: 'all',       label: 'All' },
@@ -21,17 +28,22 @@ const ACCEPTED_STATUSES = [
 ];
 
 export default function IncomingRequestsPage() {
-  const [activeTab, setActiveTab] = useState('all');
-  const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState(null);
+  const [activeTab, setActiveTab]           = useState('all');
+  const [search, setSearch]                 = useState('');
+  const [expandedId, setExpandedId]         = useState(null);
+  const [negotiatingId, setNegotiatingId]   = useState(null);
+  const [negotiateAmount, setNegotiateAmount] = useState('');
+  const [negotiateMessage, setNegotiateMessage] = useState('');
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
 
   const userId = useAuthStore(state => state.user?.id);
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests', userId, activeTab, search],
     queryFn: () => getRequests({ status: activeTab, search }).then(r => r.data.data),
+    refetchOnMount: 'always',
+    staleTime: 0,
     enabled: !!userId,
   });
 
@@ -50,6 +62,25 @@ export default function IncomingRequestsPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
+
+  const negotiateMut = useMutation({
+    mutationFn: ({ id, amount, message }) => submitNegotiation(id, { amount: Number(amount), message }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      setNegotiatingId(null);
+      setNegotiateAmount('');
+      setNegotiateMessage('');
+    },
+  });
+
+  const acceptOfferMut = useMutation({
+    mutationFn: (id) => acceptOffer(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+
   const counts    = data?.counts    || { pending: 0, accepted: 0, completed: 0, total: 0 };
   const campaigns = data?.campaigns || [];
   const campaignIds = data?.campaigns?.map(c => c.campaign_id) || [];
@@ -116,17 +147,22 @@ export default function IncomingRequestsPage() {
       <div className="space-y-3">
         {campaigns.length > 0 ? (
           campaigns.map(c => {
-            const isPending  = c.status === 'request_sent';
-            const isAccepted = ACCEPTED_STATUSES.includes(c.status);
-            const isDeclined = c.status === 'declined';
-            const isExpanded = expandedId === c.campaign_id;
+            const isPending    = c.status === 'request_sent';
+            const isNegotiating = c.status === 'negotiating';
+            const isAccepted   = ACCEPTED_STATUSES.includes(c.status);
+            const isDeclined   = c.status === 'declined';
+            const isExpanded   = expandedId === c.campaign_id;
+            const isNegForm    = negotiatingId === c.campaign_id;
 
-            const brandName  = c.brand_name || c.brand || 'Brand';
+            const brandName   = c.brand_name || c.brand || 'Brand';
             const deliverable = c.deliverable || c.content_type || '—';
-            const amount     = c.amount ?? c.campaign_amount ?? 0;
-            const respondBy  = c.respond_by
+            const amount      = c.amount ?? c.campaign_amount ?? 0;
+            const respondBy   = c.respond_by
               ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
               : null;
+
+            // Negotiations history (if available from detail query)
+            const negotiations = c.negotiations || [];
 
             return (
               <motion.div
@@ -134,9 +170,10 @@ export default function IncomingRequestsPage() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`card overflow-hidden border-l-4 ${
-                  isPending  ? 'border-l-red-400' :
-                  isAccepted ? 'border-l-emerald-400' :
-                  isDeclined ? 'border-l-slate-300' : 'border-l-slate-200'
+                  isPending    ? 'border-l-red-400' :
+                  isNegotiating ? 'border-l-amber-400' :
+                  isAccepted   ? 'border-l-emerald-400' :
+                  isDeclined   ? 'border-l-slate-300' : 'border-l-slate-200'
                 }`}
               >
                 <div className="p-5">
@@ -158,14 +195,17 @@ export default function IncomingRequestsPage() {
                           {isPending && respondBy && (
                             <span className="badge badge-red mt-1">Respond by {respondBy}</span>
                           )}
-                          {isAccepted && <span className="badge badge-green mt-1">✓ Accepted</span>}
+                          {isNegotiating && (
+                            <span className="badge badge-orange mt-1">Negotiating</span>
+                          )}
+                          {isAccepted && <span className="badge badge-green mt-1">Accepted</span>}
                           {isDeclined && <span className="badge badge-red mt-1">Declined</span>}
                         </div>
                       </div>
 
                       {/* Brief */}
                       <AnimatePresence>
-                        {(isPending || isExpanded) && c.brief && (
+                        {(isPending || isNegotiating || isExpanded) && c.brief && (
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
@@ -179,13 +219,96 @@ export default function IncomingRequestsPage() {
                       </AnimatePresence>
 
                       {/* Meta */}
-                      {(isPending || isExpanded) && (
+                      {(isPending || isNegotiating || isExpanded) && (
                         <div className="flex flex-wrap gap-4 mb-3 text-sm text-slate-500">
-                          {c.timeline_label && <span>📅 {c.timeline_label}</span>}
-                          {c.tracking_label  && <span>🔗 {c.tracking_label}</span>}
-                          {c.escrow_label    && <span>💰 {c.escrow_label}</span>}
+                          {c.timeline_label && (
+                            <span className="flex items-center gap-1">
+                              <LottieIcon name="calendar" size={14} />
+                              {c.timeline_label}
+                            </span>
+                          )}
+                          {c.tracking_label && (
+                            <span className="flex items-center gap-1">
+                              <LottieIcon name="link" size={14} />
+                              {c.tracking_label}
+                            </span>
+                          )}
+                          {c.escrow_label && (
+                            <span className="flex items-center gap-1">
+                              <LottieIcon name="money" size={14} />
+                              {c.escrow_label}
+                            </span>
+                          )}
                         </div>
                       )}
+
+                      {/* Negotiation history */}
+                      {isNegotiating && negotiations.length > 0 && (
+                        <div className="mb-3 space-y-2">
+                          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Negotiation History</p>
+                          {negotiations.map((neg, idx) => (
+                            <div key={neg.id || idx} className={`rounded-lg p-3 text-sm border ${neg.proposed_by === 'creator' ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-semibold text-slate-700 capitalize">{neg.proposed_by}</span>
+                                <span className="font-bold text-[#2563EB]">₹{Number(neg.amount).toLocaleString('en-IN')}</span>
+                              </div>
+                              {neg.message && <p className="text-slate-500 text-xs">{neg.message}</p>}
+                            </div>
+                          ))}
+                          {/* Latest offer amount */}
+                          {c.negotiate_amount && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                              <span className="text-amber-700 font-semibold">Current offer: </span>
+                              <span className="text-amber-900 font-bold">₹{Number(c.negotiate_amount).toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Negotiate inline form */}
+                      <AnimatePresence>
+                        {isNegForm && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mb-3 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+                          >
+                            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                              <LottieIcon name="handshake" size={16} />
+                              Submit Counter-Offer
+                            </p>
+                            <input
+                              type="number"
+                              placeholder="Proposed amount (₹)"
+                              value={negotiateAmount}
+                              onChange={e => setNegotiateAmount(e.target.value)}
+                              className="input w-full"
+                              min="1"
+                            />
+                            <textarea
+                              placeholder="Message (optional)"
+                              value={negotiateMessage}
+                              onChange={e => setNegotiateMessage(e.target.value)}
+                              className="input w-full resize-none"
+                              rows={2}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => negotiateMut.mutate({ id: c.campaign_id, amount: negotiateAmount, message: negotiateMessage })}
+                                disabled={!negotiateAmount || negotiateMut.isPending}
+                                className="btn-primary flex items-center gap-1"
+                              >
+                                <LottieIcon name="send" size={14} />
+                                {negotiateMut.isPending ? 'Submitting...' : 'Submit Offer'}
+                              </button>
+                              <button onClick={() => { setNegotiatingId(null); setNegotiateAmount(''); setNegotiateMessage(''); }} className="btn-ghost">
+                                <X size={14} /> Cancel
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       {/* Actions */}
                       <div className="flex flex-wrap items-center gap-2">
@@ -194,11 +317,17 @@ export default function IncomingRequestsPage() {
                             <button
                               onClick={() => acceptMut.mutate(c.campaign_id)}
                               disabled={acceptMut.isPending}
-                              className="btn-primary"
+                              className="btn-primary flex items-center gap-1"
                             >
                               <Check size={14} /> {acceptMut.isPending ? 'Accepting...' : 'Accept'}
                             </button>
-                            <button className="btn-secondary">Negotiate Rate</button>
+                            <button
+                              onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }}
+                              className="btn-secondary flex items-center gap-1"
+                            >
+                              <LottieIcon name="handshake" size={14} />
+                              Negotiate
+                            </button>
                             <button
                               onClick={() => declineMut.mutate(c.campaign_id)}
                               className="text-sm text-red-500 hover:text-red-600 font-medium px-2 py-1"
@@ -206,14 +335,32 @@ export default function IncomingRequestsPage() {
                               Decline
                             </button>
                           </>
+                        ) : isNegotiating ? (
+                          <>
+                            <button
+                              onClick={() => acceptOfferMut.mutate(c.campaign_id)}
+                              disabled={acceptOfferMut.isPending}
+                              className="btn-primary flex items-center gap-1"
+                            >
+                              <LottieIcon name="check" size={14} />
+                              {acceptOfferMut.isPending ? 'Accepting...' : 'Accept Offer'}
+                            </button>
+                            <button
+                              onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }}
+                              className="btn-secondary flex items-center gap-1"
+                            >
+                              <LottieIcon name="handshake" size={14} />
+                              Counter Offer
+                            </button>
+                          </>
                         ) : isAccepted ? (
                           <>
-                            <button onClick={() => navigate('/campaigns')} className="btn-primary">
+                            <button onClick={() => navigate('/campaigns')} className="btn-primary flex items-center gap-1">
                               View Campaign <ArrowRight size={14} />
                             </button>
                             <button
                               onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                              className="btn-secondary"
+                              className="btn-secondary flex items-center gap-1"
                             >
                               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                               {isExpanded ? 'Hide Brief' : 'View Brief'}
@@ -224,7 +371,7 @@ export default function IncomingRequestsPage() {
                         ) : (
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                            className="btn-secondary"
+                            className="btn-secondary flex items-center gap-1"
                           >
                             {isExpanded ? 'Hide Brief' : 'View Brief'}
                           </button>

@@ -50,3 +50,8 @@ export const fundEscrow = (data) => api.post('/api/brand/payments/fund-escrow', 
 // Notifications
 export const getBrandNotifications = () => api.get('/api/brand/notifications');
 export const markBrandNotificationRead = (id) => api.patch(`/api/brand/notifications/${id}/read`);
+
+// Go Live & Metrics
+export const goLive = (campaignId) => api.put(`/api/brand/campaign/${campaignId}/go-live`);
+export const getLiveMetrics = () => api.get('/api/brand/metrics');
+export const markAllBrandNotificationsRead = () => api.put('/api/notifications/read-all');

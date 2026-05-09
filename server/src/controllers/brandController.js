@@ -296,7 +296,7 @@ exports.sendCollaborationRequest = async (req, res, next) => {
   try {
     const { creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget_offer, tracking_link, deliverables_required } = req.body;
     
-    console.log('[DEBUG] sendCollaborationRequest received:', req.body);
+    console.log('[Campaign] sendCollaborationRequest received body keys:', Object.keys(req.body));
 
     // Validations
     const requiredFields = [
@@ -311,7 +311,6 @@ exports.sendCollaborationRequest = async (req, res, next) => {
     });
 
     if (missingFields.length > 0) {
-      console.log('[DEBUG] Missing fields:', missingFields);
       return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
     
@@ -394,7 +393,7 @@ exports.getCampaignTracking = async (req, res, next) => {
   try {
     const id = req.user.id;
     const [qfeatured] = await pool.query(`
-      SELECT c.id, c.title, c.status, cr.name AS creator_name
+      SELECT c.id, c.title, c.status, c.content_url, cr.name AS creator_name
       FROM campaigns c JOIN creators cr ON cr.id = c.creator_id
       WHERE c.brand_id = ? AND c.status != 'declined'
       ORDER BY
@@ -435,7 +434,8 @@ exports.getCampaignTracking = async (req, res, next) => {
     }
 
     const [qall] = await pool.query(`
-      SELECT c.id, c.title, c.status, c.escrow_amount AS spend, ca.reach, rt.roi_percentage, c.escrow_status,
+      SELECT c.id, c.title, c.status, c.escrow_amount AS spend, ca.reach, ca.views, ca.engagement_rate,
+             rt.roi_percentage, c.escrow_status,
              (SELECT COUNT(*) FROM campaigns c2 WHERE c2.title = c.title AND c2.brand_id = c.brand_id) AS creators_count,
              (SELECT COUNT(*) FROM campaign_analytics ca2 WHERE ca2.campaign_id = c.id) AS content_links_count
       FROM campaigns c
@@ -656,20 +656,20 @@ exports.approveContent = async (req, res, next) => {
     if (!camp.length) return error(res, 'Campaign not found', 404);
     if (camp[0].status !== 'content_uploaded') return error(res, 'No content to approve', 400);
 
+    // Set status to brand_approved — brand must then click "Go Live" to proceed
     await pool.query("UPDATE campaigns SET status='brand_approved', updated_at=NOW() WHERE id=? AND brand_id=?", [id, brand_id]);
-
     await pool.query(`
       UPDATE content_submissions SET status='approved', reviewed_at=NOW()
       WHERE campaign_id=? AND id = (SELECT max_id FROM (SELECT MAX(id) AS max_id FROM content_submissions WHERE campaign_id=?) AS tmp)
     `, [id, id]);
-
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'brand_approved', 'brand')", [id]);
 
     const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Content Approved', `${brand[0].name} approved your content for ${camp[0].title}`]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['creator', camp[0].creator_id, 'Content Approved', `${brand[0].name} approved your content for "${camp[0].title}". Waiting for brand to go live.`]);
 
     broadcastCampaignUpdate(id, { status: 'brand_approved', progress_step: 4 });
-    success(res, { status: 'brand_approved', campaign_id: id });
+    success(res, { status: 'brand_approved', message: 'Content approved. Click Go Live to release payment and close the campaign.' });
   } catch (err) {
     next(err);
   }
@@ -690,13 +690,18 @@ exports.requestRevision = async (req, res, next) => {
       WHERE campaign_id=? AND id = (SELECT max_id FROM (SELECT MAX(id) AS max_id FROM content_submissions WHERE campaign_id=?) AS tmp)
     `, [revision_note, id, id]);
 
-    await pool.query('UPDATE campaigns SET brand_rejection_reason=?, updated_at=NOW() WHERE id=?', [revision_note, id]);
+    // Set campaign status back to creator_accepted
+    await pool.query(
+      "UPDATE campaigns SET status = 'creator_accepted', brand_rejection_reason = ?, updated_at = NOW() WHERE id = ?",
+      [revision_note, id]
+    );
 
-    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'content_uploaded', 'brand', ?)", [id, 'Brand requested revision: ' + revision_note]);
+    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'creator_accepted', 'brand', ?)", [id, 'Brand requested revision: ' + revision_note]);
 
     const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
-    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Revision Requested', `${brand[0].name} requested changes to your content for "${camp[0].title}"`]);
+    await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Revision Requested', `${brand[0].name} requested changes to your content for "${camp[0].title}": ${revision_note}`]);
 
+    broadcastCampaignUpdate(id, { status: 'creator_accepted' });
     success(res, { message: 'Revision requested', revision_note });
   } catch (err) {
     next(err);
@@ -754,15 +759,16 @@ exports.releasePayment = async (req, res, next) => {
     const releasableStatuses = ['posted_live', 'analytics_collected'];
     if (!releasableStatuses.includes(camp[0].status)) return error(res, 'Campaign not ready for payment release', 400);
 
+    // Step 1: Release escrow
     await pool.query("UPDATE campaigns SET status='escrow_released', escrow_status='released', updated_at=NOW() WHERE id=?", [id]);
     await pool.query("UPDATE brand_payments SET payment_status='released' WHERE campaign_id=? AND brand_id=?", [id, brand_id]);
     await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'escrow_released', 'brand')", [id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
-      ['creator', camp[0].creator_id, 'Payment Released!', `Payment for "${camp[0].title}" has been released to your account.`]);
+      ['creator', camp[0].creator_id, 'Payment Released! 💰', `Payment for "${camp[0].title}" has been released to your account.`]);
 
     broadcastCampaignUpdate(id, { status: 'escrow_released', progress_step: 7, escrow_status: 'released' });
 
-    // Auto-close campaign after payment release
+    // Step 2: Auto-close campaign after 3 seconds
     setTimeout(async () => {
       try {
         const [current] = await pool.query('SELECT status FROM campaigns WHERE id=?', [id]);
@@ -770,11 +776,14 @@ exports.releasePayment = async (req, res, next) => {
           await pool.query("UPDATE campaigns SET status='campaign_closed', updated_at=NOW() WHERE id=?", [id]);
           await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'campaign_closed', 'system')", [id]);
           broadcastCampaignUpdate(id, { status: 'campaign_closed', progress_step: 8 });
+          console.log(`[Campaign] Campaign ${id} auto-closed after payment release`);
         }
-      } catch (e) { /* silent */ }
+      } catch (e) {
+        console.error(`[Campaign] Auto-close failed for campaign ${id}:`, e.message);
+      }
     }, 3000);
 
-    success(res, { status: 'escrow_released' });
+    success(res, { status: 'escrow_released', message: 'Payment released. Campaign will close automatically.' });
   } catch (err) { next(err); }
 };
 
@@ -1145,3 +1154,363 @@ exports.getCampaignSubmissions = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * PUT /api/brand/campaign/:campaignId/go-live
+ * Atomic action: approve content → post live → release escrow → close campaign → create earnings.
+ */
+exports.goLive = async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    const campaignId = req.params.campaignId;
+    const brand_id = req.user.id;
+
+    const [camps] = await conn.query('SELECT * FROM campaigns WHERE id = ?', [campaignId]);
+    if (!camps.length) { conn.release(); return error(res, 'Campaign not found', 404); }
+    const camp = camps[0];
+
+    if (camp.brand_id !== brand_id) { conn.release(); return error(res, 'Forbidden', 403); }
+    // Accept both content_uploaded (direct go-live) and brand_approved (after approve step)
+    if (!['content_uploaded', 'brand_approved'].includes(camp.status)) {
+      conn.release();
+      return error(res, 'Campaign must be in content_uploaded or brand_approved status to go live', 400);
+    }
+
+    await conn.beginTransaction();
+
+    // Step 1: posted_live
+    await conn.query("UPDATE campaigns SET status = 'posted_live', updated_at = NOW() WHERE id = ?", [campaignId]);
+
+    // Step 2: release escrow + close campaign
+    await conn.query(
+      "UPDATE campaigns SET escrow_status = 'released', status = 'campaign_closed', updated_at = NOW() WHERE id = ?",
+      [campaignId]
+    );
+
+    // Step 3: compute net_amount and upsert earnings
+    const commissionRate = Number(camp.commission_rate) || 10;
+    const budget = Number(camp.budget) || 0;
+    const commissionAmt = budget * (commissionRate / 100);
+    const netAmount = budget - commissionAmt;
+
+    await conn.query(
+      `INSERT INTO earnings (creator_id, campaign_id, gross_amount, commission_rate, commission_amt, net_amount, payment_status, released_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'released', NOW())
+       ON DUPLICATE KEY UPDATE payment_status = 'released', released_at = NOW(), net_amount = ?`,
+      [camp.creator_id, campaignId, budget, commissionRate, commissionAmt, netAmount, netAmount]
+    );
+
+    // Step 4: timeline
+    await conn.query(
+      "INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'campaign_closed', 'brand', 'Go Live — payment released')",
+      [campaignId]
+    );
+
+    // Step 5: notify creator
+    await conn.query(
+      'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['creator', camp.creator_id, 'Payment Released', `Your payment of ₹${netAmount.toFixed(2)} has been released. Campaign "${camp.title}" closed.`]
+    );
+
+    await conn.commit();
+    conn.release();
+
+    broadcastCampaignUpdate(campaignId, { status: 'campaign_closed' });
+
+    success(res, { status: 'campaign_closed', net_amount: netAmount });
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    conn.release();
+    next(err);
+  }
+};
+
+/**
+ * GET /api/brand/metrics
+ * Fetch live metrics from YouTube Data API v3 + YouTube Analytics API + Instagram Lens API.
+ *
+ * YouTube Data API v3 (youtube_date_key):
+ *   - Views, likes, comments, subscribers, video title, duration, upload date, thumbnail
+ *
+ * YouTube Analytics API (youtube_analytics_key):
+ *   - Watch time, CTR, audience retention, traffic sources, revenue (if monetised)
+ *   NOTE: Analytics API requires OAuth — if not available, we skip gracefully.
+ *
+ * Instagram Lens (INSTAGRAM_LENS_KEY via instagram-lens.p.rapidapi.com):
+ *   - Views/plays, likes, comments, shares, saves, engagement rate
+ */
+exports.getLiveMetrics = async (req, res, next) => {
+  try {
+    const brand_id = req.user.id;
+    const axios = require('axios');
+
+    // Fetch all live/closed campaigns for this brand
+    const [campaigns] = await pool.query(
+      `SELECT c.id, c.title, c.status, c.budget, c.platform AS campaign_platform,
+              cr.name AS creator_name
+       FROM campaigns c
+       JOIN creators cr ON cr.id = c.creator_id
+       WHERE c.brand_id = ? AND c.status IN ('posted_live', 'campaign_closed')
+       ORDER BY c.updated_at DESC`,
+      [brand_id]
+    );
+
+    const results = [];
+
+    for (const camp of campaigns) {
+      // Fetch content submissions for this campaign
+      const [subs] = await pool.query(
+        `SELECT id, platform, content_url, file_path
+         FROM content_submissions
+         WHERE campaign_id = ? AND (content_url IS NOT NULL OR file_path IS NOT NULL)
+         ORDER BY submitted_at DESC`,
+        [camp.id]
+      );
+
+      const submissionsWithStats = [];
+
+      for (const sub of subs) {
+        const url = sub.content_url || sub.file_path || '';
+        const platform = (sub.platform || detectPlatform(url)).toLowerCase();
+        let stats = null;
+
+        // ── YouTube ──────────────────────────────────────────────────────
+        if (platform === 'youtube') {
+          const videoId = extractYTVideoId(url);
+          if (!videoId) {
+            stats = { error: 'Could not extract YouTube video ID from URL' };
+          } else {
+            try {
+              // 1. YouTube Data API v3 — video statistics + snippet
+              const ytDataRes = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+                params: {
+                  part: 'statistics,snippet,contentDetails',
+                  id: videoId,
+                  key: process.env.youtube_date_key
+                },
+                timeout: 10000
+              });
+
+              const item = ytDataRes.data?.items?.[0];
+              if (!item) {
+                stats = { error: 'YouTube video not found or is private' };
+              } else {
+                const s = item.statistics;
+                const snippet = item.snippet;
+                const contentDetails = item.contentDetails;
+
+                const views       = Number(s.viewCount    || 0);
+                const likes       = Number(s.likeCount    || 0);
+                const comments    = Number(s.commentCount || 0);
+                const subscribers = Number(s.subscriberCount || 0);
+                const engRate     = views > 0 ? parseFloat(((likes + comments) / views * 100).toFixed(2)) : 0;
+
+                // Parse ISO 8601 duration (PT4M13S → "4:13")
+                const duration = parseDuration(contentDetails?.duration);
+
+                stats = {
+                  platform: 'youtube',
+                  // Data API v3 — real data
+                  views,
+                  likes,
+                  comments,
+                  subscribers,
+                  engagement_rate: engRate,
+                  video_title:    snippet?.title || null,
+                  channel_name:   snippet?.channelTitle || null,
+                  upload_date:    snippet?.publishedAt ? snippet.publishedAt.split('T')[0] : null,
+                  thumbnail:      snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || null,
+                  duration,
+                  video_url:      url,
+                  // Analytics API fields — fetched below if key available
+                  watch_time_minutes: null,
+                  avg_view_duration:  null,
+                  ctr:                null,
+                  impressions:        null,
+                  traffic_sources:    null,
+                  data_source: 'youtube_data_api_v3',
+                };
+
+                // 2. YouTube Analytics API — watch time, CTR, impressions, traffic sources
+                // NOTE: Analytics API requires OAuth 2.0 for channel-level data.
+                // We use the API key for public video-level analytics where available.
+                if (process.env.youtube_analytics_key) {
+                  try {
+                    const today = new Date().toISOString().split('T')[0];
+                    const startDate = snippet?.publishedAt
+                      ? snippet.publishedAt.split('T')[0]
+                      : '2020-01-01';
+
+                    const ytAnalyticsRes = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+                      params: {
+                        ids:        'channel==MINE',
+                        startDate,
+                        endDate:    today,
+                        metrics:    'estimatedMinutesWatched,averageViewDuration,impressions,impressionClickThroughRate',
+                        filters:    `video==${videoId}`,
+                        key:        process.env.youtube_analytics_key,
+                      },
+                      timeout: 10000
+                    });
+
+                    const rows = ytAnalyticsRes.data?.rows?.[0];
+                    if (rows) {
+                      stats.watch_time_minutes = Math.round(rows[0] || 0);
+                      stats.avg_view_duration  = Math.round(rows[1] || 0); // seconds
+                      stats.impressions        = Math.round(rows[2] || 0);
+                      stats.ctr                = rows[3] ? parseFloat((rows[3] * 100).toFixed(2)) : null; // as %
+                      stats.data_source        = 'youtube_data_api_v3+analytics';
+                    }
+                  } catch (analyticsErr) {
+                    // Analytics API requires OAuth — silently skip, Data API stats still shown
+                    console.log(`[Metrics] YouTube Analytics API skipped for video ${videoId}: ${analyticsErr.message}`);
+                  }
+                }
+              }
+            } catch (e) {
+              console.error(`[Metrics] YouTube Data API failed for ${url}:`, e.message);
+              stats = { error: 'YouTube data unavailable — API error or timeout' };
+            }
+          }
+        }
+
+        // ── Instagram ─────────────────────────────────────────────────────
+        else if (platform === 'instagram') {
+          const postUrl = normaliseInstagramUrl(url);
+          if (!postUrl) {
+            stats = { error: 'Could not parse Instagram post URL' };
+          } else {
+            try {
+              const igRes = await axios.request({
+                method: 'POST',
+                url: 'https://instagram-lens.p.rapidapi.com/post',
+                headers: {
+                  'x-rapidapi-key':  process.env.INSTAGRAM_LENS_KEY || process.env.RAPIDAPI_KEY,
+                  'x-rapidapi-host': 'instagram-lens.p.rapidapi.com',
+                  'Content-Type':    'application/json',
+                },
+                data:    { postUrl },
+                timeout: 15000,
+              });
+
+              const d = igRes.data;
+
+              // Instagram Lens returns different shapes — handle both
+              const views    = Number(d?.video_view_count || d?.play_count || d?.views || 0);
+              const likes    = Number(d?.like_count || d?.likes || d?.edge_media_preview_like?.count || 0);
+              const comments = Number(d?.comment_count || d?.comments || d?.edge_media_to_comment?.count || 0);
+              const shares   = Number(d?.share_count || d?.shares || 0);
+              const saves    = Number(d?.save_count  || d?.saves  || 0);
+
+              const base     = views > 0 ? views : likes * 10;
+              const engRate  = base > 0
+                ? parseFloat(((likes + comments + shares + saves) / base * 100).toFixed(2))
+                : 0;
+
+              // Caption / description
+              const caption  = d?.caption || d?.edge_media_to_caption?.edges?.[0]?.node?.text || null;
+              const postType = d?.product_type || d?.media_type || (views > 0 ? 'reel' : 'post');
+              const postDate = d?.taken_at_timestamp
+                ? new Date(d.taken_at_timestamp * 1000).toISOString().split('T')[0]
+                : (d?.timestamp ? d.timestamp.split('T')[0] : null);
+
+              if (views === 0 && likes === 0 && comments === 0) {
+                stats = { error: 'Instagram data unavailable — post may be private or API returned empty data' };
+              } else {
+                stats = {
+                  platform:        'instagram',
+                  views,
+                  likes,
+                  comments,
+                  shares,
+                  saves,
+                  engagement_rate: engRate,
+                  post_type:       postType,
+                  post_date:       postDate,
+                  caption:         caption ? caption.substring(0, 200) : null,
+                  post_url:        postUrl,
+                  data_source:     'instagram_lens_api',
+                };
+              }
+            } catch (e) {
+              console.error(`[Metrics] Instagram Lens API failed for ${url}:`, e.message);
+              stats = { error: 'Instagram data unavailable — API error or timeout' };
+            }
+          }
+        }
+
+        // ── Unknown platform ──────────────────────────────────────────────
+        else {
+          stats = { error: `Unsupported platform: ${platform || 'unknown'}` };
+        }
+
+        submissionsWithStats.push({
+          platform: sub.platform || platform,
+          content_url: url,
+          stats,
+        });
+      }
+
+      results.push({
+        campaign_id:    camp.id,
+        title:          camp.title,
+        status:         camp.status,
+        budget:         camp.budget,
+        creator_name:   camp.creator_name,
+        submissions:    submissionsWithStats,
+      });
+    }
+
+    success(res, results);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractYTVideoId(url) {
+  if (!url) return null;
+  const patterns = [
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function normaliseInstagramUrl(url) {
+  if (!url) return null;
+  // Ensure it's a full URL
+  if (!url.startsWith('http')) url = 'https://' + url;
+  // Strip query params and trailing slash for cleaner URL
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname.replace(/\/$/, '')}`;
+  } catch {
+    return url;
+  }
+}
+
+function detectPlatform(url) {
+  if (!url) return 'unknown';
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('instagram.com')) return 'instagram';
+  return 'unknown';
+}
+
+function parseDuration(iso) {
+  if (!iso) return null;
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return null;
+  const h = parseInt(m[1] || 0);
+  const min = parseInt(m[2] || 0);
+  const sec = parseInt(m[3] || 0);
+  if (h > 0) return `${h}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}

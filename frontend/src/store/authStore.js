@@ -51,6 +51,7 @@ const useAuthStore = create((set, get) => ({
       const res = await creatorApi.register(data);
       const { token, creator } = res.data.data;
       const sessionId = writeSession(token, creator, 'creator');
+      queryClient.clear();
       set({ token, user: creator, role: 'creator', sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role: 'creator' });
       return res.data;
@@ -67,6 +68,7 @@ const useAuthStore = create((set, get) => ({
       const res = await creatorApi.login(data);
       const { token, creator } = res.data.data;
       const sessionId = writeSession(token, creator, 'creator');
+      queryClient.clear(); // Clear any previous user's cached data
       set({ token, user: creator, role: 'creator', sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role: 'creator' });
       return res.data;
@@ -83,6 +85,7 @@ const useAuthStore = create((set, get) => ({
       const res = await brandApi.brandRegister(data);
       const { token, brand } = res.data.data;
       const sessionId = writeSession(token, brand, 'brand');
+      queryClient.clear();
       set({ token, user: brand, role: 'brand', sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role: 'brand' });
       return res.data;
@@ -99,6 +102,7 @@ const useAuthStore = create((set, get) => ({
       const res = await brandApi.brandLogin(data);
       const { token, brand } = res.data.data;
       const sessionId = writeSession(token, brand, 'brand');
+      queryClient.clear();
       set({ token, user: brand, role: 'brand', sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role: 'brand' });
       return res.data;
@@ -115,6 +119,7 @@ const useAuthStore = create((set, get) => ({
       const res = await creatorApi.unifiedLogin(data);
       const { token, user, role } = res.data.data;
       const sessionId = writeSession(token, user, role);
+      queryClient.clear();
       set({ token, user, role, sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role });
       return { user, role };
@@ -131,6 +136,7 @@ const useAuthStore = create((set, get) => ({
       const res = await creatorApi.googleLogin({ access_token: accessToken });
       const { token, user, role } = res.data.data;
       const sessionId = writeSession(token, user, role);
+      queryClient.clear();
       set({ token, user, role, sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role });
       return { user, role };
@@ -147,6 +153,7 @@ const useAuthStore = create((set, get) => ({
       const res = await adminApi.adminLogin(data);
       const { token, admin } = res.data.data;
       const sessionId = writeSession(token, admin, 'admin');
+      queryClient.clear();
       set({ token, user: admin, role: 'admin', sessionId, isAuthenticated: true, loading: false });
       bc?.postMessage({ type: 'LOGIN', role: 'admin' });
       return res.data;

@@ -2,59 +2,98 @@ const pool = require('../config/db');
 const { success, error } = require('../helpers/response');
 
 /**
- * Get all conversations (campaigns with messages) for the logged-in user.
- * Returns list of campaigns they can chat in, with last message preview.
+ * Get all conversations for the logged-in user.
+ *
+ * NEW FOLLOW GATE:
+ * - Brand sees conversations with all creators they follow (saved), regardless of campaign status.
+ * - Creator sees conversations with all brands that follow them (have saved them).
+ * - No campaign required to start a conversation — just a follow relationship.
+ *
+ * A "conversation" is identified by the brand-creator pair. If a campaign exists,
+ * we use the most recent active campaign_id as the thread identifier. If no campaign
+ * exists yet, we use a virtual conversation keyed by the follow relationship.
  */
 exports.getConversations = async (req, res, next) => {
   try {
     const { id, role } = req.user;
     const userType = role === 'brand' ? 'brand' : 'creator';
 
-    let query;
+    let rows;
+
     if (userType === 'brand') {
-      query = `
+      // Brand sees all creators they follow, with last message from any campaign thread
+      [rows] = await pool.query(`
         SELECT
-          c.id AS campaign_id,
-          c.title,
-          c.status,
-          cr.id AS other_user_id,
+          bsc.creator_id AS other_user_id,
           cr.name AS other_user_name,
           cr.profile_photo AS other_user_photo,
           'creator' AS other_user_type,
-          CASE WHEN bsc.id IS NOT NULL THEN true ELSE false END AS is_saved,
-          (SELECT message FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-          (SELECT created_at FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
-          (SELECT COUNT(*) FROM messages WHERE campaign_id=c.id AND sender_type='creator' AND is_read=false) AS unread_count
-        FROM campaigns c
-        JOIN creators cr ON cr.id = c.creator_id
-        LEFT JOIN brand_saved_creators bsc ON bsc.creator_id = cr.id AND bsc.brand_id = ?
-        WHERE c.brand_id = ?
-          AND c.status NOT IN ('request_sent', 'declined')
-        ORDER BY last_message_at DESC, c.updated_at DESC
-      `;
+          true AS is_following,
+          COALESCE(
+            (SELECT c.id FROM campaigns c WHERE c.brand_id = ? AND c.creator_id = bsc.creator_id
+             ORDER BY c.created_at DESC LIMIT 1),
+            NULL
+          ) AS campaign_id,
+          COALESCE(
+            (SELECT c.title FROM campaigns c WHERE c.brand_id = ? AND c.creator_id = bsc.creator_id
+             ORDER BY c.created_at DESC LIMIT 1),
+            CONCAT('Chat with ', cr.name)
+          ) AS title,
+          (SELECT m.message FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = ? AND c.creator_id = bsc.creator_id
+           ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+          (SELECT m.created_at FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = ? AND c.creator_id = bsc.creator_id
+           ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+          (SELECT COUNT(*) FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = ? AND c.creator_id = bsc.creator_id
+           AND m.sender_type = 'creator' AND m.is_read = false) AS unread_count
+        FROM brand_saved_creators bsc
+        JOIN creators cr ON cr.id = bsc.creator_id
+        WHERE bsc.brand_id = ?
+        ORDER BY last_message_at DESC, bsc.saved_at DESC
+      `, [id, id, id, id, id, id]);
     } else {
-      query = `
+      // Creator sees all brands that follow them (have saved them)
+      [rows] = await pool.query(`
         SELECT
-          c.id AS campaign_id,
-          c.title,
-          c.status,
-          b.id AS other_user_id,
+          bsc.brand_id AS other_user_id,
           b.name AS other_user_name,
           b.logo_url AS other_user_photo,
           'brand' AS other_user_type,
-          (SELECT message FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-          (SELECT created_at FROM messages WHERE campaign_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
-          (SELECT COUNT(*) FROM messages WHERE campaign_id=c.id AND sender_type='brand' AND is_read=false) AS unread_count
-        FROM campaigns c
-        JOIN brands b ON b.id = c.brand_id
-        WHERE c.creator_id = ?
-          AND c.status NOT IN ('request_sent', 'declined')
-        ORDER BY last_message_at DESC, c.updated_at DESC
-      `;
+          true AS is_following,
+          COALESCE(
+            (SELECT c.id FROM campaigns c WHERE c.brand_id = bsc.brand_id AND c.creator_id = ?
+             ORDER BY c.created_at DESC LIMIT 1),
+            NULL
+          ) AS campaign_id,
+          COALESCE(
+            (SELECT c.title FROM campaigns c WHERE c.brand_id = bsc.brand_id AND c.creator_id = ?
+             ORDER BY c.created_at DESC LIMIT 1),
+            CONCAT('Chat with ', b.name)
+          ) AS title,
+          (SELECT m.message FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = bsc.brand_id AND c.creator_id = ?
+           ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+          (SELECT m.created_at FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = bsc.brand_id AND c.creator_id = ?
+           ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+          (SELECT COUNT(*) FROM messages m
+           JOIN campaigns c ON c.id = m.campaign_id
+           WHERE c.brand_id = bsc.brand_id AND c.creator_id = ?
+           AND m.sender_type = 'brand' AND m.is_read = false) AS unread_count
+        FROM brand_saved_creators bsc
+        JOIN brands b ON b.id = bsc.brand_id
+        WHERE bsc.creator_id = ?
+        ORDER BY last_message_at DESC, bsc.saved_at DESC
+      `, [id, id, id, id, id, id]);
     }
 
-    const params = userType === 'brand' ? [id, id] : [id];
-    const [rows] = await pool.query(query, params);
     success(res, rows);
   } catch (err) {
     next(err);
@@ -62,7 +101,7 @@ exports.getConversations = async (req, res, next) => {
 };
 
 /**
- * Get all messages for a specific campaign.
+ * Get all messages for a specific campaign thread.
  * Also marks messages from the other party as read.
  */
 exports.getMessages = async (req, res, next) => {
@@ -83,6 +122,22 @@ exports.getMessages = async (req, res, next) => {
     const isCreator = userType === 'creator' && c.creator_id === id;
     if (!isBrand && !isCreator) return error(res, 'Forbidden', 403);
 
+    // Verify follow relationship
+    if (isBrand) {
+      const [follows] = await pool.query(
+        'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+        [id, c.creator_id]
+      );
+      if (!follows.length) return error(res, 'You must follow this creator to view messages', 403);
+    } else {
+      // Creator: verify the brand follows them
+      const [follows] = await pool.query(
+        'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+        [c.brand_id, id]
+      );
+      if (!follows.length) return error(res, 'The brand must follow you to exchange messages', 403);
+    }
+
     // Mark messages from the other party as read
     const otherType = userType === 'brand' ? 'creator' : 'brand';
     await pool.query(
@@ -90,7 +145,6 @@ exports.getMessages = async (req, res, next) => {
       [campaignId, otherType]
     );
 
-    // Fetch all messages
     const [messages] = await pool.query(
       'SELECT * FROM messages WHERE campaign_id=? ORDER BY created_at ASC',
       [campaignId]
@@ -104,6 +158,9 @@ exports.getMessages = async (req, res, next) => {
 
 /**
  * Send a message (REST fallback — WebSocket is primary).
+ *
+ * Gate: brand must follow (save) the creator. Creator can reply if brand follows them.
+ * No campaign required — but if no campaign exists, we create a placeholder thread.
  */
 exports.sendMessage = async (req, res, next) => {
   try {
@@ -125,10 +182,20 @@ exports.sendMessage = async (req, res, next) => {
     const isCreator = senderType === 'creator' && c.creator_id === id;
     if (!isBrand && !isCreator) return error(res, 'Forbidden', 403);
 
-    // If sender is a brand, ensure they 'follow' (saved) the creator before allowing chat
-    if (senderType === 'brand') {
-      const [follows] = await pool.query('SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?', [id, c.creator_id]);
-      if (!follows.length) return error(res, 'You must follow the creator to send messages', 403);
+    // Follow gate: brand must follow creator
+    if (isBrand) {
+      const [follows] = await pool.query(
+        'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+        [id, c.creator_id]
+      );
+      if (!follows.length) return error(res, 'You must follow this creator to send messages', 403);
+    } else {
+      // Creator: brand must follow them
+      const [follows] = await pool.query(
+        'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
+        [c.brand_id, id]
+      );
+      if (!follows.length) return error(res, 'The brand must follow you to exchange messages', 403);
     }
 
     const [result] = await pool.query(

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
-import { Search, CheckCircle2, Bookmark, Send, SlidersHorizontal, X, ShieldCheck } from 'lucide-react';
+import { Search, CheckCircle2, UserPlus, UserCheck, Send, SlidersHorizontal, X, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatCount, getAvatarColor, getInitials } from '../../utils/format';
 
@@ -163,15 +163,18 @@ const BrandDiscover = () => {
 
 const CreatorCard = ({ creator }) => {
   const navigate = useNavigate();
-  const [isSaved, setIsSaved] = useState(creator.is_saved);
+  const [isFollowing, setIsFollowing] = useState(creator.is_saved);
+  const [loading, setLoading] = useState(false);
 
-  const toggleSave = async (e) => {
+  const toggleFollow = async (e) => {
     e.stopPropagation();
+    setLoading(true);
     try {
-      if (isSaved) await api.delete(`/api/brand/creator/${creator.id}/save`);
+      if (isFollowing) await api.delete(`/api/brand/creator/${creator.id}/save`);
       else await api.post(`/api/brand/creator/${creator.id}/save`);
-      setIsSaved(!isSaved);
+      setIsFollowing(!isFollowing);
     } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   const followers = Number(creator.instagram_followers || creator.youtube_subscribers || creator.top_platform_stats?.followers_count || 0);
@@ -180,14 +183,18 @@ const CreatorCard = ({ creator }) => {
 
   return (
     <div className="card-hover p-5 relative flex flex-col h-full">
-      {/* Bookmark */}
+      {/* Follow / Unfollow button */}
       <button
-        onClick={toggleSave}
-        className={`absolute right-4 top-4 p-1.5 rounded-lg transition-all z-10 ${
-          isSaved ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-300 hover:text-slate-500'
+        onClick={toggleFollow}
+        disabled={loading}
+        className={`absolute right-4 top-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all z-10 disabled:opacity-50 ${
+          isFollowing
+            ? 'bg-[#7C3AED] text-white shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
         }`}
       >
-        <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-amber-500' : ''}`} />
+        {isFollowing ? <UserCheck size={13} /> : <UserPlus size={13} />}
+        {isFollowing ? 'Following' : 'Follow'}
       </button>
 
       {/* Creator info */}

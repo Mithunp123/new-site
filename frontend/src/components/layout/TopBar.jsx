@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Bell, Search, X } from 'lucide-react';
+import { Bell, Search } from 'lucide-react';
 import SessionManager from '../ui/SessionManager';
 import useAuthStore from '../../store/authStore';
 import * as creatorApi from '../../api/creatorApi';
 import * as brandApi from '../../api/brandApi';
+import { useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function TopBar() {
   const { role } = useAuthStore();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]               = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [readAllError, setReadAllError]   = useState('');
   const ref = useRef(null);
 
   useEffect(() => {
@@ -19,7 +21,6 @@ export default function TopBar() {
   }, []);
 
   useEffect(() => {
-    // Fetch notifications for current role
     const fetch = async () => {
       try {
         let res;
@@ -29,8 +30,6 @@ export default function TopBar() {
       } catch (e) { /* ignore */ }
     };
     fetch();
-    
-    // Poll every 30 seconds
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
   }, [role]);
@@ -42,6 +41,20 @@ export default function TopBar() {
       setNotifications(n => n.map(x => x.id === id ? { ...x, is_read: true } : x));
     } catch { }
   };
+
+  const markAllMut = useMutation({
+    mutationFn: () => {
+      if (role === 'brand') return brandApi.markAllBrandNotificationsRead();
+      return creatorApi.markAllNotificationsRead();
+    },
+    onSuccess: () => {
+      setNotifications(n => n.map(x => ({ ...x, is_read: true })));
+      setReadAllError('');
+    },
+    onError: () => setReadAllError('Failed to mark all as read'),
+  });
+
+  const hasUnread = notifications.some(n => !n.is_read);
 
   return (
     <header className="h-14 bg-white border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-40">
@@ -58,7 +71,7 @@ export default function TopBar() {
         <div className="relative">
           <button onClick={() => setOpen(v => !v)} className="relative p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
             <Bell size={17} />
-            {notifications.some(n => !n.is_read) && (
+            {hasUnread && (
               <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full" />
             )}
           </button>
@@ -66,7 +79,21 @@ export default function TopBar() {
           <AnimatePresence>
             {open && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.12 }} className="absolute right-0 mt-2 w-80 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 overflow-hidden">
-                <div className="p-3 border-b text-sm font-semibold">Notifications</div>
+                <div className="p-3 border-b flex items-center justify-between">
+                  <span className="text-sm font-semibold">Notifications</span>
+                  {hasUnread && (
+                    <button
+                      onClick={() => markAllMut.mutate()}
+                      disabled={markAllMut.isPending}
+                      className="text-xs text-blue-600 font-medium hover:underline"
+                    >
+                      {markAllMut.isPending ? 'Marking...' : 'Read All'}
+                    </button>
+                  )}
+                </div>
+                {readAllError && (
+                  <div className="px-3 py-1 text-xs text-red-500 bg-red-50">{readAllError}</div>
+                )}
                 <div className="max-h-64 overflow-y-auto">
                   {notifications.length === 0 && (
                     <div className="p-4 text-xs text-slate-500">No notifications</div>

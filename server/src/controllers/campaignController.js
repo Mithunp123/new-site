@@ -88,8 +88,10 @@ exports.getCampaignDetail = async (req, res, next) => {
 
     const [timeline] = await pool.query('SELECT * FROM campaign_timeline WHERE campaign_id = ? ORDER BY changed_at ASC', [id]);
     const [analytics] = await pool.query('SELECT * FROM campaign_analytics WHERE campaign_id = ?', [id]);
+    const [negotiations] = await pool.query('SELECT * FROM campaign_negotiations WHERE campaign_id = ? ORDER BY created_at ASC', [id]);
+    const [content_submissions] = await pool.query('SELECT * FROM content_submissions WHERE campaign_id = ? ORDER BY submitted_at DESC', [id]);
 
-    success(res, { campaign, timeline, analytics: analytics[0] });
+    success(res, { campaign, timeline, analytics: analytics[0], negotiations, content_submissions });
   } catch (err) {
     next(err);
   }
@@ -116,6 +118,122 @@ exports.raiseDispute = async (req, res, next) => {
 
     await pool.query("INSERT INTO disputes (campaign_id, raised_by_type, raised_by_id, reason, status) VALUES (?, 'creator', ?, ?, 'open')", [req.params.id, req.user.id, reason]);
     success(res, null, 'Dispute raised');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/campaign/:id/negotiate
+ * Submit a counter-offer (brand or creator).
+ */
+exports.submitNegotiation = async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const { amount, message } = req.body;
+
+    // Load campaign
+    const [camps] = await pool.query('SELECT * FROM campaigns WHERE id = ?', [id]);
+    if (!camps.length) return error(res, 'Campaign not found', 404);
+    const camp = camps[0];
+
+    // Verify caller is brand or creator of this campaign
+    if (req.user.id !== camp.brand_id && req.user.id !== camp.creator_id) {
+      return error(res, 'Forbidden', 403);
+    }
+
+    // Validate amount
+    if (!amount || Number(amount) <= 0) {
+      return error(res, 'Offer amount must be greater than zero', 400);
+    }
+
+    // Determine proposed_by from role
+    const proposed_by = req.user.role === 'brand' ? 'brand' : 'creator';
+
+    // Insert negotiation row
+    const [insertResult] = await pool.query(
+      'INSERT INTO campaign_negotiations (campaign_id, proposed_by, amount, message) VALUES (?, ?, ?, ?)',
+      [id, proposed_by, Number(amount), message || null]
+    );
+
+    // Update campaign status and negotiate_amount
+    await pool.query(
+      "UPDATE campaigns SET status = 'negotiating', negotiate_amount = ?, negotiate_message = ?, updated_at = NOW() WHERE id = ?",
+      [Number(amount), message || null, id]
+    );
+
+    // Insert timeline row
+    await pool.query(
+      "INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'negotiating', ?, ?)",
+      [id, proposed_by, `Counter-offer of ₹${amount} submitted`]
+    );
+
+    // Notify opposing party
+    const notifyType = proposed_by === 'brand' ? 'creator' : 'brand';
+    const notifyId   = proposed_by === 'brand' ? camp.creator_id : camp.brand_id;
+    await pool.query(
+      'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      [notifyType, notifyId, 'New Counter-Offer', `A new counter-offer of ₹${amount} has been submitted for "${camp.title}"`]
+    );
+
+    broadcastCampaignUpdate(id, { status: 'negotiating' });
+
+    success(res, { negotiation_id: insertResult.insertId, status: 'negotiating' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * PUT /api/campaign/:id/accept-offer
+ * Accept the current negotiation offer.
+ */
+exports.acceptOffer = async (req, res, next) => {
+  try {
+    const id = req.params.id;
+
+    // Load campaign
+    const [camps] = await pool.query('SELECT * FROM campaigns WHERE id = ?', [id]);
+    if (!camps.length) return error(res, 'Campaign not found', 404);
+    const camp = camps[0];
+
+    // Verify caller
+    if (req.user.id !== camp.brand_id && req.user.id !== camp.creator_id) {
+      return error(res, 'Forbidden', 403);
+    }
+
+    // Verify status
+    if (camp.status !== 'negotiating') {
+      return error(res, 'No active negotiation', 400);
+    }
+
+    const agreedAmount = camp.negotiate_amount;
+
+    // Update campaign
+    await pool.query(
+      "UPDATE campaigns SET status = 'creator_accepted', budget = ?, updated_at = NOW() WHERE id = ?",
+      [agreedAmount, id]
+    );
+
+    // Insert timeline row
+    await pool.query(
+      "INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'creator_accepted', ?, ?)",
+      [id, req.user.role, `Offer of ₹${agreedAmount} accepted`]
+    );
+
+    // Notify both parties
+    await pool.query(
+      'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['brand', camp.brand_id, 'Offer Accepted', `The negotiation for "${camp.title}" has concluded. Agreed amount: ₹${agreedAmount}`]
+    );
+    await pool.query(
+      'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
+      ['creator', camp.creator_id, 'Offer Accepted', `The negotiation for "${camp.title}" has concluded. Agreed amount: ₹${agreedAmount}`]
+    );
+
+    broadcastCampaignUpdate(id, { status: 'creator_accepted' });
+
+    success(res, { status: 'creator_accepted', agreed_amount: agreedAmount });
   } catch (err) {
     next(err);
   }

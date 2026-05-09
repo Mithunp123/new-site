@@ -21,6 +21,12 @@ import {
   Compass,
   TrendingUp,
   MessageCircle,
+  CalendarDays,
+  Link2,
+  CheckCircle2,
+  Handshake,
+  Send,
+  Star,
 } from 'lucide-react';
 
 const ICONS = {
@@ -38,6 +44,12 @@ const ICONS = {
   trending: TrendingUp,
   message: MessageCircle,
   warning: AlertTriangle,
+  calendar:  CalendarDays,
+  link:      Link2,
+  check:     CheckCircle2,
+  handshake: Handshake,
+  send:      Send,
+  star:      Star,
 };
 
 // ── Minimal Lottie JSON animations ─────────────────────────────────────────

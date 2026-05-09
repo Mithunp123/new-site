@@ -15,6 +15,7 @@ const mainNav = [
 ];
 
 const analyticsNav = [
+  { to: '/brand/metrics',         lottie: 'chart',    label: 'Metrics' },
   { to: '/brand/roi-analytics',   lottie: 'trending', label: 'ROI Analytics' },
   { to: '/brand/lead-management', lottie: 'target',   label: 'Leads' },
 ];

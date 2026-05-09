@@ -12,5 +12,7 @@ router.put('/:id/decline', campaignController.declineCampaign);
 router.put('/:id/upload-content', upload.single('content'), campaignController.uploadContent);
 router.get('/:id/analytics', campaignController.getAnalytics);
 router.post('/:id/dispute', campaignController.raiseDispute);
+router.post('/:id/negotiate', campaignController.submitNegotiation);
+router.put('/:id/accept-offer', campaignController.acceptOffer);
 
 module.exports = router;

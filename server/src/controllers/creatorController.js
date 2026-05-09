@@ -138,7 +138,7 @@ exports.getCampaigns = async (req, res, next) => {
         b.logo_url AS brand_logo
       FROM campaigns c
       JOIN brands b ON b.id = c.brand_id
-      WHERE c.creator_id = ? AND c.status NOT IN ('request_sent','declined')
+      WHERE c.creator_id = ? AND c.status NOT IN ('request_sent','declined','campaign_closed')
       ORDER BY c.updated_at DESC
     `, [creator_id]);
 
@@ -173,28 +173,42 @@ exports.uploadContent = async (req, res, next) => {
     const campaignId = req.params.campaignId;
     const creatorId = req.user.id;
 
-    // Accept either a file upload OR a content_url in the JSON body
-    const contentUrl = req.file ? req.file.path : req.body?.content_url;
-    if (!contentUrl) return error(res, 'No content provided. Upload a file or provide a content_url.', 400);
+    // New multi-URL submission format: { submissions: [{ platform, content_url }] }
+    const submissions = req.body?.submissions;
+
+    if (!submissions || !Array.isArray(submissions) || submissions.length === 0) {
+      return error(res, 'No submissions provided. Send { submissions: [{ platform, content_url }] }', 400);
+    }
 
     const [camp] = await pool.query(
-      'SELECT status FROM campaigns WHERE id = ? AND creator_id = ?',
+      'SELECT status, brand_id, title FROM campaigns WHERE id = ? AND creator_id = ?',
       [campaignId, creatorId]
     );
     if (!camp.length) return error(res, 'Campaign not found', 404);
 
-    const allowedStatuses = ['agreement_locked', 'escrow_locked', 'creator_accepted', 'content_uploaded'];
+    const allowedStatuses = ['agreement_locked', 'creator_accepted', 'content_uploaded'];
     if (!allowedStatuses.includes(camp[0].status)) {
       return error(res, `Cannot upload content in status: ${camp[0].status}`, 400);
     }
 
+    // Validate all URLs before inserting any
+    for (const sub of submissions) {
+      if (!sub.content_url || !/^https?:\/\//i.test(sub.content_url)) {
+        return error(res, 'Invalid URL format', 400);
+      }
+    }
+
+    // Insert one row per submission
+    for (const sub of submissions) {
+      await pool.query(
+        "INSERT INTO content_submissions (campaign_id, creator_id, platform, content_url, file_path, status) VALUES (?, ?, ?, ?, NULL, 'submitted')",
+        [campaignId, creatorId, sub.platform || null, sub.content_url]
+      );
+    }
+
     await pool.query(
-      "INSERT INTO content_submissions (campaign_id, creator_id, file_path, status) VALUES (?, ?, ?, 'submitted') ON DUPLICATE KEY UPDATE file_path=?, status='submitted', submitted_at=NOW()",
-      [campaignId, creatorId, contentUrl, contentUrl]
-    );
-    await pool.query(
-      "UPDATE campaigns SET status='content_uploaded', content_url=?, updated_at=NOW() WHERE id=?",
-      [contentUrl, campaignId]
+      "UPDATE campaigns SET status = 'content_uploaded', updated_at = NOW() WHERE id = ?",
+      [campaignId]
     );
     await pool.query(
       "INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, 'content_uploaded', 'creator')",
@@ -202,17 +216,17 @@ exports.uploadContent = async (req, res, next) => {
     );
 
     // Notify brand
-    const [campaign] = await pool.query('SELECT brand_id, title FROM campaigns WHERE id=?', [campaignId]);
-    const [creator] = await pool.query('SELECT name FROM creators WHERE id=?', [creatorId]);
-    if (campaign.length && creator.length) {
+    const [creator] = await pool.query('SELECT name FROM creators WHERE id = ?', [creatorId]);
+    if (camp.length && creator.length) {
       await pool.query(
         'INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)',
-        ['brand', campaign[0].brand_id, 'Content Uploaded', `${creator[0].name} uploaded content for review: ${campaign[0].title}`]
+        ['brand', camp[0].brand_id, 'Content Uploaded', `${creator[0].name} uploaded content for review: ${camp[0].title}`]
       );
     }
 
-    success(res, { content_url: contentUrl, status: 'content_uploaded' });
-    broadcastCampaignUpdate(campaignId, { status: 'content_uploaded', progress_step: 3, content_url: contentUrl });
+    broadcastCampaignUpdate(campaignId, { status: 'content_uploaded' });
+
+    success(res, { submitted_count: submissions.length, status: 'content_uploaded' });
   } catch (err) { next(err); }
 };
 

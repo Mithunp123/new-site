@@ -24,15 +24,19 @@ export default function Sidebar() {
   const navigate = useNavigate();
 
   const { data: requestsData } = useQuery({
-    queryKey: ['requests', 'pending'],
+    queryKey: ['requests', user?.id, 'pending'],
     queryFn: () => getRequests({ status: 'pending' }).then(r => r.data.data),
-    enabled: !!user,
+    refetchOnMount: 'always',
+    staleTime: 0,
+    enabled: !!user?.id,
   });
 
   const { data: collabData } = useQuery({
-    queryKey: ['creator-active-collabs'],
+    queryKey: ['creator-active-collabs', user?.id],
     queryFn: () => api.get('/api/creator/campaigns?status=active').then(r => r.data.data),
-    enabled: !!user,
+    refetchOnMount: 'always',
+    staleTime: 0,
+    enabled: !!user?.id,
   });
 
   const pendingCount = requestsData?.counts?.pending || 0;
