@@ -357,32 +357,89 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, display_name, bio, location, languages_known, phone, upi_id,
+    const { 
+      name, display_name, bio, location, languages_known, phone, upi_id,
       instagram_url, instagram_followers, instagram_avg_views, instagram_er,
-      youtube_url, youtube_subscribers, youtube_avg_views, youtube_er } = req.body;
+      youtube_url, youtube_subscribers, youtube_avg_views, youtube_er,
+      twitter_url, twitter_followers,
+      tiktok_url, tiktok_followers,
+      linkedin_url, linkedin_followers,
+      category, expected_budget
+    } = req.body;
 
-    // Update basic creator profile
-    await pool.query(
-      'UPDATE creators SET name=?, display_name=?, bio=?, location=?, languages_known=?, phone=?, upi_id=? WHERE id=?',
-      [name, display_name, bio, location, JSON.stringify(languages_known || []), phone, upi_id || null, req.user.id]
-    );
+    console.log('[updateProfile] creator_id:', req.user.id, 'body keys:', Object.keys(req.body));
+    console.log('[updateProfile] instagram_url:', instagram_url, 'followers:', instagram_followers);
+    console.log('[updateProfile] youtube_url:', youtube_url, 'subscribers:', youtube_subscribers);
 
-    // Upsert social profiles when provided (non-fatal if fails)
+    // 1. Update basic creator profile (only update name/phone if provided)
+    const updateFields = [];
+    const updateParams = [];
+
+    if (name) { updateFields.push('name=?'); updateParams.push(name); }
+    if (display_name) { updateFields.push('display_name=?'); updateParams.push(display_name); }
+    if (bio) { updateFields.push('bio=?'); updateParams.push(bio); }
+    if (location) { updateFields.push('location=?'); updateParams.push(location); }
+    if (languages_known) { updateFields.push('languages_known=?'); updateParams.push(JSON.stringify(languages_known)); }
+    if (phone) { updateFields.push('phone=?'); updateParams.push(phone); }
+    if (upi_id) { updateFields.push('upi_id=?'); updateParams.push(upi_id); }
+    if (expected_budget) { updateFields.push('expected_budget=?'); updateParams.push(expected_budget); }
+
+    if (updateFields.length > 0) {
+      await pool.query(
+        `UPDATE creators SET ${updateFields.join(', ')} WHERE id=?`,
+        [...updateParams, req.user.id]
+      );
+    }
+
+    // 2. Upsert social profiles
     try {
-      if (instagram_url !== undefined) {
+      if (instagram_url !== undefined && instagram_url !== null && instagram_url !== '') {
         await pool.query(
           'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?, avg_views=?, engagement_rate=?',
-          [req.user.id, 'instagram', instagram_url || null, instagram_followers || 0, instagram_avg_views || 0, instagram_er || 0, instagram_url || null, instagram_followers || 0, instagram_avg_views || 0, instagram_er || 0]
+          [req.user.id, 'instagram', instagram_url, parseInt(instagram_followers) || 0, parseInt(instagram_avg_views) || 0, parseFloat(instagram_er) || 0, instagram_url, parseInt(instagram_followers) || 0, parseInt(instagram_avg_views) || 0, parseFloat(instagram_er) || 0]
+        );
+        console.log('[updateProfile] ✓ Instagram saved: followers=', instagram_followers);
+      }
+      if (youtube_url !== undefined && youtube_url !== null && youtube_url !== '') {
+        await pool.query(
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?, avg_views=?, engagement_rate=?',
+          [req.user.id, 'youtube', youtube_url, parseInt(youtube_subscribers) || 0, parseInt(youtube_avg_views) || 0, parseFloat(youtube_er) || 0, youtube_url, parseInt(youtube_subscribers) || 0, parseInt(youtube_avg_views) || 0, parseFloat(youtube_er) || 0]
+        );
+        console.log('[updateProfile] ✓ YouTube saved: subscribers=', youtube_subscribers);
+      }
+      if (twitter_url !== undefined && twitter_url !== null && twitter_url !== '') {
+        await pool.query(
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?',
+          [req.user.id, 'twitter', twitter_url, twitter_followers || 0, twitter_url, twitter_followers || 0]
         );
       }
-      if (youtube_url !== undefined) {
+      if (tiktok_url !== undefined && tiktok_url !== null && tiktok_url !== '') {
         await pool.query(
-          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?, avg_views=?, engagement_rate=?',
-          [req.user.id, 'youtube', youtube_url || null, youtube_subscribers || 0, youtube_avg_views || 0, youtube_er || 0, youtube_url || null, youtube_subscribers || 0, youtube_avg_views || 0, youtube_er || 0]
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?',
+          [req.user.id, 'tiktok', tiktok_url, tiktok_followers || 0, tiktok_url, tiktok_followers || 0]
+        );
+      }
+      if (linkedin_url !== undefined && linkedin_url !== null && linkedin_url !== '') {
+        await pool.query(
+          'INSERT INTO creator_social_profiles (creator_id, platform, profile_url, followers_count) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_url=?, followers_count=?',
+          [req.user.id, 'linkedin', linkedin_url, linkedin_followers || 0, linkedin_url, linkedin_followers || 0]
         );
       }
     } catch (e) {
       console.error('Failed to upsert social profiles:', e.message);
+    }
+
+    // 3. Upsert niche details (category)
+    if (category) {
+      try {
+        const catArray = Array.isArray(category) ? category : [category];
+        await pool.query(
+          'INSERT INTO creator_niche_details (creator_id, categories) VALUES (?, ?) ON DUPLICATE KEY UPDATE categories=?',
+          [req.user.id, JSON.stringify(catArray), JSON.stringify(catArray)]
+        );
+      } catch (e) {
+        console.error('Failed to upsert niche details:', e.message);
+      }
     }
 
     success(res, null, 'Profile updated');

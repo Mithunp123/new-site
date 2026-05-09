@@ -59,17 +59,12 @@ exports.getCreators = async (req, res, next) => {
     let where = 'WHERE 1=1';
     const params = [];
 
-    if (status === 'verified') where += ' AND is_verified=true AND is_active=true';
-    else if (status === 'unverified') where += ' AND is_verified=false AND is_active=true';
-    else if (status === 'inactive') where += ' AND is_active=false';
-    let statusFilter = '';
-
-    if (status === 'verified') statusFilter = 'is_verified=true AND is_active=true';
-    else if (status === 'unverified') statusFilter = 'is_verified=false AND is_active=true';
-    else if (status === 'inactive') statusFilter = 'is_active=false';
+    if (status === 'verified') where += ' AND cr.is_verified=true AND cr.is_active=true';
+    else if (status === 'unverified') where += ' AND cr.is_verified=false AND cr.is_active=true';
+    else if (status === 'inactive') where += ' AND cr.is_active=false';
 
     if (search) {
-      where += ' AND (name LIKE ? OR email LIKE ?)';
+      where += ' AND (cr.name LIKE ? OR cr.email LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -78,10 +73,12 @@ exports.getCreators = async (req, res, next) => {
       nd.categories AS category,
       COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram'), 0) AS instagram_followers,
       COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='youtube'), 0) AS youtube_followers,
+      (SELECT profile_url FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram' LIMIT 1) AS instagram_url,
+      (SELECT profile_url FROM creator_social_profiles WHERE creator_id=cr.id AND platform='youtube' LIMIT 1) AS youtube_url,
       (SELECT GROUP_CONCAT(platform) FROM creator_social_profiles WHERE creator_id=cr.id) AS platforms
       FROM creators cr
       LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
-      ${where} ${statusFilter ? ` AND ${statusFilter}` : ''} ORDER BY cr.created_at DESC LIMIT ? OFFSET ?
+      ${where} ORDER BY cr.created_at DESC LIMIT ? OFFSET ?
     `;
 
     const [creators] = await pool.query(query, [...params, parseInt(limit), parseInt(offset)]);
@@ -96,7 +93,7 @@ exports.getCreators = async (req, res, next) => {
       verification_status: r.is_active === 0 ? 'inactive' : (r.is_verified ? 'verified' : 'unverified')
     }));
 
-    const [count] = await pool.query(`SELECT COUNT(*) AS total FROM creators cr LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id ${where} ${statusFilter ? ` AND ${statusFilter}` : ''}`, params);
+    const [count] = await pool.query(`SELECT COUNT(*) AS total FROM creators cr LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id ${where}`, params);
     success(res, { total: count[0].total, page: parseInt(page), limit: parseInt(limit), creators: formattedCreators });
   } catch (err) {
     next(err);

@@ -49,7 +49,7 @@ export default function SocialProfilesPage() {
     if (!username) { setMsg('Invalid Instagram URL'); return; }
     setMsg('Fetching Instagram stats...');
     try {
-      const res = await fetch(`/api/social/instagram?username=${encodeURIComponent(username)}`);
+      const res = await fetch(`http://localhost:3000/api/social/instagram?username=${encodeURIComponent(username)}`);
       const body = await res.json();
       const d = body.data || body;
       if (d) setIg(prev => ({ ...prev, followers_count: d.followers || prev.followers_count, avg_views: d.avg_views || prev.avg_views, engagement_rate: d.engagement_rate || prev.engagement_rate, is_verified: d.is_verified ?? prev.is_verified }));
@@ -62,7 +62,7 @@ export default function SocialProfilesPage() {
     if (!result) { setMsg('Invalid YouTube URL/handle'); return; }
     setMsg('Fetching YouTube stats...');
     try {
-      const res = await fetch(`/api/social/youtube?type=${encodeURIComponent(result.type)}&identifier=${encodeURIComponent(result.id)}`);
+      const res = await fetch(`http://localhost:3000/api/social/youtube?type=${encodeURIComponent(result.type)}&identifier=${encodeURIComponent(result.id)}`);
       const body = await res.json();
       const d = body.data || body;
       if (d) setYt(prev => ({ ...prev, followers_count: d.subscribers || prev.followers_count, avg_views: d.avg_views || prev.avg_views, engagement_rate: d.engagement_rate || prev.engagement_rate }));

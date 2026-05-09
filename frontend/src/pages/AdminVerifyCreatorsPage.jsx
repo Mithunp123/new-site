@@ -163,11 +163,25 @@ const CreatorCard = ({ creator, onApprove, onReject, processing }) => {
               </div>
               <div>
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">IG Followers</p>
-                <p className="text-xs font-bold text-pink-600">{igFollowers > 0 ? formatCount(igFollowers) : '—'}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold text-pink-600">{igFollowers > 0 ? formatCount(igFollowers) : '—'}</p>
+                  {creator.instagram_url && (
+                    <a href={creator.instagram_url} target="_blank" rel="noopener noreferrer" className="text-pink-400 hover:text-pink-600">
+                      <Eye size={10} />
+                    </a>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">YT Subscribers</p>
-                <p className="text-xs font-bold text-red-600">{ytFollowers > 0 ? formatCount(ytFollowers) : '—'}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold text-red-600">{ytFollowers > 0 ? formatCount(ytFollowers) : '—'}</p>
+                  {creator.youtube_url && (
+                    <a href={creator.youtube_url} target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-600">
+                      <Eye size={10} />
+                    </a>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Joined</p>
