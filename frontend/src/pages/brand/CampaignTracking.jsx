@@ -215,27 +215,29 @@ const CampaignTracking = () => {
           </div>
 
           {/* Stepper — 7 steps, numbered circles only */}
-          <div className="relative flex justify-between items-start">
-            <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 z-0" />
-            {STEPS.map((step, i) => {
-              const isDone    = i < featuredStep;
-              const isCurrent = i === featuredStep;
-              return (
-                <div key={i} className="flex flex-col items-center gap-2 relative z-10" style={{ width: `${100 / STEPS.length}%` }}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                    isDone    ? 'bg-[#7C3AED] border-[#7C3AED] text-white' :
-                    isCurrent ? 'bg-white border-[#7C3AED] text-[#7C3AED] shadow-md shadow-purple-100' :
-                    'bg-white border-slate-200 text-slate-400'
-                  }`}>
-                    <span className="text-xs font-bold">{i + 1}</span>
+          {featured.status !== 'campaign_closed' && (
+            <div className="relative flex justify-between items-start">
+              <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 z-0" />
+              {STEPS.map((step, i) => {
+                const isDone    = i < featuredStep;
+                const isCurrent = i === featuredStep;
+                return (
+                  <div key={i} className="flex flex-col items-center gap-2 relative z-10" style={{ width: `${100 / STEPS.length}%` }}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                      isDone    ? 'bg-[#7C3AED] border-[#7C3AED] text-white' :
+                      isCurrent ? 'bg-white border-[#7C3AED] text-[#7C3AED] shadow-md shadow-purple-100' :
+                      'bg-white border-slate-200 text-slate-400'
+                    }`}>
+                      <span className="text-xs font-bold">{i + 1}</span>
+                    </div>
+                    <p className={`text-[9px] font-semibold text-center leading-tight uppercase tracking-tight ${
+                      isDone || isCurrent ? 'text-[#7C3AED]' : 'text-slate-400'
+                    }`}>{step}</p>
                   </div>
-                  <p className={`text-[9px] font-semibold text-center leading-tight uppercase tracking-tight ${
-                    isDone || isCurrent ? 'text-[#7C3AED]' : 'text-slate-400'
-                  }`}>{step}</p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Negotiation history — shown when negotiating */}
           {featured.status === 'negotiating' && negotiations.length > 0 && (

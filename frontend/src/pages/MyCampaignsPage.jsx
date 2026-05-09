@@ -179,7 +179,7 @@ export default function MyCampaignsPage() {
           </div>
 
           {/* 7-step progress stepper — pass status directly */}
-          <ProgressStepper status={featured.status} />
+          {featured.status !== 'campaign_closed' && <ProgressStepper status={featured.status} />}
 
           {/* Upload content — only when escrow is locked */}
           {canUpload(featured) && (

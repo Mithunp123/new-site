@@ -392,10 +392,13 @@ exports.getCollaborationRequests = async (req, res, next) => {
 exports.getCampaignTracking = async (req, res, next) => {
   try {
     const id = req.user.id;
+
+    // Only show active campaigns — exclude closed/declined/released
     const [qfeatured] = await pool.query(`
       SELECT c.id, c.title, c.status, c.content_url, cr.name AS creator_name
       FROM campaigns c JOIN creators cr ON cr.id = c.creator_id
-      WHERE c.brand_id = ? AND c.status != 'declined'
+      WHERE c.brand_id = ?
+        AND c.status NOT IN ('declined', 'campaign_closed', 'escrow_released')
       ORDER BY
         CASE c.status
           WHEN 'content_uploaded'    THEN 1
@@ -403,10 +406,9 @@ exports.getCampaignTracking = async (req, res, next) => {
           WHEN 'brand_approved'      THEN 3
           WHEN 'posted_live'         THEN 4
           WHEN 'analytics_collected' THEN 5
-          WHEN 'agreement_locked'    THEN 6
-          WHEN 'escrow_released'     THEN 7
-          WHEN 'campaign_closed'     THEN 8
-          ELSE 9
+          WHEN 'negotiating'         THEN 6
+          WHEN 'agreement_locked'    THEN 7
+          ELSE 8
         END ASC,
         c.updated_at DESC
       LIMIT 1
@@ -433,6 +435,7 @@ exports.getCampaignTracking = async (req, res, next) => {
       };
     }
 
+    // Only show active campaigns in the table — exclude closed/declined/released
     const [qall] = await pool.query(`
       SELECT c.id, c.title, c.status, c.escrow_amount AS spend, ca.reach, ca.views, ca.engagement_rate,
              rt.roi_percentage, c.escrow_status,
@@ -442,6 +445,7 @@ exports.getCampaignTracking = async (req, res, next) => {
       LEFT JOIN campaign_analytics ca ON ca.campaign_id = c.id
       LEFT JOIN roi_tracking rt ON rt.campaign_id = c.id
       WHERE c.brand_id = ?
+        AND c.status NOT IN ('declined', 'campaign_closed', 'escrow_released')
       ORDER BY c.created_at DESC
     `, [id]);
 
