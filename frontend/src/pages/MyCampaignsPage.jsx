@@ -17,6 +17,7 @@ const pct = (status) => {
     'creator_accepted':    Math.round((2 / 7) * 100),
     'agreement_locked':    Math.round((3 / 7) * 100),
     'content_uploaded':    Math.round((4 / 7) * 100),
+    'revision_requested':  Math.round((4 / 7) * 100),
     'brand_approved':      Math.round((5 / 7) * 100),
     'posted_live':         Math.round((6 / 7) * 100),
     'analytics_collected': Math.round((6 / 7) * 100),
@@ -75,11 +76,11 @@ export default function MyCampaignsPage() {
   const safeAmount      = (c) => Number(c.campaign_amount ?? c.amount ?? 0).toLocaleString('en-IN');
   const safeEscrow      = (c) => c.escrow_status || c.escrow || 'pending';
 
-  // Can upload when escrow is locked (agreement_locked) or creator_accepted
+  // Can upload only when escrow is locked, or when brand requested a revision
   const canUpload = (c) =>
     c.status === 'agreement_locked' ||
     c.status === 'escrow_locked' ||
-    c.status === 'creator_accepted';
+    c.status === 'revision_requested';
 
   if (isLoading) {
     return (
@@ -181,17 +182,28 @@ export default function MyCampaignsPage() {
           {/* 7-step progress stepper — pass status directly */}
           {featured.status !== 'campaign_closed' && <ProgressStepper status={featured.status} />}
 
-          {/* Upload content — only when escrow is locked */}
+          {/* Upload content — only when escrow is locked or revision requested */}
           {canUpload(featured) && (
             uploadingId === (featured.campaign_id || featured.id)
               ? <UploadSection campaignId={featured.campaign_id || featured.id} />
               : (
-                <div className="mt-5">
+                <div className="mt-5 space-y-3">
+                  {/* Revision note banner — shown when brand requested corrections */}
+                  {featured.status === 'revision_requested' && featured.brand_rejection_reason && (
+                    <div className="rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 flex items-start gap-3">
+                      <span className="text-orange-500 mt-0.5 flex-shrink-0">⚠</span>
+                      <div>
+                        <p className="text-sm font-semibold text-orange-800 mb-0.5">Brand requested corrections</p>
+                        <p className="text-sm text-orange-700">{featured.brand_rejection_reason}</p>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => setUploadingId(featured.campaign_id || featured.id)}
                     className="btn-primary flex items-center gap-2"
                   >
-                    <Upload size={15} /> Upload Content Links
+                    <Upload size={15} />
+                    {featured.status === 'revision_requested' ? 'Re-upload Content' : 'Upload Content Links'}
                   </button>
                 </div>
               )
@@ -203,6 +215,8 @@ export default function MyCampaignsPage() {
               <p className="text-sm text-slate-500">
                 {featured.status === 'request_sent' || featured.status === 'negotiating'
                   ? 'Waiting for negotiation to complete and escrow to be locked.'
+                  : featured.status === 'creator_accepted'
+                  ? 'Waiting for brand to lock escrow before you can upload content.'
                   : featured.status === 'content_uploaded'
                   ? 'Content submitted. Waiting for brand review.'
                   : featured.status === 'brand_approved' || featured.status === 'posted_live'
@@ -280,7 +294,8 @@ export default function MyCampaignsPage() {
                             onClick={() => setUploadingId(cId)}
                             className="text-xs text-[#2563EB] font-medium hover:underline flex items-center gap-1"
                           >
-                            <Upload size={12} /> Upload
+                            <Upload size={12} />
+                            {c.status === 'revision_requested' ? 'Re-upload' : 'Upload'}
                           </button>
                         )}
                       </td>

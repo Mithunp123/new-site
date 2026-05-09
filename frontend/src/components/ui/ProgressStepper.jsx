@@ -18,6 +18,7 @@ const STATUS_TO_STEP = {
   'creator_accepted':    1,
   'agreement_locked':    2,
   'content_uploaded':    3,
+  'revision_requested':  3,
   'brand_approved':      4,
   'posted_live':         5,
   'analytics_collected': 5,

@@ -27,6 +27,7 @@ const STATUS_STEP = {
   'creator_accepted':    2,
   'agreement_locked':    3,
   'content_uploaded':    4,
+  'revision_requested':  4,
   'brand_approved':      4,
   'posted_live':         5,
   'analytics_collected': 5,
@@ -52,23 +53,33 @@ const CampaignTracking = () => {
 
   const lockEscrowMut = useMutation({
     mutationFn: (id) => api.post('/api/brand/payments/fund-escrow', { campaign_id: id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-detail-tracking'] });
+    },
   });
 
   const approveMut = useMutation({
     mutationFn: (id) => api.put(`/api/brand/campaign/${id}/approve-content`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-detail-tracking'] });
+    },
   });
 
   const goLiveMut = useMutation({
     mutationFn: (id) => goLive(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-detail-tracking'] });
+    },
   });
 
   const rejectMut = useMutation({
     mutationFn: ({ id, reason }) => api.put(`/api/brand/campaign/${id}/request-revision`, { revision_note: reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaign-tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-detail-tracking'] });
       setShowRejectInput(false);
       setRejectReason('');
     },
@@ -80,23 +91,26 @@ const CampaignTracking = () => {
   const { data: featuredDetail } = useQuery({
     queryKey: ['campaign-detail-tracking', featured?.id],
     queryFn: async () => {
-      const res = await api.get(`/api/campaign/${featured.id}/detail`);
+      const res = await api.get(`/api/campaign/${featured.id}`);
       return res.data.data;
     },
     enabled: !!featured?.id,
     staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const contentSubmissions = featuredDetail?.content_submissions || [];
   const negotiations       = featuredDetail?.negotiations || [];
 
-  // Group content submissions by platform
-  const submissionsByPlatform = contentSubmissions.reduce((acc, sub) => {
-    const key = sub.platform || 'other';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(sub);
-    return acc;
-  }, {});
+  // Group content submissions by platform — only include URL-based submissions
+  const submissionsByPlatform = contentSubmissions
+    .filter(sub => sub.content_url)
+    .reduce((acc, sub) => {
+      const key = sub.platform || 'other';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(sub);
+      return acc;
+    }, {});
 
   const allIds = (tracking?.all_campaigns || []).map(c => c.id).filter(Boolean);
   if (featured?.id) allIds.unshift(featured.id);
@@ -137,6 +151,12 @@ const CampaignTracking = () => {
       loading: goLiveMut.isPending,
       color: 'amber',
       secondary: true,
+    };
+
+    if (status === 'revision_requested') return {
+      msg: 'Revision requested. Waiting for creator to re-upload corrected content.',
+      color: 'amber',
+      isInfo: true,
     };
 
     if (status === 'brand_approved') return {
@@ -265,7 +285,7 @@ const CampaignTracking = () => {
               {Object.entries(submissionsByPlatform).map(([platform, subs]) => (
                 <div key={platform} className="mb-3 last:mb-0">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 capitalize">{platform}</p>
-                  {subs.map((sub, idx) => (
+                  {subs.filter(sub => sub.content_url).map((sub, idx) => (
                     <a
                       key={sub.id || idx}
                       href={sub.content_url}
@@ -397,6 +417,7 @@ const StatusBadge = ({ status }) => {
   const map = {
     brand_approved:      'badge-green',
     content_uploaded:    'badge-orange',
+    revision_requested:  'badge-red',
     request_sent:        'badge-blue',
     creator_accepted:    'badge-purple',
     agreement_locked:    'badge-purple',
@@ -408,9 +429,9 @@ const StatusBadge = ({ status }) => {
     declined:            'badge-red',
   };
   const labels = {
-    brand_approved: 'Approved', content_uploaded: 'In Review', request_sent: 'Brief Sent',
-    creator_accepted: 'Accepted', agreement_locked: 'Active', negotiating: 'Negotiating',
-    posted_live: 'Live', analytics_collected: 'Metrics In',
+    brand_approved: 'Approved', content_uploaded: 'In Review', revision_requested: 'Revision',
+    request_sent: 'Brief Sent', creator_accepted: 'Accepted', agreement_locked: 'Active',
+    negotiating: 'Negotiating', posted_live: 'Live', analytics_collected: 'Metrics In',
     escrow_released: 'Paid', campaign_closed: 'Closed', declined: 'Declined',
   };
   return <span className={`badge ${map[status] || 'badge-gray'}`}>{labels[status] || 'Active'}</span>;

@@ -5,6 +5,7 @@ const statusMap = {
   agreement_locked:    { label: 'Active',           cls: 'bg-emerald-50 text-emerald-700' },
   escrow_locked:       { label: 'Escrow Locked',    cls: 'bg-indigo-50 text-indigo-700' },
   content_uploaded:    { label: 'In Review',        cls: 'bg-amber-50 text-amber-700' },
+  revision_requested:  { label: 'Revision',          cls: 'bg-red-50 text-red-700' },
   brand_approved:      { label: 'Approved',         cls: 'bg-emerald-50 text-emerald-700' },
   posted_live:         { label: 'Live',             cls: 'bg-emerald-50 text-emerald-700' },
   analytics_collected: { label: 'Metrics In',       cls: 'bg-blue-50 text-blue-700' },

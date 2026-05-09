@@ -150,6 +150,7 @@ exports.getCampaigns = async (req, res, next) => {
         c.budget AS campaign_amount,
         c.content_type AS deliverable,
         c.deadline,
+        c.brand_rejection_reason,
         b.name AS brand_name,
         b.logo_url AS brand_logo
       FROM campaigns c
@@ -202,7 +203,8 @@ exports.uploadContent = async (req, res, next) => {
     );
     if (!camp.length) return error(res, 'Campaign not found', 404);
 
-    const allowedStatuses = ['agreement_locked', 'creator_accepted', 'content_uploaded'];
+    // Only allow upload after escrow is locked; also allow re-upload on revision
+    const allowedStatuses = ['agreement_locked', 'escrow_locked', 'content_uploaded', 'revision_requested'];
     if (!allowedStatuses.includes(camp[0].status)) {
       return error(res, `Cannot upload content in status: ${camp[0].status}`, 400);
     }
@@ -214,10 +216,10 @@ exports.uploadContent = async (req, res, next) => {
       }
     }
 
-    // Insert one row per submission
+    // Insert one row per submission (file_path omitted — URL-based submissions have no file)
     for (const sub of submissions) {
       await pool.query(
-        "INSERT INTO content_submissions (campaign_id, creator_id, platform, content_url, file_path, status) VALUES (?, ?, ?, ?, NULL, 'submitted')",
+        "INSERT INTO content_submissions (campaign_id, creator_id, platform, content_url, status) VALUES (?, ?, ?, ?, 'submitted')",
         [campaignId, creatorId, sub.platform || null, sub.content_url]
       );
     }

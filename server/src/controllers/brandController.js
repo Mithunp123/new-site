@@ -708,18 +708,18 @@ exports.requestRevision = async (req, res, next) => {
       WHERE campaign_id=? AND id = (SELECT max_id FROM (SELECT MAX(id) AS max_id FROM content_submissions WHERE campaign_id=?) AS tmp)
     `, [revision_note, id, id]);
 
-    // Set campaign status back to creator_accepted
+    // Set campaign status to revision_requested so creator sees the correction note
     await pool.query(
-      "UPDATE campaigns SET status = 'creator_accepted', brand_rejection_reason = ?, updated_at = NOW() WHERE id = ?",
+      "UPDATE campaigns SET status = 'revision_requested', brand_rejection_reason = ?, updated_at = NOW() WHERE id = ?",
       [revision_note, id]
     );
 
-    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'creator_accepted', 'brand', ?)", [id, 'Brand requested revision: ' + revision_note]);
+    await pool.query("INSERT INTO campaign_timeline (campaign_id, status, changed_by, note) VALUES (?, 'revision_requested', 'brand', ?)", [id, 'Brand requested revision: ' + revision_note]);
 
     const [brand] = await pool.query('SELECT name FROM brands WHERE id=?', [brand_id]);
     await pool.query('INSERT INTO notifications (user_type, user_id, title, message) VALUES (?, ?, ?, ?)', ['creator', camp[0].creator_id, 'Revision Requested', `${brand[0].name} requested changes to your content for "${camp[0].title}": ${revision_note}`]);
 
-    broadcastCampaignUpdate(id, { status: 'creator_accepted' });
+    broadcastCampaignUpdate(id, { status: 'revision_requested' });
     success(res, { message: 'Revision requested', revision_note });
   } catch (err) {
     next(err);
