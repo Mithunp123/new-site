@@ -129,7 +129,7 @@ export default function IncomingRequestsPage() {
               }`}
             >
               {tab.label}
-              <span className={`ml-1.5 text-xs ${activeTab === tab.key ? 'text-[#2563EB]' : 'text-slate-400'}`}>
+              <span className={`ml-1.5 text-xs ${activeTab === tab.key ? 'text-blue-600' : 'text-slate-400'}`}>
                 ({tab.key === 'all' ? counts.total : counts[tab.key] || 0})
               </span>
             </button>
@@ -188,7 +188,7 @@ export default function IncomingRequestsPage() {
                 <div className="p-5">
                   <div className="flex flex-wrap items-start gap-4">
                     {/* Avatar */}
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-[#2563EB] text-sm flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-blue-600 text-sm flex-shrink-0">
                       {c.brand_initials || brandName?.[0]?.toUpperCase() || 'B'}
                     </div>
 
@@ -200,7 +200,7 @@ export default function IncomingRequestsPage() {
                           <p className="text-sm text-slate-400 mt-0.5">{deliverable}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-xl font-bold text-[#2563EB]">₹{Number(amount).toLocaleString('en-IN')}</p>
+                          <p className="text-xl font-bold text-blue-600">₹{Number(amount).toLocaleString('en-IN')}</p>
                           {isPending && respondBy && (
                             <span className="badge badge-red mt-1">Respond by {respondBy}</span>
                           )}
@@ -259,7 +259,7 @@ export default function IncomingRequestsPage() {
                             <div key={neg.id || idx} className={`rounded-lg p-3 text-sm border ${neg.proposed_by === 'creator' ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-semibold text-slate-700 capitalize">{neg.proposed_by}</span>
-                                <span className="font-bold text-[#2563EB]">₹{Number(neg.amount).toLocaleString('en-IN')}</span>
+                                <span className="font-bold text-blue-600">₹{Number(neg.amount).toLocaleString('en-IN')}</span>
                               </div>
                               {neg.message && <p className="text-slate-500 text-xs">{neg.message}</p>}
                             </div>

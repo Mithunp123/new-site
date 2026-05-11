@@ -84,14 +84,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!socialProfiles) return;
-    const rows = Array.isArray(socialProfiles) ? socialProfiles : [];
-    const instagram = rows.find(r => r.platform === 'instagram');
-    const youtube = rows.find(r => r.platform === 'youtube');
+    const profiles = socialProfiles.profiles || []; const accounts = socialProfiles.accounts || null;
+    const instagram = accounts || profiles.find(r => r.platform === 'instagram');
+    const youtube = profiles.find(r => r.platform === 'youtube');
     setSocialForm({
-      instagram_url: instagram?.profile_url || '',
+      instagram_url: instagram?.instagram_username ? `https://www.instagram.com/${instagram.instagram_username}` : (instagram?.profile_url || ''),
       instagram_username: instagram?.instagram_username || '',
       instagram_profile_picture: instagram?.instagram_profile_picture || '',
-      instagram_followers: instagram?.followers_count || '',
+      instagram_followers: instagram?.instagram_followers ?? instagram?.followers_count ?? '',
       instagram_avg_views: instagram?.avg_views || '',
       instagram_er: instagram?.engagement_rate || '',
       instagram_verified: !!instagram?.is_verified,

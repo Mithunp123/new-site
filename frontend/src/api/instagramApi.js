@@ -1,7 +1,8 @@
 import api from './axios';
 
 export const getInstagramProfile = () => api.get('/instagram/profile');
-export const getInstagramMedia = () => api.get('/instagram/media');
+export const getInstagramReels = () => api.get('/instagram/reels');
+export const getReelInsights = (mediaId) => api.get(`/instagram/reel-insights/${mediaId}`);
 export const saveCurrentInstagramConnection = () => api.post('/instagram/save-current');
 export const disconnectInstagram = () => api.post('/instagram/disconnect');
 

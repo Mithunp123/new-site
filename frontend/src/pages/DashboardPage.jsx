@@ -116,7 +116,7 @@ export default function DashboardPage() {
                 <Briefcase size={17} className="text-[#2563EB]" />
                 <h2 className="text-base font-semibold text-slate-900">Active Campaigns</h2>
               </div>
-              <a href="/campaigns" className="text-sm text-[#2563EB] font-medium hover:underline flex items-center gap-1">
+              <a href="/campaigns" className="text-sm text-blue-600 font-medium hover:underline flex items-center gap-1">
                 View all <ArrowRight size={14} />
               </a>
             </div>
@@ -233,14 +233,14 @@ export default function DashboardPage() {
                     className="p-4 bg-slate-50 rounded-xl border border-slate-100"
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-[#2563EB] text-sm">
+                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-blue-600 text-sm">
                         {r.brand_name?.[0]}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-900 truncate">{r.brand_name}</p>
                         <p className="text-[11px] text-slate-400 truncate">{r.deliverable}</p>
                       </div>
-                      <span className="text-sm font-bold text-[#2563EB]">₹{r.amount?.toLocaleString('en-IN')}</span>
+                      <span className="text-sm font-bold text-blue-600">₹{r.amount?.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex gap-2">
                       <button

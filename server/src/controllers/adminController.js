@@ -71,11 +71,22 @@ exports.getCreators = async (req, res, next) => {
     const query = `
       SELECT cr.id, cr.name, cr.email, cr.phone, cr.location, cr.is_verified, cr.is_active, cr.created_at,
       nd.categories AS category,
-      COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram'), 0) AS instagram_followers,
+      COALESCE(
+        (SELECT instagram_followers FROM creator_social_accounts WHERE creator_id=cr.id AND instagram_connected=true),
+        (SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram'),
+        0
+      ) AS instagram_followers,
       COALESCE((SELECT followers_count FROM creator_social_profiles WHERE creator_id=cr.id AND platform='youtube'), 0) AS youtube_followers,
-      (SELECT profile_url FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram' LIMIT 1) AS instagram_url,
+      COALESCE(
+        (SELECT CONCAT('https://www.instagram.com/', instagram_username) FROM creator_social_accounts WHERE creator_id=cr.id AND instagram_connected=true),
+        (SELECT profile_url FROM creator_social_profiles WHERE creator_id=cr.id AND platform='instagram' LIMIT 1)
+      ) AS instagram_url,
       (SELECT profile_url FROM creator_social_profiles WHERE creator_id=cr.id AND platform='youtube' LIMIT 1) AS youtube_url,
-      (SELECT GROUP_CONCAT(platform) FROM creator_social_profiles WHERE creator_id=cr.id) AS platforms
+      (SELECT GROUP_CONCAT(DISTINCT platform) FROM (
+        SELECT platform FROM creator_social_profiles WHERE creator_id=cr.id
+        UNION
+        SELECT 'instagram' AS platform FROM creator_social_accounts WHERE creator_id=cr.id AND instagram_connected=true
+      ) AS combined_platforms) AS platforms
       FROM creators cr
       LEFT JOIN creator_niche_details nd ON nd.creator_id = cr.id
       ${where} ORDER BY cr.created_at DESC LIMIT ? OFFSET ?
@@ -105,13 +116,22 @@ exports.getCreatorById = async (req, res, next) => {
     const id = req.params.id;
     const [cr] = await pool.query('SELECT * FROM creators WHERE id=?', [id]);
     const [sp] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id=?', [id]);
+    const [sa] = await pool.query('SELECT * FROM creator_social_accounts WHERE creator_id=?', [id]);
     const [nd] = await pool.query('SELECT * FROM creator_niche_details WHERE creator_id=?', [id]);
     const [cam] = await pool.query('SELECT c.*, b.name AS brand_name FROM campaigns c JOIN brands b ON b.id=c.brand_id WHERE creator_id=? ORDER BY c.created_at DESC LIMIT 10', [id]);
     const [ear] = await pool.query('SELECT COALESCE(SUM(net_amount),0) AS total_earned, COUNT(*) AS campaigns_done FROM earnings WHERE creator_id=?', [id]);
     const [fla] = await pool.query('SELECT * FROM creator_flags WHERE creator_id=?', [id]);
     
     const { password_hash, ...creator } = cr[0];
-    success(res, { creator, social_profiles: sp, niche_details: nd[0], campaigns: cam, earnings: ear[0], flags: fla });
+    success(res, { 
+      creator, 
+      social_profiles: sp, 
+      social_accounts: sa[0] || null,
+      niche_details: nd[0], 
+      campaigns: cam, 
+      earnings: ear[0], 
+      flags: fla 
+    });
   } catch (err) {
     next(err);
   }
@@ -146,7 +166,11 @@ exports.fakeCheck = async (req, res, next) => {
     const creatorId = req.params.id;
     const { auto_flag, reason } = req.body;
 
-    const [profiles] = await pool.query('SELECT platform, followers_count, avg_views, engagement_rate FROM creator_social_profiles WHERE creator_id=?', [creatorId]);
+    const [profiles] = await pool.query(`
+      SELECT platform, followers_count, avg_views, engagement_rate FROM creator_social_profiles WHERE creator_id=?
+      UNION
+      SELECT 'instagram' as platform, instagram_followers as followers_count, 0 as avg_views, 0 as engagement_rate FROM creator_social_accounts WHERE creator_id=? AND instagram_connected=true
+    `, [creatorId, creatorId]);
     if (!profiles.length) return success(res, { suspicious: false, reason: 'No social profiles found' });
 
     const issues = [];

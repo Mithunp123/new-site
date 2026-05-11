@@ -107,9 +107,9 @@ html { scroll-behavior: smooth; }
 .brand-theme .btn-primary:active { transform: scale(.98); }
 
 /* Override common blue utility usages inside brand pages */
-.brand-theme [class*="text-[#2563EB]"] { color: var(--purple) !important; }
-.brand-theme [class*="bg-[#2563EB]"] { background-color: var(--purple) !important; }
-.brand-theme [class*="border-[#2563EB]"] { border-color: var(--purple) !important; }
+.brand-theme [class*="text-[#2563EB]"], .brand-theme [class*="text-blue-600"] { color: var(--purple) !important; }
+.brand-theme [class*="bg-[#2563EB]"], .brand-theme [class*="bg-blue-600"] { background-color: var(--purple) !important; }
+.brand-theme [class*="border-[#2563EB]"], .brand-theme [class*="border-blue-600"] { border-color: var(--purple) !important; }
 .brand-theme .shadow-blue { box-shadow: 0 4px 16px rgba(124,58,237,0.25); }
 
 /* ── BUTTONS ──────────────────────────────────────── */

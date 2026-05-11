@@ -393,10 +393,17 @@ exports.getProfile = async (req, res, next) => {
     const [rows] = await pool.query('SELECT id, name, email, phone, display_name, bio, location, languages_known, profile_photo, is_verified, role, upi_id FROM creators WHERE id = ?', [req.user.id]);
     if (rows.length === 0) return error(res, 'Creator not found', 404);
     
+    const [socialAccounts] = await pool.query('SELECT * FROM creator_social_accounts WHERE creator_id = ?', [req.user.id]);
+    const [socialProfiles] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id = ?', [req.user.id]);
+    
     const creator = rows[0];
     if (creator.languages_known) creator.languages_known = typeof creator.languages_known === 'string' ? JSON.parse(creator.languages_known) : creator.languages_known;
     
-    success(res, creator);
+    success(res, { 
+      ...creator, 
+      social_accounts: socialAccounts[0] || null,
+      social_profiles: socialProfiles
+    });
   } catch (err) { next(err); }
 };
 
@@ -522,8 +529,9 @@ exports.deactivateAccount = async (req, res, next) => {
 // Social & Niche
 exports.getSocialProfiles = async (req, res, next) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id=?', [req.user.id]);
-    success(res, rows);
+    const [profiles] = await pool.query('SELECT * FROM creator_social_profiles WHERE creator_id=?', [req.user.id]);
+    const [accounts] = await pool.query('SELECT * FROM creator_social_accounts WHERE creator_id=?', [req.user.id]);
+    success(res, { profiles, accounts: accounts[0] || null });
   } catch (err) { next(err); }
 };
 
@@ -707,10 +715,11 @@ exports.getAnalytics = async (req, res, next) => {
     `, [id]);
 
     // Audience demographics (from social profiles as proxy)
-    const [social] = await pool.query(
-      'SELECT platform, followers_count, engagement_rate FROM creator_social_profiles WHERE creator_id=?',
-      [id]
-    );
+    const [social] = await pool.query(`
+      SELECT platform, followers_count, engagement_rate FROM creator_social_profiles WHERE creator_id=?
+      UNION
+      SELECT 'instagram' as platform, instagram_followers as followers_count, 0 as engagement_rate FROM creator_social_accounts WHERE creator_id=? AND instagram_connected=true
+    `, [id, id]);
 
     const ctr = totals[0].total_views > 0
       ? ((totals[0].total_clicks / totals[0].total_views) * 100).toFixed(1)

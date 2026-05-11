@@ -49,7 +49,10 @@ export default function MyCampaignsPage() {
     staleTime: 60000,
   });
 
-  const connectedPlatforms = (socialProfiles || []).map(p => p.platform).filter(Boolean);
+  const connectedPlatforms = [
+    ...(socialProfiles?.profiles || []).map(p => p.platform),
+    socialProfiles?.accounts ? 'instagram' : null
+  ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
   const uploadMut = useMutation({
     mutationFn: ({ id, urls }) => {
@@ -102,7 +105,7 @@ export default function MyCampaignsPage() {
     return (
       <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Upload size={15} className="text-[#2563EB]" />
+          <Upload size={15} className="text-blue-600" />
           <span className="text-sm font-semibold text-blue-800">Upload Your Content Links</span>
         </div>
         <div className="space-y-3 mb-3">
@@ -168,7 +171,7 @@ export default function MyCampaignsPage() {
           {/* Campaign header */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-[#2563EB] text-sm">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-blue-600 text-sm">
                 {safeBrand(featured)?.[0]?.toUpperCase() || 'B'}
               </div>
               <div>
@@ -269,7 +272,7 @@ export default function MyCampaignsPage() {
                     <motion.tr key={cId} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-xs font-bold text-[#2563EB]">
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-xs font-bold text-blue-600">
                             {safeBrand(c)?.[0]?.toUpperCase() || 'B'}
                           </div>
                           <span className="font-medium text-slate-700">{safeBrand(c)}</span>
@@ -282,7 +285,7 @@ export default function MyCampaignsPage() {
                       <td>
                         <div className="flex items-center gap-2">
                           <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-[#2563EB] rounded-full" style={{ width: `${pct(c.status)}%` }} />
+                            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${pct(c.status)}%` }} />
                           </div>
                           <span className="text-xs text-slate-400">{pct(c.status)}%</span>
                         </div>
@@ -292,7 +295,7 @@ export default function MyCampaignsPage() {
                         {canUpload(c) && (
                           <button
                             onClick={() => setUploadingId(cId)}
-                            className="text-xs text-[#2563EB] font-medium hover:underline flex items-center gap-1"
+                            className="text-xs text-blue-600 font-medium hover:underline flex items-center gap-1"
                           >
                             <Upload size={12} />
                             {c.status === 'revision_requested' ? 'Re-upload' : 'Upload'}

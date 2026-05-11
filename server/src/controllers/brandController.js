@@ -4,7 +4,7 @@ const { hashPassword, comparePassword } = require('../helpers/bcrypt');
 const { getInitials, getAvatarColor, formatINR, formatROI } = require('../helpers/format');
 const { broadcastCampaignUpdate } = require('../websocket');
 const { autoCollectMetrics } = require('./analyticsController');
-const { getMediaInsightsByPermalink } = require('../services/metaInstagramService');
+const { getMediaInsightsByPermalink, getMediaInsightsById, extractInstagramShortcode } = require('../services/metaInstagramService');
 
 // Preferences & Verification
 exports.upsertPreferences = async (req, res, next) => {
@@ -1377,13 +1377,39 @@ exports.getLiveMetrics = async (req, res, next) => {
           } else {
             try {
               const [igProfiles] = await pool.query(
-                "SELECT instagram_access_token, instagram_business_id FROM creator_social_profiles WHERE creator_id=? AND platform='instagram' AND instagram_connected=true LIMIT 1",
+                "SELECT instagram_access_token, instagram_business_id FROM creator_social_accounts WHERE creator_id=? AND instagram_connected=true LIMIT 1",
                 [camp.creator_id]
               );
               const igProfile = igProfiles[0];
-              stats = igProfile?.instagram_access_token && igProfile?.instagram_business_id
-                ? await getMediaInsightsByPermalink(igProfile.instagram_business_id, igProfile.instagram_access_token, postUrl)
-                : null;
+              
+              if (igProfile?.instagram_access_token && igProfile?.instagram_business_id) {
+                const shortcode = extractInstagramShortcode(postUrl);
+                let mediaId = null;
+
+                if (shortcode) {
+                  const [cached] = await pool.query(
+                    "SELECT media_id FROM instagram_reels WHERE permalink LIKE ? LIMIT 1",
+                    [`%/${shortcode}/%`]
+                  );
+                  if (cached.length === 0) {
+                    // Fallback search without trailing slash check
+                    const [cached2] = await pool.query(
+                      "SELECT media_id FROM instagram_reels WHERE permalink LIKE ? LIMIT 1",
+                      [`%/${shortcode}`]
+                    );
+                    if (cached2.length > 0) mediaId = cached2[0].media_id;
+                  } else {
+                    mediaId = cached[0].media_id;
+                  }
+                }
+
+                if (mediaId) {
+                  stats = await getMediaInsightsById(mediaId, igProfile.instagram_access_token);
+                } else {
+                  stats = await getMediaInsightsByPermalink(igProfile.instagram_business_id, igProfile.instagram_access_token, postUrl);
+                }
+              }
+
               if (!stats) {
                 stats = {
                   error: 'Instagram metrics unavailable through Meta Graph API. The post must belong to the connected Instagram Business/Creator account and be present in recent media.',

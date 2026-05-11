@@ -122,8 +122,12 @@ exports.facebookCallback = async (req, res) => {
 
     const pageAccessToken = page.page_access_token || accessToken;
     const profile = await getInstagramProfile(igAccount.id, pageAccessToken);
-    const media = await getMediaWithInsights(igAccount.id, pageAccessToken, 12);
-    const stats = calculateProfileStats(media);
+    
+    // Fetch media (specifically looking for REELS)
+    const mediaItems = await getMediaWithInsights(igAccount.id, pageAccessToken, 25);
+    const reels = mediaItems.filter(m => m.media_type === 'REELS' || m.media_product_type === 'REELS');
+    
+    const stats = calculateProfileStats(reels.length > 0 ? reels : mediaItems);
     const connectionId = crypto.randomUUID();
     const stateRecord = stateStore.get(state);
     const returnTo = stateRecord?.returnTo || '/register';
@@ -136,7 +140,8 @@ exports.facebookCallback = async (req, res) => {
       igId: igAccount.id,
       igAccount,
       profile: { ...profile, ...stats },
-      media,
+      media: mediaItems,
+      reels,
       createdAt: new Date().toISOString(),
     });
     stateStore.delete(state);
@@ -217,41 +222,24 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-exports.getMedia = async (req, res) => {
+exports.getReels = async (req, res) => {
   try {
     const connection = requireConnection(req);
-    if (connection.media) {
-      return res.json({
-        success: true,
-        data: {
-          instagram_account_id: connection.igId,
-          media: connection.media,
-        },
-      });
-    }
-
     const pageId = req.query.pageId || connection.selectedPageId || connection.pages?.[0]?.page_id;
-    const pageAccessToken = connection.pages?.find((page) => page.page_id === pageId)?.page_access_token || connection.accessToken;
-    const igAccount = connection.igId
-      ? { id: connection.igId }
-      : await getInstagramBusinessAccount(pageId, pageAccessToken);
-
-    if (!igAccount?.id) {
-      return res.status(404).json({
-        success: false,
-        error: 'No Instagram Business/Creator account is connected to this Facebook Page',
-      });
+    const pageAccessToken = connection.pages?.find((p) => p.page_id === pageId)?.page_access_token || connection.accessToken;
+    
+    let reels = connection.reels;
+    if (!reels) {
+      const media = await getInstagramMedia(connection.igId, pageAccessToken);
+      reels = media.filter(m => m.media_type === 'REELS' || m.media_product_type === 'REELS');
+      connection.reels = reels;
     }
-
-    const media = await getInstagramMedia(igAccount.id, pageAccessToken);
-    connection.selectedPageId = pageId;
-    connection.igId = igAccount.id;
 
     return res.json({
       success: true,
       data: {
-        instagram_account_id: igAccount.id,
-        media,
+        instagram_account_id: connection.igId,
+        reels,
       },
     });
   } catch (err) {
@@ -290,62 +278,55 @@ exports.saveCurrentConnection = async (req, res) => {
     }
 
     await pool.query(`
-      INSERT INTO creator_social_profiles
-        (creator_id, platform, profile_url, followers_count, avg_views, engagement_rate,
-         is_verified, instagram_connected, instagram_access_token, facebook_page_id,
-         instagram_business_id, instagram_username, instagram_follows, instagram_media_count,
-         instagram_profile_picture, instagram_connected_at)
-      VALUES (?, 'instagram', ?, ?, ?, ?, ?, true, ?, ?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO creator_social_accounts
+        (creator_id, instagram_connected, instagram_access_token, facebook_page_id,
+         instagram_business_id, instagram_username, instagram_followers, instagram_follows,
+         instagram_media_count, instagram_profile_picture, connected_at)
+      VALUES (?, true, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
       ON DUPLICATE KEY UPDATE
-        profile_url=VALUES(profile_url),
-        followers_count=VALUES(followers_count),
-        avg_views=VALUES(avg_views),
-        engagement_rate=VALUES(engagement_rate),
-        is_verified=VALUES(is_verified),
         instagram_connected=true,
         instagram_access_token=VALUES(instagram_access_token),
         facebook_page_id=VALUES(facebook_page_id),
         instagram_business_id=VALUES(instagram_business_id),
         instagram_username=VALUES(instagram_username),
+        instagram_followers=VALUES(instagram_followers),
         instagram_follows=VALUES(instagram_follows),
         instagram_media_count=VALUES(instagram_media_count),
         instagram_profile_picture=VALUES(instagram_profile_picture),
-        instagram_connected_at=NOW()
+        connected_at=NOW()
     `, [
       creatorId,
-      `https://www.instagram.com/${profile.username}`,
-      Number(profile.followers_count || 0),
-      Number(profile.avg_views || 0),
-      Number(profile.engagement_rate || 0),
-      Boolean(profile.is_verified || false),
       connection.pageAccessToken || connection.accessToken,
       connection.selectedPageId,
       connection.igId,
       profile.username,
+      Number(profile.followers_count || 0),
       Number(profile.follows_count || 0),
       Number(profile.media_count || 0),
       profile.profile_picture_url || null,
     ]);
 
-    if (Array.isArray(connection.media) && connection.media.length > 0) {
-      for (const media of connection.media) {
+    // Save Reels
+    const mediaToSave = connection.reels || connection.media || [];
+    if (Array.isArray(mediaToSave) && mediaToSave.length > 0) {
+      for (const media of mediaToSave) {
         await pool.query(`
-          INSERT INTO creator_instagram_media
-            (creator_id, instagram_media_id, caption, media_type, media_url, permalink, posted_at,
-             views, reach, likes, comments, shares, saves)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO instagram_reels
+            (creator_id, media_id, caption, media_type, media_url, permalink, 
+             thumbnail_url, views, reach, likes, comments, shares, saved, posted_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             caption=VALUES(caption),
             media_type=VALUES(media_type),
             media_url=VALUES(media_url),
             permalink=VALUES(permalink),
-            posted_at=VALUES(posted_at),
+            thumbnail_url=VALUES(thumbnail_url),
             views=VALUES(views),
             reach=VALUES(reach),
             likes=VALUES(likes),
             comments=VALUES(comments),
             shares=VALUES(shares),
-            saves=VALUES(saves),
+            saved=VALUES(saved),
             updated_at=NOW()
         `, [
           creatorId,
@@ -354,13 +335,14 @@ exports.saveCurrentConnection = async (req, res) => {
           media.media_product_type || media.media_type || null,
           media.media_url || null,
           media.permalink || null,
-          media.timestamp ? new Date(media.timestamp) : null,
+          media.thumbnail_url || null,
           Number(media.insights?.views || 0),
           Number(media.insights?.reach || 0),
           Number(media.insights?.likes || media.like_count || 0),
           Number(media.insights?.comments || media.comments_count || 0),
           Number(media.insights?.shares || 0),
           Number(media.insights?.saved || 0),
+          media.timestamp ? new Date(media.timestamp) : null,
         ]);
       }
     }
@@ -370,7 +352,7 @@ exports.saveCurrentConnection = async (req, res) => {
       message: 'Instagram connection saved',
       data: {
         profile,
-        media: connection.media || [],
+        reels: connection.reels || [],
       },
     });
   } catch (err) {
@@ -384,13 +366,13 @@ exports.disconnect = async (req, res) => {
     if (connectionId) tokenStore.delete(connectionId);
 
     await pool.query(`
-      UPDATE creator_social_profiles
+      UPDATE creator_social_accounts
       SET instagram_connected=false,
           instagram_access_token=NULL,
           facebook_page_id=NULL,
           instagram_business_id=NULL,
-          instagram_connected_at=NULL
-      WHERE creator_id=? AND platform='instagram'
+          connected_at=NULL
+      WHERE creator_id=?
     `, [req.user.id]);
 
     setHttpOnlyCookie(res, COOKIE_NAME, '', 0);

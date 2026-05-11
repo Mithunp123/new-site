@@ -48,8 +48,8 @@ export default function Sidebar() {
 
   const navLinkClass = ({ isActive }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 relative ${
-      isActive
-        ? 'bg-[#2563EB] text-white font-semibold shadow-[0_2px_8px_rgba(37,99,235,0.3)]'
+    isActive
+        ? 'bg-blue-600 text-white font-semibold shadow-[0_2px_10px_rgba(37,99,235,0.3)]'
         : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
     }`;
 
@@ -144,7 +144,7 @@ export default function Sidebar() {
       {/* User */}
       <div className="px-3 py-4 border-t border-slate-100">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-all">
-          <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center text-white font-bold text-xs shadow-[0_2px_6px_rgba(37,99,235,0.3)] flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-[0_2px_6px_rgba(37,99,235,0.3)] flex-shrink-0">
             {initials}
           </div>
           <div className="flex-1 min-w-0">

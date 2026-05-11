@@ -28,7 +28,8 @@ export default function SocialProfilesPage() {
     let mounted = true;
     getSocialProfiles().then(res => {
       if (!mounted) return;
-      const rows = res.data.data || res.data || [];
+      const d = res.data.data || res.data || {};
+      const rows = d.profiles || (Array.isArray(d) ? d : []);
       const igRow = rows.find(r => r.platform === 'instagram');
       const ytRow = rows.find(r => r.platform === 'youtube');
       if (igRow) setIg({ profile_url: igRow.profile_url || '', followers_count: igRow.followers_count || '', avg_views: igRow.avg_views || '', engagement_rate: igRow.engagement_rate || '', is_verified: !!igRow.is_verified, instagram_connected: !!igRow.instagram_connected, instagram_username: igRow.instagram_username || '', instagram_profile_picture: igRow.instagram_profile_picture || '' });
