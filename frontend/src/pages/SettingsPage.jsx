@@ -458,17 +458,20 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-slate-100 bg-white p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">Instagram is not connected</p>
-                          <p className="text-xs text-slate-500 mt-1">Connect through Facebook OAuth to fetch official profile and reel metrics.</p>
+                      <div className="rounded-xl border border-slate-100 bg-white p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Instagram is not connected</p>
+                            <p className="text-xs text-slate-500 mt-1">Connect through Facebook OAuth to fetch official profile and reel metrics.</p>
+                          </div>
+                          <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-primary whitespace-nowrap">
+                            Connect Instagram
+                          </button>
                         </div>
-                        <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-primary whitespace-nowrap">
-                          Connect Instagram
-                        </button>
+                        <p className="text-[11px] text-slate-400 mt-3 pt-3 border-t border-slate-100">
+                          <strong>Note:</strong> If the Facebook login page gets stuck loading, try clearing your browser cache/cookies or use an Incognito window.
+                        </p>
                       </div>
-                    </div>
                   )}
                 </div>
 

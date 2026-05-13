@@ -114,7 +114,10 @@ export default function SocialProfilesPage() {
             </div>
           </div>
         ) : (
-          <p style={{ color: '#666', marginBottom: 12 }}>Connect through Facebook OAuth to fetch official Instagram stats.</p>
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ color: '#666', marginBottom: 4 }}>Connect through Facebook OAuth to fetch official Instagram stats.</p>
+            <p style={{ color: '#888', fontSize: '12px' }}>Note: If the Facebook login page gets stuck loading, try clearing your browser cache/cookies or use an Incognito window.</p>
+          </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <button onClick={() => { window.location.href = getInstagramConnectUrl('/social-profiles'); }} disabled={saving}>{ig.instagram_connected ? 'Reconnect' : 'Connect Instagram'}</button>

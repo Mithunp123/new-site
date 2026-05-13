@@ -755,6 +755,8 @@ const RegisterPage = () => {
                           )}
                           <div style={{ marginTop: '10px', color: '#777', fontSize: '11px', lineHeight: 1.5 }}>
                             Requires an Instagram Business or Creator account connected to a Facebook Page.
+                            <br />
+                            <span style={{ color: '#aaa', fontWeight: 500 }}>Note: If the Facebook login page gets stuck loading, try clearing your browser cache/cookies or use an Incognito window.</span>
                           </div>
                         </div>
                       </div>
