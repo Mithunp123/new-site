@@ -9,54 +9,18 @@ import {
 import { motion } from 'framer-motion';
 import { formatCount, formatINR } from '../../utils/format';
 import useAuthStore from '../../store/authStore';
+import instagramGif from '../../assets/instagram icon.gif';
+import youtubeGif from '../../assets/Youtube Logo Effect.gif';
 
-/* ─── Animated shader blob — single unified dark purple theme ──────────────── */
-function ShaderBlob() {
+/* ─── Premium Light Background ────────────────────────────────────────────── */
+function LightBackground() {
   return (
-    <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-      {/* Base dark — refined slightly lighter shade for premium feel */}
-      <div className="absolute inset-0 bg-[#12121f]" />
-      
-      {/* Primary blob — purple glow */}
-      <motion.div
-        className="absolute rounded-full blur-[80px] opacity-[0.45]"
-        style={{
-          width: '80%', height: '80%',
-          background: 'radial-gradient(circle, #7C3AED 0%, #7C3AED44 50%, transparent 100%)',
-          top: '-10%', left: '10%',
-        }}
-        animate={{ 
-          x: [0, 25, -15, 0], 
-          y: [0, -20, 15, 0], 
-          scale: [1, 1.15, 0.9, 1] 
-        }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
-      {/* Secondary blob — indigo glow */}
-      <motion.div
-        className="absolute rounded-full blur-[60px] opacity-[0.25]"
-        style={{
-          width: '60%', height: '60%',
-          background: 'radial-gradient(circle, #4F46E5 0%, #4F46E533 60%, transparent 100%)',
-          bottom: '-10%', right: '-10%',
-        }}
-        animate={{ 
-          x: [0, -20, 12, 0], 
-          y: [0, 15, -10, 0], 
-          scale: [1, 0.9, 1.1, 1] 
-        }}
-        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-      />
-
-      {/* Tertiary subtle glow for depth */}
-      <div 
-        className="absolute inset-0 opacity-20"
-        style={{
-          background: 'radial-gradient(circle at 50% 50%, #ffffff11 0%, transparent 70%)'
-        }}
-      />
-    </div>
+    <div 
+      className="absolute inset-0 pointer-events-none" 
+      style={{
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)'
+      }}
+    />
   );
 }
 
@@ -171,34 +135,34 @@ function PendingCard({ camp, index }) {
   }[camp.status] || camp.status;
 
   const statusColor = {
-    content_uploaded:   'bg-amber-500/20 text-amber-300',
-    revision_requested: 'bg-red-500/20 text-red-300',
-    brand_approved:     'bg-emerald-500/20 text-emerald-300',
-  }[camp.status] || 'bg-white/10 text-white/60';
+    content_uploaded:   'bg-amber-100 text-amber-700 border border-amber-200',
+    revision_requested: 'bg-red-100 text-red-700 border border-red-200',
+    brand_approved:     'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  }[camp.status] || 'bg-slate-100 text-slate-500 border border-slate-200';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden border border-white/5 shadow-2xl group transition-all duration-300 hover:border-white/10"
+      className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl shadow-slate-200/50 group transition-all duration-300 hover:shadow-2xl hover:shadow-slate-300/60"
       style={{ minHeight: '200px' }}
     >
-      <ShaderBlob />
+      <LightBackground />
       <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '200px' }}>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-sm font-bold text-white leading-tight line-clamp-2">{camp.title}</h3>
+          <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">{camp.title}</h3>
           <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
             {statusLabel}
           </span>
         </div>
         {camp.creator_name && (
-          <p className="text-[11px] text-white/50 flex items-center gap-1 mb-4">
+          <p className="text-[11px] text-slate-500 flex items-center gap-1 mb-4">
             <User size={10} /> {camp.creator_name}
           </p>
         )}
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[11px] text-white/30 text-center">
+          <p className="text-[11px] text-slate-400 text-center font-medium">
             {camp.status === 'content_uploaded'
               ? 'Content submitted — metrics will appear once the campaign goes live.'
               : camp.status === 'revision_requested'
@@ -224,25 +188,23 @@ function MetricCard({ camp, sub, index }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden border border-white/5 shadow-2xl transition-all duration-300 hover:border-white/10"
+      className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl shadow-slate-200/50 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-300/60"
       style={{ minHeight: '380px' }}
     >
-      {/* Shader blob background — unified dark purple */}
-      <ShaderBlob />
-
-      {/* Card content — sits above the blob */}
+      <LightBackground />
+      {/* Card content */}
       <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '380px' }}>
 
         {/* Campaign name + status */}
         <div className="mb-4">
           <div className="flex items-start justify-between gap-2 mb-1.5">
-            <h3 className="text-sm font-bold text-white leading-tight line-clamp-2">{camp.title}</h3>
+            <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">{camp.title}</h3>
             <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              camp.status === 'campaign_closed'     ? 'bg-white/10 text-white/60' :
-              camp.status === 'content_uploaded'    ? 'bg-amber-500/20 text-amber-300' :
-              camp.status === 'revision_requested'  ? 'bg-red-500/20 text-red-300' :
-              camp.status === 'brand_approved'      ? 'bg-blue-500/20 text-blue-300' :
-              'bg-emerald-500/20 text-emerald-300'
+              camp.status === 'campaign_closed'     ? 'bg-slate-100 text-slate-500 border border-slate-200' :
+              camp.status === 'content_uploaded'    ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+              camp.status === 'revision_requested'  ? 'bg-red-100 text-red-700 border border-red-200' :
+              camp.status === 'brand_approved'      ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+              'bg-emerald-100 text-emerald-700 border border-emerald-200'
             }`}>
               {camp.status === 'campaign_closed'    ? 'Closed' :
                camp.status === 'content_uploaded'   ? 'In Review' :
@@ -252,77 +214,90 @@ function MetricCard({ camp, sub, index }) {
             </span>
           </div>
           {camp.creator_name && (
-            <p className="text-[11px] text-white/50 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
               <User size={10} /> {camp.creator_name}
             </p>
           )}
         </div>
 
         {/* Platform badge — no "via..." text */}
+        {/* Platform badge */}
         {sub && (
           <div className="flex items-center gap-2 mb-4">
             {isYouTube
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 bg-white/10 border border-white/10 px-2.5 py-1 rounded-lg"><Tv size={11} /> YouTube</span>
+              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 px-2.5 py-1 rounded-lg">
+                  <img src={youtubeGif} alt="" className="w-4 h-4 object-contain" />
+                  YouTube
+                </span>
               : isInstagram
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 bg-white/10 border border-white/10 px-2.5 py-1 rounded-lg"><Film size={11} /> Instagram</span>
-              : <span className="text-[11px] text-white/40">{sub.platform}</span>
+              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-pink-600 bg-pink-50 border border-pink-100 px-2.5 py-1 rounded-lg">
+                  <img src={instagramGif} alt="" className="w-4 h-4 object-contain" />
+                  Instagram
+                </span>
+              : <span className="text-[11px] text-slate-500 font-medium">{sub.platform}</span>
             }
           </div>
         )}
 
-        {/* Video info (YouTube thumbnail + title) */}
-        {isYouTube && sub?.stats?.video_title && (
-          <div className="flex items-start gap-3 mb-4 bg-white/5 rounded-xl p-3 border border-white/8">
-            {sub.stats.thumbnail && (
-              <img src={sub.stats.thumbnail} alt="" className="w-16 h-11 object-cover rounded-lg flex-shrink-0" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold text-white/90 line-clamp-2 leading-tight">{sub.stats.video_title}</p>
-              <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-white/40">
-                {sub.stats.channel_name && <span>{sub.stats.channel_name}</span>}
-                {sub.stats.duration && <span className="flex items-center gap-0.5"><Clock size={9} />{sub.stats.duration}</span>}
+        {/* Content area that grows to fill space, pushing button down */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Video info (YouTube thumbnail + title) */}
+          {isYouTube && sub?.stats?.video_title && (
+            <div className="flex items-start gap-3 mb-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
+              {sub.stats.thumbnail && (
+                <img src={sub.stats.thumbnail} alt="" className="w-16 h-11 object-cover rounded-lg flex-shrink-0 shadow-sm" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight">{sub.stats.video_title}</p>
+                <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-slate-400 font-medium">
+                  {sub.stats.channel_name && <span>{sub.stats.channel_name}</span>}
+                  {sub.stats.duration && <span className="flex items-center gap-0.5"><Clock size={9} />{sub.stats.duration}</span>}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Instagram caption */}
-        {isInstagram && sub?.stats?.caption && (
-          <div className="mb-4 bg-white/5 rounded-xl p-3 border border-white/8">
-            <p className="text-[11px] text-white/60 line-clamp-2">{sub.stats.caption}</p>
-            {sub.stats.post_date && (
-              <p className="text-[10px] text-white/30 mt-1 flex items-center gap-1"><Calendar size={9} />{sub.stats.post_date}</p>
-            )}
-          </div>
-        )}
+          {/* Instagram caption */}
+          {isInstagram && sub?.stats?.caption && (
+            <div className="mb-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <p className="text-[11px] text-slate-600 line-clamp-2 font-medium">{sub.stats.caption}</p>
+              {sub.stats.post_date && (
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 font-semibold"><Calendar size={9} />{sub.stats.post_date}</p>
+              )}
+            </div>
+          )}
 
-        {/* Error state */}
-        {hasError && (
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4">
-            <AlertTriangle size={13} className="text-amber-400 flex-shrink-0" />
-            <p className="text-[11px] text-amber-300">{sub.stats.error}</p>
-          </div>
-        )}
+          {/* Error state */}
+          {hasError && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-4">
+              <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+              <p className="text-[11px] text-amber-700 font-medium">{sub.stats.error}</p>
+            </div>
+          )}
 
-        {/* Stat rows — vertical linear list */}
-        {rows.length > 0 && (
-          <div className="flex-1 space-y-0 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
-            {rows.map((row, i) => (
-              <div
-                key={i}
-                className={`flex items-center justify-between px-3.5 py-2.5 ${i < rows.length - 1 ? 'border-b border-white/5' : ''}`}
-              >
-                <div className="flex items-center gap-2">
-                  <row.icon size={12} className={row.highlight ? 'text-[#a78bfa]' : 'text-white/30'} />
-                  <span className="text-[11px] text-white/50 font-medium">{row.label}</span>
+          {/* Stat rows — vertical linear list */}
+          {rows.length > 0 ? (
+            <div className="flex-1 space-y-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+              {rows.map((row, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between px-3.5 py-2.5 ${i < rows.length - 1 ? 'border-b border-slate-200/60' : ''}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <row.icon size={12} className={row.highlight ? 'text-[#7C3AED]' : 'text-slate-400'} />
+                    <span className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">{row.label}</span>
+                  </div>
+                  <span className={`text-[13px] font-bold ${row.highlight ? 'text-[#7C3AED]' : 'text-slate-900'}`}>
+                    {row.value || '—'}
+                  </span>
                 </div>
-                <span className={`text-[13px] font-bold ${row.highlight ? 'text-[#a78bfa]' : 'text-white/90'}`}>
-                  {row.value || '—'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : (
+            /* Placeholder to maintain height if no rows */
+            <div className="flex-1" />
+          )}
+        </div>
 
         {/* View post button */}
         {sub?.content_url && (
@@ -330,7 +305,7 @@ function MetricCard({ camp, sub, index }) {
             href={sub.content_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-slate-50 text-slate-900 text-[11px] font-bold rounded-xl transition-all shadow-md active:scale-[0.98]"
+            className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-[11px] font-bold rounded-xl transition-all shadow-lg shadow-purple-200 active:scale-[0.98]"
           >
             <ExternalLink size={12} />
             View {isYouTube ? 'YouTube' : isInstagram ? 'Instagram' : ''} Post
