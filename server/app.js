@@ -37,6 +37,8 @@ app.use('/api/social',        require('./src/routes/social'));
 app.use('/api/chat',          require('./src/routes/chat'));
 app.use('/api/notifications', require('./src/routes/notifications'));
 app.use('/',                  require('./src/routes/instagram'));
+const authRoutes = require('./src/routes/authRoutes');
+app.use('/auth', authRoutes);
 
 app.use(errorHandler);
 module.exports = app;

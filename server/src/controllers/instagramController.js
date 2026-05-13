@@ -12,6 +12,7 @@ const {
   calculateProfileStats,
   normaliseInsightMetrics,
 } = require('../services/metaInstagramService');
+const { verifyJWT } = require('../helpers/jwt');
 
 const COOKIE_NAME = 'gradix_ig_connection';
 const STATE_COOKIE_NAME = 'gradix_ig_oauth_state';
@@ -86,7 +87,11 @@ exports.redirectToFacebook = async (req, res) => {
     const returnTo = typeof req.query.return_to === 'string' && req.query.return_to.startsWith('/')
       ? req.query.return_to
       : '/register';
-    stateStore.set(state, { returnTo, createdAt: Date.now() });
+    
+    // Check if frontend passed token
+    const token = req.query.token || null;
+    
+    stateStore.set(state, { returnTo, token, createdAt: Date.now() });
     setHttpOnlyCookie(res, STATE_COOKIE_NAME, state, 10 * 60);
     return res.redirect(buildFacebookLoginUrl(state));
   } catch (err) {
@@ -95,42 +100,57 @@ exports.redirectToFacebook = async (req, res) => {
 };
 
 exports.facebookCallback = async (req, res) => {
+  console.log("OAuth callback hit");
+  console.log(req.query);
+
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const stateRecord = stateStore.get(req.query.state);
+  const returnTo = stateRecord?.returnTo || '/register';
+  const errorRedirectUrl = new URL(returnTo, frontendUrl);
+  errorRedirectUrl.searchParams.set('instagram_error', 'true');
+
   try {
     const { code, state, error, error_description } = req.query;
-    if (error) return res.status(400).json({ success: false, error: error_description || error });
-    if (!code) return res.status(400).json({ success: false, error: 'Facebook OAuth code is required' });
+    if (error) {
+      console.error('[Facebook OAuth Error]', error_description || error);
+      return res.redirect(errorRedirectUrl.toString());
+    }
+    if (!code) {
+      console.error('[Facebook OAuth] No code received');
+      return res.redirect(errorRedirectUrl.toString());
+    }
 
     const expectedState = parseCookies(req)[STATE_COOKIE_NAME];
     if (expectedState && state && expectedState !== state) {
-      return res.status(400).json({ success: false, error: 'Invalid Facebook OAuth state' });
+      console.error('[Facebook OAuth] State mismatch');
+      return res.redirect(errorRedirectUrl.toString());
     }
 
     const accessToken = await exchangeCodeForToken(code);
+    console.log("Access token received");
+
     const pages = await getFacebookPages(accessToken);
     const page = pages[0];
     if (!page) {
-      return res.status(404).json({ success: false, error: 'No Facebook Pages were returned for this account' });
+      console.error('[Facebook OAuth] No Facebook Pages returned');
+      return res.redirect(errorRedirectUrl.toString());
     }
 
     const igAccount = await getInstagramBusinessAccount(page.page_id, page.page_access_token || accessToken);
     if (!igAccount?.id) {
-      return res.status(404).json({
-        success: false,
-        error: 'No Instagram Business/Creator account is connected to the selected Facebook Page',
-      });
+      console.error('[Facebook OAuth] No Instagram Business Account linked to page');
+      return res.redirect(errorRedirectUrl.toString());
     }
 
     const pageAccessToken = page.page_access_token || accessToken;
     const profile = await getInstagramProfile(igAccount.id, pageAccessToken);
     
-    // Fetch media (specifically looking for REELS)
-    const mediaItems = await getMediaWithInsights(igAccount.id, pageAccessToken, 25);
+    // Optimize media fetching if needed, limit to 10 for faster response
+    const mediaItems = await getMediaWithInsights(igAccount.id, pageAccessToken, 10);
     const reels = mediaItems.filter(m => m.media_type === 'REELS' || m.media_product_type === 'REELS');
     
     const stats = calculateProfileStats(reels.length > 0 ? reels : mediaItems);
     const connectionId = crypto.randomUUID();
-    const stateRecord = stateStore.get(state);
-    const returnTo = stateRecord?.returnTo || '/register';
 
     tokenStore.set(connectionId, {
       accessToken,
@@ -144,17 +164,53 @@ exports.facebookCallback = async (req, res) => {
       reels,
       createdAt: new Date().toISOString(),
     });
-    stateStore.delete(state);
 
+    if (stateRecord?.token) {
+      try {
+        const decoded = verifyJWT(stateRecord.token);
+        if (decoded && decoded.id) {
+          await pool.query(`
+            INSERT INTO creator_social_accounts
+              (creator_id, instagram_connected, instagram_access_token, facebook_page_id,
+               instagram_business_id, instagram_username, instagram_followers,
+               instagram_profile_picture, connected_at)
+            VALUES (?, true, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              instagram_connected=true,
+              instagram_access_token=VALUES(instagram_access_token),
+              facebook_page_id=VALUES(facebook_page_id),
+              instagram_business_id=VALUES(instagram_business_id),
+              instagram_username=VALUES(instagram_username),
+              instagram_followers=VALUES(instagram_followers),
+              instagram_profile_picture=VALUES(instagram_profile_picture),
+              connected_at=NOW()
+          `, [
+            decoded.id,
+            pageAccessToken,
+            page.page_id,
+            igAccount.id,
+            profile.username,
+            Number(profile.followers_count || 0),
+            profile.profile_picture_url || null,
+          ]);
+        }
+      } catch (err) {
+        console.error('[Facebook OAuth] Token verification or MySQL save failed', err);
+      }
+    }
+
+    stateStore.delete(state);
     setHttpOnlyCookie(res, COOKIE_NAME, connectionId, 60 * 60 * 24 * 60);
     appendHttpOnlyCookie(res, STATE_COOKIE_NAME, '', 0);
 
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-    const redirectUrl = new URL(returnTo, frontendUrl);
-    redirectUrl.searchParams.set('instagram_connected', 'true');
-    return res.redirect(redirectUrl.toString());
+    console.log("Instagram connected successfully");
+
+    const successRedirectUrl = new URL(returnTo, frontendUrl);
+    successRedirectUrl.searchParams.set('instagram_connected', 'true');
+    return res.redirect(successRedirectUrl.toString());
   } catch (err) {
-    return handleControllerError(res, err);
+    console.error('[Facebook OAuth Callback Error]', err.response?.data || err.message);
+    return res.redirect(errorRedirectUrl.toString());
   }
 };
 

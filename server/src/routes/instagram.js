@@ -4,8 +4,6 @@ const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/auth/facebook', instagramController.redirectToFacebook);
-router.get('/auth/facebook/callback', instagramController.facebookCallback);
 
 router.get('/instagram/profile', instagramController.getProfile);
 router.get('/instagram/reels', instagramController.getReels);
