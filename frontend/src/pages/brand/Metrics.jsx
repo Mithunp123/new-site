@@ -181,28 +181,64 @@ function MetricCard({ camp, sub, index }) {
 
   const rows = sub?.stats && !hasError ? buildRows(sub.stats, isYouTube, isInstagram) : [];
 
+  const theme = isYouTube ? 'youtube' : isInstagram ? 'instagram' : 'default';
+
+  const t = {
+    youtube: {
+      card: 'border-red-500/20 bg-[#FEF2F2] shadow-[0_4px_24px_rgba(239,68,68,0.05)] hover:shadow-[0_8px_32px_rgba(239,68,68,0.12)] hover:-translate-y-1',
+      textHighlight: 'text-red-700',
+      textNormal: 'text-red-950',
+      textMuted: 'text-red-900/60',
+      iconHighlight: 'text-red-500',
+      iconMuted: 'text-red-400',
+      innerBox: 'bg-white/60 border-red-200/50',
+      button: 'bg-white border-red-500 text-red-600 hover:bg-red-500 hover:text-white',
+      borderDivider: 'border-red-500/15'
+    },
+    instagram: {
+      card: 'border-[#7C3AED]/20 bg-[#FAF5FF] shadow-[0_4px_24px_rgba(124,58,237,0.05)] hover:shadow-[0_8px_32px_rgba(124,58,237,0.12)] hover:-translate-y-1',
+      textHighlight: 'text-[#7C3AED]',
+      textNormal: 'text-purple-950',
+      textMuted: 'text-purple-900/60',
+      iconHighlight: 'text-[#7C3AED]',
+      iconMuted: 'text-purple-400',
+      innerBox: 'bg-white/60 border-purple-200/50',
+      button: 'bg-white border-[#7C3AED] text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white',
+      borderDivider: 'border-[#7C3AED]/15'
+    },
+    default: {
+      card: 'border-slate-200 bg-slate-50/40 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] hover:-translate-y-1',
+      textHighlight: 'text-slate-900',
+      textNormal: 'text-slate-900',
+      textMuted: 'text-slate-500',
+      iconHighlight: 'text-slate-500',
+      iconMuted: 'text-slate-400',
+      innerBox: 'bg-white/60 border-slate-200/50',
+      button: 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100',
+      borderDivider: 'border-slate-200/50'
+    }
+  }[theme];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-[20px] overflow-hidden border border-[#7C3AED]/40 bg-white transition-all duration-300 hover:border-[#7C3AED] hover:bg-purple-50 hover:shadow-[0_8px_32px_rgba(124,58,237,0.15)] flex flex-col group"
+      className={`relative rounded-[20px] overflow-hidden border transition-all duration-300 flex flex-col ${t.card}`}
     >
-      <LightBackground />
-      
       {/* Card content */}
       <div className="relative z-10 flex flex-col h-full p-6">
 
         {/* Campaign name + status */}
         <div className="mb-5">
           <div className="flex items-start justify-between gap-3 mb-2">
-            <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2">{camp.title}</h3>
+            <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 ${t.textNormal}`}>{camp.title}</h3>
             <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-              camp.status === 'campaign_closed'     ? 'bg-slate-50 text-slate-600 border-slate-200/60' :
-              camp.status === 'content_uploaded'    ? 'bg-amber-50 text-amber-700 border-amber-200/60' :
-              camp.status === 'revision_requested'  ? 'bg-red-50 text-red-700 border-red-200/60' :
-              camp.status === 'brand_approved'      ? 'bg-blue-50 text-blue-700 border-blue-200/60' :
-              'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+              camp.status === 'campaign_closed'     ? 'bg-white/80 text-slate-600 border-slate-200/60' :
+              camp.status === 'content_uploaded'    ? 'bg-white/80 text-amber-700 border-amber-200/60' :
+              camp.status === 'revision_requested'  ? 'bg-white/80 text-red-700 border-red-200/60' :
+              camp.status === 'brand_approved'      ? 'bg-white/80 text-blue-700 border-blue-200/60' :
+              'bg-white/80 text-emerald-700 border-emerald-200/60'
             }`}>
               {camp.status === 'campaign_closed'    ? 'Closed' :
                camp.status === 'content_uploaded'   ? 'In Review' :
@@ -212,8 +248,8 @@ function MetricCard({ camp, sub, index }) {
             </span>
           </div>
           {camp.creator_name && (
-            <p className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
-              <User size={12} className="text-slate-400" /> {camp.creator_name}
+            <p className={`text-xs flex items-center gap-1.5 font-medium ${t.textMuted}`}>
+              <User size={12} className={t.iconMuted} /> {camp.creator_name}
             </p>
           )}
         </div>
@@ -222,17 +258,17 @@ function MetricCard({ camp, sub, index }) {
         {sub && (
           <div className="flex items-center gap-2 mb-5">
             {isYouTube ? (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-red-50/50 border border-red-100/60 px-3 py-1.5 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-red-700 bg-white/80 border border-red-200/60 px-3 py-1.5 rounded-full shadow-sm">
                 <img src={youtubeGif} alt="" className="w-4 h-4 object-contain" />
                 YouTube
               </span>
             ) : isInstagram ? (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-pink-50/50 border border-pink-100/60 px-3 py-1.5 rounded-full">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#7C3AED] bg-white/80 border border-purple-200/60 px-3 py-1.5 rounded-full shadow-sm">
                 <img src={instagramGif} alt="" className="w-4 h-4 object-contain" />
                 Instagram
               </span>
             ) : (
-              <span className="text-xs text-slate-500 font-medium px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">{sub.platform}</span>
+              <span className="text-xs text-slate-500 font-medium px-3 py-1.5 bg-white/80 rounded-full border border-slate-200/60 shadow-sm">{sub.platform}</span>
             )}
           </div>
         )}
@@ -242,13 +278,13 @@ function MetricCard({ camp, sub, index }) {
           
           {/* Video info (YouTube thumbnail + title) */}
           {isYouTube && sub?.stats?.video_title && (
-            <div className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] transition-colors group-hover:bg-white/50 group-hover:border-purple-200/50">
+            <div className={`flex items-center gap-3 mb-5 p-3 rounded-xl border ${t.innerBox}`}>
               {sub.stats.thumbnail && (
                 <img src={sub.stats.thumbnail} alt="" className="w-14 h-10 object-cover rounded flex-shrink-0 shadow-sm" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold text-slate-800 line-clamp-2 leading-tight group-hover:text-purple-950">{sub.stats.video_title}</p>
-                <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-slate-500 font-medium group-hover:text-purple-700/80">
+                <p className={`text-[12px] font-bold line-clamp-2 leading-tight ${t.textNormal}`}>{sub.stats.video_title}</p>
+                <div className={`flex flex-wrap gap-2 mt-1 text-[11px] font-medium ${t.textMuted}`}>
                   {sub.stats.channel_name && <span>{sub.stats.channel_name}</span>}
                 </div>
               </div>
@@ -257,10 +293,10 @@ function MetricCard({ camp, sub, index }) {
 
           {/* Instagram caption */}
           {isInstagram && sub?.stats?.caption && (
-            <div className="mb-5 p-3.5 rounded-xl bg-black/[0.02] border border-black/[0.04] transition-colors group-hover:bg-white/50 group-hover:border-purple-200/50">
-              <p className="text-[12px] text-slate-700 line-clamp-3 leading-relaxed group-hover:text-purple-900">{sub.stats.caption}</p>
+            <div className={`mb-5 p-3.5 rounded-xl border ${t.innerBox}`}>
+              <p className={`text-[12px] line-clamp-3 leading-relaxed ${t.textNormal}`}>{sub.stats.caption}</p>
               {sub.stats.post_date && (
-                <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 font-medium group-hover:text-purple-600/70">
+                <p className={`text-[10px] mt-2 flex items-center gap-1 font-medium ${t.textMuted}`}>
                   <Calendar size={10} />{sub.stats.post_date}
                 </p>
               )}
@@ -269,7 +305,7 @@ function MetricCard({ camp, sub, index }) {
 
           {/* Error state */}
           {hasError && (
-            <div className="flex items-start gap-2.5 bg-amber-50/80 border border-amber-200/60 rounded-xl p-3.5 mb-5">
+            <div className="flex items-start gap-2.5 bg-white/80 border border-amber-200/60 rounded-xl p-3.5 mb-5 shadow-sm">
               <AlertTriangle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 font-medium leading-relaxed">{sub.stats.error}</p>
             </div>
@@ -280,11 +316,11 @@ function MetricCard({ camp, sub, index }) {
             <div className="grid grid-cols-2 gap-x-4 gap-y-5 mb-2 mt-1">
               {rows.map((row, i) => (
                 <div key={i} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-purple-600/80 transition-colors">
-                    <row.icon size={12} className={row.highlight ? 'text-[#7C3AED]' : 'text-slate-400 group-hover:text-purple-500/80 transition-colors'} />
+                  <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${t.textMuted}`}>
+                    <row.icon size={12} className={row.highlight ? t.iconHighlight : t.iconMuted} />
                     {row.label}
                   </div>
-                  <span className={`text-[15px] font-extrabold transition-colors ${row.highlight ? 'text-[#7C3AED]' : 'text-slate-900 group-hover:text-purple-950'}`}>
+                  <span className={`text-[15px] font-extrabold ${row.highlight ? t.textHighlight : t.textNormal}`}>
                     {row.value || '—'}
                   </span>
                 </div>
@@ -297,12 +333,12 @@ function MetricCard({ camp, sub, index }) {
 
         {/* View post button */}
         {sub?.content_url && (
-          <div className="mt-6 pt-4 border-t border-black/5 group-hover:border-purple-200/50 transition-colors">
+          <div className={`mt-6 pt-4 border-t ${t.borderDivider}`}>
             <a
               href={sub.content_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-[#7C3AED] text-[#7C3AED] text-[12px] font-bold rounded-xl hover:bg-[#7C3AED] hover:text-white transition-colors shadow-sm"
+              className={`flex items-center justify-center gap-2 w-full py-2.5 text-[12px] font-bold rounded-xl transition-colors shadow-sm ${t.button}`}
             >
               <ExternalLink size={14} />
               View {isYouTube ? 'YouTube' : isInstagram ? 'Instagram' : ''} Post
