@@ -15,12 +15,10 @@ import youtubeGif from '../../assets/Youtube Logo Effect.gif';
 /* ─── Premium Light Background ────────────────────────────────────────────── */
 function LightBackground() {
   return (
-    <div 
-      className="absolute inset-0 pointer-events-none" 
-      style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)'
-      }}
-    />
+    <>
+      <div className="absolute top-0 right-0 w-40 h-40 bg-purple-100 rounded-full blur-3xl opacity-50 pointer-events-none transform translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none transform -translate-x-1/2 translate-y-1/2" />
+    </>
   );
 }
 
@@ -135,36 +133,36 @@ function PendingCard({ camp, index }) {
   }[camp.status] || camp.status;
 
   const statusColor = {
-    content_uploaded:   'bg-amber-100 text-amber-700 border border-amber-200',
-    revision_requested: 'bg-red-100 text-red-700 border border-red-200',
-    brand_approved:     'bg-emerald-100 text-emerald-700 border border-emerald-200',
-  }[camp.status] || 'bg-slate-100 text-slate-500 border border-slate-200';
+    content_uploaded:   'bg-amber-50 text-amber-700 border-amber-200/60',
+    revision_requested: 'bg-red-50 text-red-700 border-red-200/60',
+    brand_approved:     'bg-emerald-50 text-emerald-700 border-emerald-200/60',
+  }[camp.status] || 'bg-slate-50 text-slate-600 border-slate-200/60';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl shadow-slate-200/50 group transition-all duration-300 hover:shadow-2xl hover:shadow-slate-300/60"
+      className="relative rounded-[20px] overflow-hidden border border-[#7C3AED]/40 bg-white transition-all duration-300 hover:border-[#7C3AED] hover:bg-purple-50 hover:shadow-[0_8px_32px_rgba(124,58,237,0.15)] group"
       style={{ minHeight: '200px' }}
     >
       <LightBackground />
-      <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '200px' }}>
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">{camp.title}</h3>
-          <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
+      <div className="relative z-10 flex flex-col h-full p-6" style={{ minHeight: '200px' }}>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2">{camp.title}</h3>
+          <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusColor}`}>
             {statusLabel}
           </span>
         </div>
         {camp.creator_name && (
-          <p className="text-[11px] text-slate-500 flex items-center gap-1 mb-4">
-            <User size={10} /> {camp.creator_name}
+          <p className="text-xs text-slate-500 flex items-center gap-1.5 mb-4 font-medium">
+            <User size={12} className="text-slate-400" /> {camp.creator_name}
           </p>
         )}
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-[11px] text-slate-400 text-center font-medium">
+        <div className="flex-1 flex items-center justify-center border-t border-black/5 mt-2">
+          <p className="text-xs text-slate-400 text-center font-medium max-w-[80%] leading-relaxed group-hover:text-purple-600/80 transition-colors">
             {camp.status === 'content_uploaded'
-              ? 'Content submitted — metrics will appear once the campaign goes live.'
+              ? 'Content submitted. Metrics will appear once live.'
               : camp.status === 'revision_requested'
               ? 'Waiting for creator to re-upload corrected content.'
               : 'No content submitted yet.'}
@@ -188,23 +186,23 @@ function MetricCard({ camp, sub, index }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl shadow-slate-200/50 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-300/60"
-      style={{ minHeight: '380px' }}
+      className="relative rounded-[20px] overflow-hidden border border-[#7C3AED]/40 bg-white transition-all duration-300 hover:border-[#7C3AED] hover:bg-purple-50 hover:shadow-[0_8px_32px_rgba(124,58,237,0.15)] flex flex-col group"
     >
       <LightBackground />
+      
       {/* Card content */}
-      <div className="relative z-10 flex flex-col h-full p-5" style={{ minHeight: '380px' }}>
+      <div className="relative z-10 flex flex-col h-full p-6">
 
         {/* Campaign name + status */}
-        <div className="mb-4">
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">{camp.title}</h3>
-            <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              camp.status === 'campaign_closed'     ? 'bg-slate-100 text-slate-500 border border-slate-200' :
-              camp.status === 'content_uploaded'    ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-              camp.status === 'revision_requested'  ? 'bg-red-100 text-red-700 border border-red-200' :
-              camp.status === 'brand_approved'      ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-              'bg-emerald-100 text-emerald-700 border border-emerald-200'
+        <div className="mb-5">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2">{camp.title}</h3>
+            <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+              camp.status === 'campaign_closed'     ? 'bg-slate-50 text-slate-600 border-slate-200/60' :
+              camp.status === 'content_uploaded'    ? 'bg-amber-50 text-amber-700 border-amber-200/60' :
+              camp.status === 'revision_requested'  ? 'bg-red-50 text-red-700 border-red-200/60' :
+              camp.status === 'brand_approved'      ? 'bg-blue-50 text-blue-700 border-blue-200/60' :
+              'bg-emerald-50 text-emerald-700 border-emerald-200/60'
             }`}>
               {camp.status === 'campaign_closed'    ? 'Closed' :
                camp.status === 'content_uploaded'   ? 'In Review' :
@@ -214,44 +212,44 @@ function MetricCard({ camp, sub, index }) {
             </span>
           </div>
           {camp.creator_name && (
-            <p className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
-              <User size={10} /> {camp.creator_name}
+            <p className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+              <User size={12} className="text-slate-400" /> {camp.creator_name}
             </p>
           )}
         </div>
 
-        {/* Platform badge — no "via..." text */}
         {/* Platform badge */}
         {sub && (
-          <div className="flex items-center gap-2 mb-4">
-            {isYouTube
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 px-2.5 py-1 rounded-lg">
-                  <img src={youtubeGif} alt="" className="w-4 h-4 object-contain" />
-                  YouTube
-                </span>
-              : isInstagram
-              ? <span className="flex items-center gap-1.5 text-[11px] font-bold text-pink-600 bg-pink-50 border border-pink-100 px-2.5 py-1 rounded-lg">
-                  <img src={instagramGif} alt="" className="w-4 h-4 object-contain" />
-                  Instagram
-                </span>
-              : <span className="text-[11px] text-slate-500 font-medium">{sub.platform}</span>
-            }
+          <div className="flex items-center gap-2 mb-5">
+            {isYouTube ? (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-red-50/50 border border-red-100/60 px-3 py-1.5 rounded-full">
+                <img src={youtubeGif} alt="" className="w-4 h-4 object-contain" />
+                YouTube
+              </span>
+            ) : isInstagram ? (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-pink-50/50 border border-pink-100/60 px-3 py-1.5 rounded-full">
+                <img src={instagramGif} alt="" className="w-4 h-4 object-contain" />
+                Instagram
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500 font-medium px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">{sub.platform}</span>
+            )}
           </div>
         )}
 
-        {/* Content area that grows to fill space, pushing button down */}
+        {/* Content area */}
         <div className="flex-1 flex flex-col min-h-0">
+          
           {/* Video info (YouTube thumbnail + title) */}
           {isYouTube && sub?.stats?.video_title && (
-            <div className="flex items-start gap-3 mb-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
+            <div className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] transition-colors group-hover:bg-white/50 group-hover:border-purple-200/50">
               {sub.stats.thumbnail && (
-                <img src={sub.stats.thumbnail} alt="" className="w-16 h-11 object-cover rounded-lg flex-shrink-0 shadow-sm" />
+                <img src={sub.stats.thumbnail} alt="" className="w-14 h-10 object-cover rounded flex-shrink-0 shadow-sm" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight">{sub.stats.video_title}</p>
-                <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-slate-400 font-medium">
+                <p className="text-[12px] font-bold text-slate-800 line-clamp-2 leading-tight group-hover:text-purple-950">{sub.stats.video_title}</p>
+                <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-slate-500 font-medium group-hover:text-purple-700/80">
                   {sub.stats.channel_name && <span>{sub.stats.channel_name}</span>}
-                  {sub.stats.duration && <span className="flex items-center gap-0.5"><Clock size={9} />{sub.stats.duration}</span>}
                 </div>
               </div>
             </div>
@@ -259,57 +257,57 @@ function MetricCard({ camp, sub, index }) {
 
           {/* Instagram caption */}
           {isInstagram && sub?.stats?.caption && (
-            <div className="mb-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
-              <p className="text-[11px] text-slate-600 line-clamp-2 font-medium">{sub.stats.caption}</p>
+            <div className="mb-5 p-3.5 rounded-xl bg-black/[0.02] border border-black/[0.04] transition-colors group-hover:bg-white/50 group-hover:border-purple-200/50">
+              <p className="text-[12px] text-slate-700 line-clamp-3 leading-relaxed group-hover:text-purple-900">{sub.stats.caption}</p>
               {sub.stats.post_date && (
-                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 font-semibold"><Calendar size={9} />{sub.stats.post_date}</p>
+                <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 font-medium group-hover:text-purple-600/70">
+                  <Calendar size={10} />{sub.stats.post_date}
+                </p>
               )}
             </div>
           )}
 
           {/* Error state */}
           {hasError && (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-4">
-              <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
-              <p className="text-[11px] text-amber-700 font-medium">{sub.stats.error}</p>
+            <div className="flex items-start gap-2.5 bg-amber-50/80 border border-amber-200/60 rounded-xl p-3.5 mb-5">
+              <AlertTriangle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 font-medium leading-relaxed">{sub.stats.error}</p>
             </div>
           )}
 
-          {/* Stat rows — vertical linear list */}
+          {/* Stat Grid */}
           {rows.length > 0 ? (
-            <div className="flex-1 space-y-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 mb-2 mt-1">
               {rows.map((row, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between px-3.5 py-2.5 ${i < rows.length - 1 ? 'border-b border-slate-200/60' : ''}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <row.icon size={12} className={row.highlight ? 'text-[#7C3AED]' : 'text-slate-400'} />
-                    <span className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">{row.label}</span>
+                <div key={i} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-purple-600/80 transition-colors">
+                    <row.icon size={12} className={row.highlight ? 'text-[#7C3AED]' : 'text-slate-400 group-hover:text-purple-500/80 transition-colors'} />
+                    {row.label}
                   </div>
-                  <span className={`text-[13px] font-bold ${row.highlight ? 'text-[#7C3AED]' : 'text-slate-900'}`}>
+                  <span className={`text-[15px] font-extrabold transition-colors ${row.highlight ? 'text-[#7C3AED]' : 'text-slate-900 group-hover:text-purple-950'}`}>
                     {row.value || '—'}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            /* Placeholder to maintain height if no rows */
             <div className="flex-1" />
           )}
         </div>
 
         {/* View post button */}
         {sub?.content_url && (
-          <a
-            href={sub.content_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-[11px] font-bold rounded-xl transition-all shadow-lg shadow-purple-200 active:scale-[0.98]"
-          >
-            <ExternalLink size={12} />
-            View {isYouTube ? 'YouTube' : isInstagram ? 'Instagram' : ''} Post
-          </a>
+          <div className="mt-6 pt-4 border-t border-black/5 group-hover:border-purple-200/50 transition-colors">
+            <a
+              href={sub.content_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-[#7C3AED] text-[#7C3AED] text-[12px] font-bold rounded-xl hover:bg-[#7C3AED] hover:text-white transition-colors shadow-sm"
+            >
+              <ExternalLink size={14} />
+              View {isYouTube ? 'YouTube' : isInstagram ? 'Instagram' : ''} Post
+            </a>
+          </div>
         )}
       </div>
     </motion.div>
@@ -323,10 +321,10 @@ function buildRows(stats, isYouTube, isInstagram) {
       { icon: Eye,           label: 'Views',           value: formatCount(stats.views),    highlight: false },
       { icon: ThumbsUp,      label: 'Likes',           value: formatCount(stats.likes),    highlight: false },
       { icon: MessageCircle, label: 'Comments',        value: formatCount(stats.comments), highlight: false },
-      { icon: TrendingUp,    label: 'Engagement Rate', value: stats.engagement_rate ? `${stats.engagement_rate}%` : null, highlight: true },
+      { icon: TrendingUp,    label: 'Eng. Rate',       value: stats.engagement_rate ? `${stats.engagement_rate}%` : null, highlight: true },
     ];
     if (stats.watch_time_minutes !== null && stats.watch_time_minutes !== undefined)
-      rows.push({ icon: Clock,        label: 'Watch Time',  value: `${formatCount(stats.watch_time_minutes)} min`, highlight: false });
+      rows.push({ icon: Clock,        label: 'Watch Time',  value: `${formatCount(stats.watch_time_minutes)}m`, highlight: false });
     if (stats.impressions !== null && stats.impressions !== undefined)
       rows.push({ icon: Eye,          label: 'Impressions', value: formatCount(stats.impressions), highlight: false });
     if (stats.ctr !== null && stats.ctr !== undefined)
@@ -340,7 +338,7 @@ function buildRows(stats, isYouTube, isInstagram) {
       { icon: MessageCircle, label: 'Comments',        value: formatCount(stats.comments), highlight: false },
       { icon: Share2,        label: 'Shares',          value: formatCount(stats.shares),   highlight: false },
       { icon: Bookmark,      label: 'Saves',           value: formatCount(stats.saves),    highlight: false },
-      { icon: TrendingUp,    label: 'Engagement Rate', value: stats.engagement_rate ? `${stats.engagement_rate}%` : null, highlight: true },
+      { icon: TrendingUp,    label: 'Eng. Rate',       value: stats.engagement_rate ? `${stats.engagement_rate}%` : null, highlight: true },
     ];
   }
   return [];
