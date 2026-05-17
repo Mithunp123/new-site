@@ -87,26 +87,14 @@ export default function Sidebar() {
               </NavLink>
             ))}
 
-            {/* Chat — enabled only with active collab */}
-            {hasActiveCollab ? (
-              <NavLink to="/chat" className={navLinkClass}>
-                {({ isActive }) => (
-                  <>
-                    <LottieIcon name="message" size={18} loop={isActive} />
-                    <span className="flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>Messages</span>
-                  </>
-                )}
-              </NavLink>
-            ) : (
-              <div
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-300 cursor-not-allowed select-none"
-                title="Available after campaign connection"
-              >
-                <LottieIcon name="message" size={18} />
-                <span className="flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>Messages</span>
-                <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-md font-semibold">Soon</span>
-              </div>
-            )}
+            <NavLink to="/chat" className={navLinkClass}>
+              {({ isActive }) => (
+                <>
+                  <LottieIcon name="message" size={18} loop={isActive} />
+                  <span className="flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>Messages</span>
+                </>
+              )}
+            </NavLink>
           </div>
         </div>
 

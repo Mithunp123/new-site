@@ -81,17 +81,93 @@ function handleControllerError(res, err) {
   });
 }
 
+/**
+ * Ephemeral OAuth: Build a self-closing HTML response for the popup.
+ * Uses postMessage to communicate back to parent window, then auto-closes.
+ */
+function buildPopupResponse(success, message, extraData = {}) {
+  const data = JSON.stringify({
+    type: 'INSTAGRAM_OAUTH_RESPONSE',
+    success,
+    message,
+    ...extraData,
+  });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${success ? 'Connected' : 'Error'} — Gradix</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #f5f3ff 100%);
+    }
+    .card {
+      background: white; border-radius: 24px; padding: 48px 40px;
+      text-align: center; max-width: 380px; width: 90%;
+      box-shadow: 0 20px 60px rgba(124, 58, 237, 0.08);
+    }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h2 { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+    p { font-size: 14px; color: #64748b; line-height: 1.6; }
+    .closing { margin-top: 20px; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${success ? '✅' : '❌'}</div>
+    <h2>${success ? 'Instagram Connected!' : 'Connection Failed'}</h2>
+    <p>${message}</p>
+    <p class="closing">This window will close automatically...</p>
+  </div>
+  <script>
+    (function() {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(${data}, '*');
+        }
+      } catch (e) {
+        console.error('postMessage failed:', e);
+      }
+      setTimeout(function() { window.close(); }, 1500);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Ephemeral OAuth Step 1: Redirect to Facebook with reauthenticate + popup params.
+ * Generates a CSRF state token with a 10-minute TTL.
+ */
 exports.redirectToFacebook = async (req, res) => {
   try {
-    const state = crypto.randomBytes(24).toString('hex');
+    const state = crypto.randomBytes(32).toString('hex');
     const returnTo = typeof req.query.return_to === 'string' && req.query.return_to.startsWith('/')
       ? req.query.return_to
       : '/register';
-    
-    // Check if frontend passed token
+
+    // Extract JWT token from query for auto-linking after callback
     const token = req.query.token || null;
-    
-    stateStore.set(state, { returnTo, token, createdAt: Date.now() });
+
+    // Store state with TTL for CSRF protection (10 min expiry)
+    stateStore.set(state, {
+      returnTo,
+      token,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    // Clean up expired states (housekeeping)
+    for (const [key, val] of stateStore.entries()) {
+      if (val.expiresAt && Date.now() > val.expiresAt) stateStore.delete(key);
+    }
+
     setHttpOnlyCookie(res, STATE_COOKIE_NAME, state, 10 * 60);
     return res.redirect(buildFacebookLoginUrl(state));
   } catch (err) {
@@ -99,59 +175,86 @@ exports.redirectToFacebook = async (req, res) => {
   }
 };
 
+/**
+ * Ephemeral OAuth Step 2: Handle Facebook callback.
+ * Exchanges code for token, saves connection, and returns a self-closing popup HTML.
+ */
 exports.facebookCallback = async (req, res) => {
-  console.log("OAuth callback hit");
-  console.log(req.query);
-
-  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-  const stateRecord = stateStore.get(req.query.state);
-  const returnTo = stateRecord?.returnTo || '/register';
-  const errorRedirectUrl = new URL(returnTo, frontendUrl);
-  errorRedirectUrl.searchParams.set('instagram_error', 'true');
+  console.log('[OAuth Callback] Hit');
 
   try {
-    const { code, state, error, error_description } = req.query;
-    if (error) {
-      console.error('[Facebook OAuth Error]', error_description || error);
-      return res.redirect(errorRedirectUrl.toString());
+    const { code, state, error: oauthError, error_description } = req.query;
+
+    // ─── Error from Facebook ───
+    if (oauthError) {
+      console.error('[Facebook OAuth Error]', error_description || oauthError);
+      const msg = oauthError === 'access_denied'
+        ? 'You denied the required permissions. Please try again and grant all requested access.'
+        : `Facebook returned an error: ${error_description || oauthError}`;
+      return res.status(200).send(buildPopupResponse(false, msg));
     }
+
+    // ─── No authorization code ───
     if (!code) {
-      console.error('[Facebook OAuth] No code received');
-      return res.redirect(errorRedirectUrl.toString());
+      console.error('[Facebook OAuth] No authorization code received');
+      return res.status(200).send(buildPopupResponse(false, 'No authorization code was received from Facebook.'));
     }
 
+    // ─── CSRF State Validation ───
     const expectedState = parseCookies(req)[STATE_COOKIE_NAME];
-    if (expectedState && state && expectedState !== state) {
-      console.error('[Facebook OAuth] State mismatch');
-      return res.redirect(errorRedirectUrl.toString());
+    const stateRecord = stateStore.get(state);
+
+    if (!stateRecord) {
+      console.error('[Facebook OAuth] Unknown or expired state parameter');
+      return res.status(200).send(buildPopupResponse(false, 'OAuth session expired. Please close this window and try again.'));
     }
 
-    const accessToken = await exchangeCodeForToken(code);
-    console.log("Access token received");
+    if (expectedState && state && expectedState !== state) {
+      console.error('[Facebook OAuth] State mismatch — possible CSRF');
+      stateStore.delete(state);
+      return res.status(200).send(buildPopupResponse(false, 'Security validation failed. Please try again.'));
+    }
 
+    if (stateRecord.expiresAt && Date.now() > stateRecord.expiresAt) {
+      console.error('[Facebook OAuth] State expired');
+      stateStore.delete(state);
+      return res.status(200).send(buildPopupResponse(false, 'OAuth session timed out. Please close this window and try again.'));
+    }
+
+    // ─── Exchange code for access token ───
+    let accessToken;
+    try {
+      accessToken = await exchangeCodeForToken(code);
+    } catch (tokenErr) {
+      console.error('[Facebook OAuth] Token exchange failed:', tokenErr.response?.data || tokenErr.message);
+      return res.status(200).send(buildPopupResponse(false, 'Failed to exchange authorization code. The code may have expired — please try again.'));
+    }
+    console.log('[OAuth] Access token received');
+
+    // ─── Get Facebook Pages ───
     const pages = await getFacebookPages(accessToken);
     const page = pages[0];
     if (!page) {
       console.error('[Facebook OAuth] No Facebook Pages returned');
-      return res.redirect(errorRedirectUrl.toString());
+      return res.status(200).send(buildPopupResponse(false, 'No Facebook Page found on your account. You need a Facebook Page with a linked Instagram Business/Creator account.'));
     }
 
-    const igAccount = await getInstagramBusinessAccount(page.page_id, page.page_access_token || accessToken);
+    // ─── Get Instagram Business Account ───
+    const pageAccessToken = page.page_access_token || accessToken;
+    const igAccount = await getInstagramBusinessAccount(page.page_id, pageAccessToken);
     if (!igAccount?.id) {
       console.error('[Facebook OAuth] No Instagram Business Account linked to page');
-      return res.redirect(errorRedirectUrl.toString());
+      return res.status(200).send(buildPopupResponse(false, 'No Instagram Business or Creator account is linked to your Facebook Page. Please connect one in Meta Business Suite first.'));
     }
 
-    const pageAccessToken = page.page_access_token || accessToken;
+    // ─── Fetch Instagram profile + media ───
     const profile = await getInstagramProfile(igAccount.id, pageAccessToken);
-    
-    // Optimize media fetching if needed, limit to 10 for faster response
     const mediaItems = await getMediaWithInsights(igAccount.id, pageAccessToken, 10);
     const reels = mediaItems.filter(m => m.media_type === 'REELS' || m.media_product_type === 'REELS');
-    
     const stats = calculateProfileStats(reels.length > 0 ? reels : mediaItems);
-    const connectionId = crypto.randomUUID();
 
+    // ─── Store in-memory session ───
+    const connectionId = crypto.randomUUID();
     tokenStore.set(connectionId, {
       accessToken,
       pageAccessToken,
@@ -165,10 +268,17 @@ exports.facebookCallback = async (req, res) => {
       createdAt: new Date().toISOString(),
     });
 
-    if (stateRecord?.token) {
+    // ─── Auto-link to creator if JWT token was provided ───
+    if (stateRecord.token) {
       try {
         const decoded = verifyJWT(stateRecord.token);
-        if (decoded && decoded.id) {
+        if (decoded?.id) {
+          // Remove old tokens before saving new ones (prevent stale credentials)
+          await pool.query(
+            'UPDATE creator_social_accounts SET instagram_access_token=NULL WHERE creator_id=? AND instagram_business_id != ?',
+            [decoded.id, igAccount.id]
+          );
+
           await pool.query(`
             INSERT INTO creator_social_accounts
               (creator_id, instagram_connected, instagram_access_token, facebook_page_id,
@@ -193,24 +303,35 @@ exports.facebookCallback = async (req, res) => {
             Number(profile.followers_count || 0),
             profile.profile_picture_url || null,
           ]);
+          console.log(`[OAuth] Auto-linked Instagram @${profile.username} to creator ${decoded.id}`);
         }
-      } catch (err) {
-        console.error('[Facebook OAuth] Token verification or MySQL save failed', err);
+      } catch (linkErr) {
+        console.error('[Facebook OAuth] Auto-link failed:', linkErr.message);
+        // Non-fatal — connection still works, user can save manually
       }
     }
 
+    // ─── Cleanup ───
     stateStore.delete(state);
     setHttpOnlyCookie(res, COOKIE_NAME, connectionId, 60 * 60 * 24 * 60);
     appendHttpOnlyCookie(res, STATE_COOKIE_NAME, '', 0);
 
-    console.log("Instagram connected successfully");
+    console.log(`[OAuth] Instagram @${profile.username} connected successfully`);
 
-    const successRedirectUrl = new URL(returnTo, frontendUrl);
-    successRedirectUrl.searchParams.set('instagram_connected', 'true');
-    return res.redirect(successRedirectUrl.toString());
+    // ─── Return self-closing popup HTML ───
+    return res.status(200).send(buildPopupResponse(
+      true,
+      `Successfully connected @${profile.username} with ${Number(profile.followers_count || 0).toLocaleString()} followers.`,
+      {
+        username: profile.username,
+        followers: profile.followers_count,
+        profilePicture: profile.profile_picture_url,
+      }
+    ));
+
   } catch (err) {
     console.error('[Facebook OAuth Callback Error]', err.response?.data || err.message);
-    return res.redirect(errorRedirectUrl.toString());
+    return res.status(200).send(buildPopupResponse(false, 'An unexpected error occurred during authentication. Please try again.'));
   }
 };
 

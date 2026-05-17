@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Send, ChevronLeft, Circle, Search } from 'lucide-react';
+import { MessageSquare, Send, ChevronLeft, Circle, Search, Image, Paperclip, Smile } from 'lucide-react';
 import { getConversations, getMessages, sendMessage } from '../api/chatApi';
 import useAuthStore from '../store/authStore';
 
@@ -8,10 +8,12 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws';
 
 export default function ChatPage() {
   const { user } = useAuthStore();
-  const [activeCampaignId, setActiveCampaignId] = useState(null);
+  const [activeConvId, setActiveConvId] = useState(null);
   const [draft, setDraft] = useState('');
   const [wsMessages, setWsMessages] = useState({});
   const [search, setSearch] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeoutState] = useState(null);
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
   const queryClient = useQueryClient();
@@ -23,19 +25,19 @@ export default function ChatPage() {
   });
 
   const { data: dbMessages = [] } = useQuery({
-    queryKey: ['chat-messages', activeCampaignId],
-    queryFn: () => getMessages(activeCampaignId).then(r => r.data.data),
-    enabled: !!activeCampaignId,
+    queryKey: ['chat-messages', activeConvId],
+    queryFn: () => getMessages(activeConvId).then(r => r.data.data),
+    enabled: !!activeConvId,
   });
 
-  const allMessages = activeCampaignId
-    ? mergeMessages(dbMessages, wsMessages[activeCampaignId] || [])
+  const allMessages = activeConvId
+    ? mergeMessages(dbMessages, wsMessages[activeConvId] || [])
     : [];
 
   const sendMut = useMutation({
-    mutationFn: ({ campaignId, message }) => sendMessage(campaignId, message),
+    mutationFn: ({ convId, message }) => sendMessage(convId, message),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeCampaignId] });
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
     },
   });
@@ -57,7 +59,8 @@ export default function ChatPage() {
 
       ws.onopen = () => {
         conversationsRef.current.forEach(c => {
-          ws.send(JSON.stringify({ type: 'subscribe', campaign_id: String(c.campaign_id) }));
+          const rid = c.conversation_id || c.campaign_id;
+          if (rid) ws.send(JSON.stringify({ type: 'subscribe', conversation_id: String(rid) }));
         });
       };
 
@@ -65,13 +68,21 @@ export default function ChatPage() {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === 'chat') {
+            const cid = msg.conversation_id || msg.campaign_id;
             setWsMessages(prev => {
-              const cid = msg.campaign_id;
               const existing = prev[cid] || [];
               if (msg.id && existing.find(m => m.id === msg.id)) return prev;
               return { ...prev, [cid]: [...existing, msg] };
             });
             queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+          }
+          if (msg.type === 'typing') {
+            if (msg.sender_id !== user?.id) {
+              setIsTyping(msg.is_typing);
+              if (msg.is_typing) {
+                setTimeout(() => setIsTyping(false), 3000);
+              }
+            }
           }
         } catch { /* ignore */ }
       };
@@ -95,35 +106,46 @@ export default function ChatPage() {
   }, []); // eslint-disable-line
 
   useEffect(() => {
-    if (activeCampaignId && wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({ type: 'subscribe', campaign_id: String(activeCampaignId) }));
-      wsRef.current.send(JSON.stringify({ type: 'mark_read', campaign_id: String(activeCampaignId) }));
+    if (activeConvId && wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type: 'subscribe', conversation_id: String(activeConvId) }));
+      wsRef.current.send(JSON.stringify({ type: 'mark_read', conversation_id: String(activeConvId) }));
     }
-    if (activeCampaignId) {
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeCampaignId] });
+    if (activeConvId) {
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] });
     }
-  }, [activeCampaignId, queryClient]);
+  }, [activeConvId, queryClient]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages.length]);
 
   const handleSend = useCallback(() => {
-    if (!draft.trim() || !activeCampaignId) return;
+    if (!draft.trim() || !activeConvId) return;
     const message = draft.trim();
     setDraft('');
     if (wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({ type: 'chat', campaign_id: String(activeCampaignId), message }));
+      wsRef.current.send(JSON.stringify({ type: 'chat', conversation_id: String(activeConvId), message }));
     } else {
-      sendMut.mutate({ campaignId: activeCampaignId, message });
+      sendMut.mutate({ convId: activeConvId, message });
     }
-  }, [draft, activeCampaignId, sendMut]);
+  }, [draft, activeConvId, sendMut]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const activeConv = conversations.find(c => c.campaign_id === activeCampaignId);
+  const handleTyping = () => {
+    if (wsRef.current?.readyState === 1 && activeConvId) {
+      wsRef.current.send(JSON.stringify({ type: 'typing', conversation_id: String(activeConvId), is_typing: true }));
+      if (typingTimeout) clearTimeout(typingTimeout);
+      const timeout = setTimeout(() => {
+        wsRef.current?.send(JSON.stringify({ type: 'typing', conversation_id: String(activeConvId), is_typing: false }));
+      }, 2000);
+      setTypingTimeoutState(timeout);
+    }
+  };
+
+  const activeConv = conversations.find(c => (c.conversation_id || c.campaign_id) === activeConvId);
   const myType = user?.role === 'brand' ? 'brand' : 'creator';
 
   const filteredConvs = conversations.filter(c =>
@@ -141,7 +163,7 @@ export default function ChatPage() {
 
       <div className="card flex overflow-hidden" style={{ height: 'calc(100vh - 180px)', minHeight: '500px' }}>
         {/* Conversation List */}
-        <div className={`w-80 flex-shrink-0 border-r border-slate-100 flex flex-col ${activeCampaignId ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-80 flex-shrink-0 border-r border-slate-100 flex flex-col ${activeConvId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-slate-100">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -163,48 +185,51 @@ export default function ChatPage() {
                 <p className="text-xs mt-1 text-slate-400">Start a collaboration to chat</p>
               </div>
             ) : (
-              filteredConvs.map(conv => (
-                <button
-                  key={conv.campaign_id}
-                  onClick={() => setActiveCampaignId(conv.campaign_id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 text-left transition-colors ${
-                    activeCampaignId === conv.campaign_id ? 'bg-blue-50 border-l-2 border-l-[#2563EB]' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-[#2563EB]/10 flex items-center justify-center text-[#2563EB] font-bold text-sm flex-shrink-0">
-                    {conv.other_user_photo ? (
-                      <img src={conv.other_user_photo} alt="" className="w-full h-full rounded-xl object-cover" />
-                    ) : (
-                      conv.other_user_name?.[0]?.toUpperCase() || '?'
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-900 truncate">{conv.other_user_name}</span>
-                      {conv.unread_count > 0 && (
-                        <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0">
-                          {conv.unread_count}
-                        </span>
+              filteredConvs.map(conv => {
+                const convId = conv.conversation_id || conv.campaign_id;
+                return (
+                  <button
+                    key={convId}
+                    onClick={() => setActiveConvId(convId)}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 text-left transition-colors ${
+                      activeConvId === convId ? 'bg-blue-50 border-l-2 border-l-[#2563EB]' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#2563EB]/10 flex items-center justify-center text-[#2563EB] font-bold text-sm flex-shrink-0">
+                      {conv.other_user_photo ? (
+                        <img src={conv.other_user_photo} alt="" className="w-full h-full rounded-xl object-cover" />
+                      ) : (
+                        conv.other_user_name?.[0]?.toUpperCase() || '?'
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{conv.title}</p>
-                    {conv.last_message && (
-                      <p className="text-xs text-slate-400 truncate mt-0.5">{conv.last_message}</p>
-                    )}
-                  </div>
-                </button>
-              ))
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-900 truncate">{conv.other_user_name}</span>
+                        {conv.unread_count > 0 && (
+                          <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0">
+                            {conv.unread_count}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{conv.title}</p>
+                      {conv.last_message && (
+                        <p className="text-xs text-slate-400 truncate mt-0.5">{conv.last_message}</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
 
         {/* Message Thread */}
-        {activeCampaignId ? (
+        {activeConvId ? (
           <div className="flex-1 flex flex-col min-w-0">
             {/* Thread header */}
             <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3 bg-white">
               <button
-                onClick={() => setActiveCampaignId(null)}
+                onClick={() => setActiveConvId(null)}
                 className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
               >
                 <ChevronLeft size={18} />
@@ -246,6 +271,18 @@ export default function ChatPage() {
                   </div>
                 );
               })}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-white text-slate-500 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-100 text-sm flex items-center gap-1.5">
+                    <span className="flex gap-0.5">
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="text-xs text-slate-400 ml-1">typing...</span>
+                  </div>
+                </div>
+              )}
               <div ref={bottomRef} />
             </div>
 
@@ -253,7 +290,7 @@ export default function ChatPage() {
             <div className="p-4 border-t border-slate-100 bg-white flex gap-3 items-end">
               <textarea
                 value={draft}
-                onChange={e => setDraft(e.target.value)}
+                onChange={e => { setDraft(e.target.value); handleTyping(); }}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message... (Enter to send)"
                 rows={1}

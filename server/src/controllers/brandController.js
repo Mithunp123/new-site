@@ -303,7 +303,7 @@ exports.sendCollaborationRequest = async (req, res, next) => {
     const requiredFields = [
       'creator_id', 'campaign_name', 'campaign_goal', 'campaign_brief', 
       'platform', 'content_type', 'number_of_posts', 'start_date', 
-      'end_date', 'respond_by', 'budget_offer', 'deliverables_required'
+      'end_date', 'respond_by', 'budget_offer'
     ];
 
     const missingFields = requiredFields.filter(field => {
@@ -330,12 +330,26 @@ exports.sendCollaborationRequest = async (req, res, next) => {
     const platform_fee = budget * (platform_fee_rate / 100);
     const total_to_escrow = budget + platform_fee;
 
+    // Serialize content_types JSON if provided
+    const { content_types } = req.body;
+    const contentTypesJson = content_types ? JSON.stringify(content_types) : null;
+
     const [res_camp] = await pool.query(
-      `INSERT INTO campaigns (brand_id, creator_id, title, campaign_goal, brief, platform, content_type, number_of_posts, start_date, deadline, respond_by, budget, escrow_amount, platform_fee, total_to_escrow, tracking_link, tracking_link_provided, deliverables_required, status, escrow_status, commission_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.id, creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, number_of_posts, start_date, end_date, respond_by, budget, total_to_escrow, platform_fee, total_to_escrow, tracking_link, tracking_link ? true : false, deliverables_required, 'request_sent', 'pending', 10.00]
+      `INSERT INTO campaigns (brand_id, creator_id, title, campaign_goal, brief, platform, content_type, content_types, number_of_posts, start_date, deadline, respond_by, budget, escrow_amount, platform_fee, total_to_escrow, tracking_link, tracking_link_provided, deliverables_required, status, escrow_status, commission_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, creator_id, campaign_name, campaign_goal, campaign_brief, platform, content_type, contentTypesJson, number_of_posts, start_date, end_date, respond_by, budget, total_to_escrow, platform_fee, total_to_escrow, tracking_link, tracking_link ? true : false, deliverables_required || '', 'request_sent', 'pending', 10.00]
     );
     const campaign_id = res_camp.insertId;
+
+    // Insert individual deliverable rows if content_types provided
+    if (Array.isArray(content_types) && content_types.length > 0) {
+      for (const ct of content_types) {
+        await pool.query(
+          'INSERT INTO campaign_deliverables (campaign_id, content_type, quantity, platform) VALUES (?, ?, ?, ?)',
+          [campaign_id, ct.label || ct.id, ct.quantity || 1, ct.platform || platform]
+        );
+      }
+    }
 
     await pool.query('INSERT INTO campaign_timeline (campaign_id, status, changed_by) VALUES (?, ?, ?)', [campaign_id, 'request_sent', 'brand']);
     await pool.query('INSERT INTO brand_payments (brand_id, campaign_id, amount, payment_type, payment_status) VALUES (?, ?, ?, ?, ?)', [req.user.id, campaign_id, total_to_escrow, 'escrow', 'pending']);

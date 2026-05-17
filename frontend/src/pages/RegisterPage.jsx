@@ -14,6 +14,7 @@ import { brandRegister, setBrandDetails } from '../api/brandApi';
 import { getInstagramConnectUrl, getInstagramProfile, saveCurrentInstagramConnection } from '../api/instagramApi';
 import useAuthStore from '../store/authStore';
 import '../components/LoginPage.css';
+import { useSecurityTab, SecurityTabModal } from '../components/SecurityTabModal';
 
 const categories = [
   { id: 'fashion', label: 'Fashion', icon: Camera },
@@ -60,6 +61,7 @@ const RegisterPage = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [instagramConnection, setInstagramConnection] = useState(null);
+  const securityTab = useSecurityTab();
 
   const [formData, setFormData] = useState({
     name: googleUser?.name || '',
@@ -143,13 +145,11 @@ const RegisterPage = () => {
         }));
       }
     } catch (err) {
-      if (location.search.includes('instagram_connected=true')) {
-        setError(err.response?.data?.error || 'Instagram connection could not be loaded.');
-      }
+      setError(err.response?.data?.error || 'Instagram connection could not be loaded.');
     } finally {
       setFetchingIG(false);
     }
-  }, [location.search]);
+  }, []);
 
   const fetchYTStats = useCallback(async () => {
     const result = extractYouTubeIdentifier(formData.youtube_url);
@@ -738,14 +738,14 @@ const RegisterPage = () => {
                                   <p style={{ color: '#fff', fontWeight: 700 }}>{Number(formData.instagram_er || 0).toFixed(2)}%</p>
                                 </div>
                               </div>
-                              <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/register'); }} className="outline-btn" style={{ width: '100%', height: '44px', borderRadius: '12px' }}>
+                              <button type="button" onClick={() => { securityTab.openSecurityTab(getInstagramConnectUrl('/register'), (success) => { if (success) refreshInstagramConnection(); }); }} className="outline-btn" style={{ width: '100%', height: '44px', borderRadius: '12px' }}>
                                 Reconnect Instagram
                               </button>
                             </>
                           ) : (
                             <button
                               type="button"
-                              onClick={() => { window.location.href = getInstagramConnectUrl('/register'); }}
+                              onClick={() => { securityTab.openSecurityTab(getInstagramConnectUrl('/register'), (success) => { if (success) refreshInstagramConnection(); }); }}
                               disabled={fetchingIG}
                               style={{ width: '100%', height: '48px', border: 'none', borderRadius: '12px', background: '#1877F2', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
                             >
@@ -990,6 +990,7 @@ const RegisterPage = () => {
           to { transform: rotate(360deg); }
         }
       `}</style>
+      <SecurityTabModal state={securityTab} />
     </div>
   );
 };

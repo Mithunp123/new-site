@@ -3,11 +3,14 @@ const jwt = require('jsonwebtoken');
 const url = require('url');
 const pool = require('./config/db');
 
-// Map: campaignId -> Set of WebSocket clients
-const campaignRooms = new Map();
+// Map: conversationId/campaignId -> Set of WebSocket clients
+const rooms = new Map();
 
-// Map: ws -> { userId, role, campaignIds }
+// Map: ws -> { userId, role, roomIds }
 const clientMeta = new WeakMap();
+
+// Map: userId -> Set of ws connections (for online tracking)
+const onlineUsers = new Map();
 
 function setupWebSocket(server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -26,11 +29,18 @@ function setupWebSocket(server) {
       return;
     }
 
+    const userId = decoded.id;
+    const userRole = decoded.role;
+
     clientMeta.set(ws, {
-      userId: decoded.id,
-      role: decoded.role,
-      campaignIds: new Set(),
+      userId,
+      role: userRole,
+      roomIds: new Set(),
     });
+
+    // Track online users
+    if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
+    onlineUsers.get(userId).add(ws);
 
     ws.on('message', async (raw) => {
       let msg;
@@ -39,93 +49,168 @@ function setupWebSocket(server) {
       const meta = clientMeta.get(ws);
       if (!meta) return;
 
-      // ── Subscribe to a campaign room (for status updates + chat) ──
-      if (msg.type === 'subscribe' && msg.campaign_id) {
-        const cid = String(msg.campaign_id);
-        if (!campaignRooms.has(cid)) campaignRooms.set(cid, new Set());
-        campaignRooms.get(cid).add(ws);
-        meta.campaignIds.add(cid);
-        ws.send(JSON.stringify({ type: 'subscribed', campaign_id: cid }));
+      // ── Subscribe to a room (conversation or campaign) ──
+      if (msg.type === 'subscribe' && (msg.conversation_id || msg.campaign_id)) {
+        const rid = String(msg.conversation_id || msg.campaign_id);
+        if (!rooms.has(rid)) rooms.set(rid, new Set());
+        rooms.get(rid).add(ws);
+        meta.roomIds.add(rid);
+        ws.send(JSON.stringify({ type: 'subscribed', room_id: rid }));
       }
 
       // ── Unsubscribe ──
-      if (msg.type === 'unsubscribe' && msg.campaign_id) {
-        const cid = String(msg.campaign_id);
-        campaignRooms.get(cid)?.delete(ws);
-        meta.campaignIds.delete(cid);
+      if (msg.type === 'unsubscribe' && (msg.conversation_id || msg.campaign_id)) {
+        const rid = String(msg.conversation_id || msg.campaign_id);
+        rooms.get(rid)?.delete(ws);
+        meta.roomIds.delete(rid);
       }
 
-      // ── Chat message ──
-      if (msg.type === 'chat' && msg.campaign_id && msg.message?.trim()) {
-        const cid = String(msg.campaign_id);
+      // ── Chat message (via conversation) ──
+      if (msg.type === 'chat' && (msg.conversation_id || msg.campaign_id) && msg.message?.trim()) {
+        const rid = String(msg.conversation_id || msg.campaign_id);
         const senderType = meta.role === 'brand' ? 'brand' : 'creator';
 
         try {
-          // Verify sender belongs to this campaign
-          const [camp] = await pool.query(
-            'SELECT brand_id, creator_id FROM campaigns WHERE id=?',
-            [cid]
-          );
-          if (!camp.length) return;
+          let convId = null;
+          let brandId = null;
+          let creatorId = null;
 
-          const c = camp[0];
-          const isBrand = senderType === 'brand' && c.brand_id === meta.userId;
-          const isCreator = senderType === 'creator' && c.creator_id === meta.userId;
+          // Try to find conversation directly
+          const [conv] = await pool.query('SELECT * FROM conversations WHERE id = ?', [rid]);
+          if (conv.length) {
+            convId = conv[0].id;
+            brandId = conv[0].brand_id;
+            creatorId = conv[0].creator_id;
+          } else {
+            // Fallback: maybe it's a campaign_id
+            const [camp] = await pool.query('SELECT brand_id, creator_id FROM campaigns WHERE id = ?', [rid]);
+            if (!camp.length) return;
+
+            brandId = camp[0].brand_id;
+            creatorId = camp[0].creator_id;
+
+            // Find or create conversation
+            const [existingConv] = await pool.query(
+              'SELECT id FROM conversations WHERE brand_id = ? AND creator_id = ?',
+              [brandId, creatorId]
+            );
+            if (existingConv.length) {
+              convId = existingConv[0].id;
+            } else {
+              const [newConv] = await pool.query(
+                'INSERT INTO conversations (brand_id, creator_id) VALUES (?, ?)',
+                [brandId, creatorId]
+              );
+              convId = newConv.insertId;
+            }
+          }
+
+          // Verify sender belongs to this conversation
+          const isBrand = senderType === 'brand' && brandId === meta.userId;
+          const isCreator = senderType === 'creator' && creatorId === meta.userId;
           if (!isBrand && !isCreator) return;
 
-          // Follow gate: brand must follow creator (saved). Creator can reply if brand follows them.
-          if (isBrand) {
-            const [follows] = await pool.query(
-              'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
-              [meta.userId, c.creator_id]
-            );
-            if (!follows.length) return; // silently ignore — brand doesn't follow creator
-          } else {
-            // Creator: brand must follow them
-            const [follows] = await pool.query(
-              'SELECT id FROM brand_saved_creators WHERE brand_id=? AND creator_id=?',
-              [c.brand_id, meta.userId]
-            );
-            if (!follows.length) return; // silently ignore — brand doesn't follow creator
-          }
+          // Follow gate
+          const [follows] = await pool.query(
+            'SELECT id FROM brand_saved_creators WHERE brand_id = ? AND creator_id = ?',
+            [brandId, creatorId]
+          );
+          if (!follows.length) return;
 
           // Persist to DB
           const [result] = await pool.query(
-            'INSERT INTO messages (campaign_id, sender_type, sender_id, message) VALUES (?, ?, ?, ?)',
-            [cid, senderType, meta.userId, msg.message.trim()]
+            'INSERT INTO direct_messages (conversation_id, sender_type, sender_id, message, message_type) VALUES (?, ?, ?, ?, ?)',
+            [convId, senderType, meta.userId, msg.message.trim(), msg.message_type || 'text']
           );
+
+          // Update conversation last_message_at
+          await pool.query('UPDATE conversations SET last_message_at = NOW() WHERE id = ?', [convId]);
 
           const payload = JSON.stringify({
             type: 'chat',
-            campaign_id: cid,
+            conversation_id: String(convId),
+            campaign_id: rid, // Keep for backwards compat
             id: result.insertId,
             sender_type: senderType,
             sender_id: meta.userId,
             message: msg.message.trim(),
+            message_type: msg.message_type || 'text',
             created_at: new Date().toISOString(),
           });
 
           // Broadcast to everyone in the room (including sender for confirmation)
-          const room = campaignRooms.get(cid);
+          const room = rooms.get(rid);
           if (room) {
             room.forEach(client => {
               if (client.readyState === 1) client.send(payload);
             });
+          }
+          // Also broadcast to the conversation room if different from campaign room
+          if (String(convId) !== rid) {
+            const convRoom = rooms.get(String(convId));
+            if (convRoom) {
+              convRoom.forEach(client => {
+                if (client.readyState === 1) client.send(payload);
+              });
+            }
           }
         } catch (e) {
           console.error('[WS] Chat error:', e.message);
         }
       }
 
+      // ── Typing indicator ──
+      if (msg.type === 'typing' && (msg.conversation_id || msg.campaign_id)) {
+        const rid = String(msg.conversation_id || msg.campaign_id);
+        const payload = JSON.stringify({
+          type: 'typing',
+          room_id: rid,
+          sender_id: meta.userId,
+          sender_type: meta.role === 'brand' ? 'brand' : 'creator',
+          is_typing: msg.is_typing !== false,
+        });
+
+        const room = rooms.get(rid);
+        if (room) {
+          room.forEach(client => {
+            if (client !== ws && client.readyState === 1) client.send(payload);
+          });
+        }
+      }
+
       // ── Mark messages as read ──
-      if (msg.type === 'mark_read' && msg.campaign_id) {
-        const cid = String(msg.campaign_id);
-        const senderType = meta.role === 'brand' ? 'creator' : 'brand'; // mark OTHER party's messages
+      if (msg.type === 'mark_read' && (msg.conversation_id || msg.campaign_id)) {
+        const rid = String(msg.conversation_id || msg.campaign_id);
+        const otherType = meta.role === 'brand' ? 'creator' : 'brand';
         try {
-          await pool.query(
-            'UPDATE messages SET is_read=true WHERE campaign_id=? AND sender_type=? AND is_read=false',
-            [cid, senderType]
-          );
+          // Try conversation-based first
+          const [conv] = await pool.query('SELECT id FROM conversations WHERE id = ?', [rid]);
+          if (conv.length) {
+            await pool.query(
+              'UPDATE direct_messages SET is_read = true WHERE conversation_id = ? AND sender_type = ? AND is_read = false',
+              [rid, otherType]
+            );
+          } else {
+            // Legacy: campaign-based
+            await pool.query(
+              'UPDATE messages SET is_read = true WHERE campaign_id = ? AND sender_type = ? AND is_read = false',
+              [rid, otherType]
+            );
+          }
+
+          // Notify the room about read receipts
+          const payload = JSON.stringify({
+            type: 'messages_read',
+            room_id: rid,
+            read_by: meta.userId,
+            read_by_type: meta.role === 'brand' ? 'brand' : 'creator',
+          });
+          const room = rooms.get(rid);
+          if (room) {
+            room.forEach(client => {
+              if (client !== ws && client.readyState === 1) client.send(payload);
+            });
+          }
         } catch (e) { /* silent */ }
       }
     });
@@ -133,7 +218,13 @@ function setupWebSocket(server) {
     ws.on('close', () => {
       const meta = clientMeta.get(ws);
       if (meta) {
-        meta.campaignIds.forEach(cid => campaignRooms.get(cid)?.delete(ws));
+        meta.roomIds.forEach(rid => rooms.get(rid)?.delete(ws));
+        // Remove from online users
+        const userSockets = onlineUsers.get(meta.userId);
+        if (userSockets) {
+          userSockets.delete(ws);
+          if (userSockets.size === 0) onlineUsers.delete(meta.userId);
+        }
       }
     });
 
@@ -148,7 +239,7 @@ function setupWebSocket(server) {
  */
 function broadcastCampaignUpdate(campaignId, payload) {
   const cid = String(campaignId);
-  const room = campaignRooms.get(cid);
+  const room = rooms.get(cid);
   if (!room || room.size === 0) return;
 
   const message = JSON.stringify({
@@ -162,4 +253,11 @@ function broadcastCampaignUpdate(campaignId, payload) {
   });
 }
 
-module.exports = { setupWebSocket, broadcastCampaignUpdate };
+/**
+ * Check if a user is online.
+ */
+function isUserOnline(userId) {
+  return onlineUsers.has(userId) && onlineUsers.get(userId).size > 0;
+}
+
+module.exports = { setupWebSocket, broadcastCampaignUpdate, isUserOnline };

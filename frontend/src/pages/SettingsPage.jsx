@@ -5,6 +5,7 @@ import { User, Bell, Shield, CreditCard, Plug, AlertTriangle, Save, Camera } fro
 import { getProfile, getSocialProfiles, updateProfile, upsertSocialProfile, updatePassword, deleteAccount } from '../api/creatorApi';
 import { getInstagramConnectUrl, getInstagramProfile, saveCurrentInstagramConnection, disconnectInstagram } from '../api/instagramApi';
 import useAuthStore from '../store/authStore';
+import { useSecurityTab, SecurityTabModal } from '../components/SecurityTabModal';
 
 const MENU = [
   { key: 'profile',       label: 'Profile',        icon: User },
@@ -30,6 +31,7 @@ function extractYouTubeIdentifier(url) {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const securityTab = useSecurityTab();
   const [activeTab, setActiveTab] = useState('profile');
   const { user } = useAuthStore();
   const [form, setForm]     = useState({});
@@ -104,39 +106,38 @@ export default function SettingsPage() {
     if (instagram?.instagram_connected) setInstagramConnection(instagram);
   }, [socialProfiles]);
 
+  const finishInstagramConnection = async () => {
+    setFetchingIG(true);
+    try {
+      const profileRes = await getInstagramProfile();
+      const profileData = profileRes.data?.data?.profile;
+      await saveCurrentInstagramConnection();
+      setInstagramConnection(profileData);
+      setSocialForm(prev => ({
+        ...prev,
+        instagram_url: profileData?.username ? `https://www.instagram.com/${profileData.username}` : prev.instagram_url,
+        instagram_username: profileData?.username || prev.instagram_username,
+        instagram_profile_picture: profileData?.profile_picture_url || prev.instagram_profile_picture,
+        instagram_followers: profileData?.followers_count ?? prev.instagram_followers,
+        instagram_avg_views: profileData?.avg_views ?? prev.instagram_avg_views,
+        instagram_er: profileData?.engagement_rate ?? prev.instagram_er,
+        instagram_verified: profileData?.is_verified ?? prev.instagram_verified,
+        instagram_connected: true,
+      }));
+      queryClient.invalidateQueries(['socialProfiles']);
+      setMsg('Instagram connected successfully!');
+    } catch (err) {
+      setMsg(err?.response?.data?.error || 'Instagram connection failed.');
+    } finally {
+      setFetchingIG(false);
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => setMsg(''), 4000);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (!params.has('instagram_connected')) return;
-
-    const finishInstagramConnection = async () => {
-      setFetchingIG(true);
-      try {
-        const profileRes = await getInstagramProfile();
-        const profileData = profileRes.data?.data?.profile;
-        await saveCurrentInstagramConnection();
-        setInstagramConnection(profileData);
-        setSocialForm(prev => ({
-          ...prev,
-          instagram_url: profileData?.username ? `https://www.instagram.com/${profileData.username}` : prev.instagram_url,
-          instagram_username: profileData?.username || prev.instagram_username,
-          instagram_profile_picture: profileData?.profile_picture_url || prev.instagram_profile_picture,
-          instagram_followers: profileData?.followers_count ?? prev.instagram_followers,
-          instagram_avg_views: profileData?.avg_views ?? prev.instagram_avg_views,
-          instagram_er: profileData?.engagement_rate ?? prev.instagram_er,
-          instagram_verified: profileData?.is_verified ?? prev.instagram_verified,
-          instagram_connected: true,
-        }));
-        queryClient.invalidateQueries(['socialProfiles']);
-        setMsg('Instagram connected successfully!');
-      } catch (err) {
-        setMsg(err?.response?.data?.error || 'Instagram connection failed.');
-      } finally {
-        setFetchingIG(false);
-        window.history.replaceState({}, '', window.location.pathname);
-        setTimeout(() => setMsg(''), 4000);
-      }
-    };
-
     finishInstagramConnection();
   }, [queryClient]);
 
@@ -449,7 +450,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 mt-4">
-                        <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-secondary text-xs">
+                        <button type="button" onClick={() => { securityTab.openSecurityTab(getInstagramConnectUrl('/settings?tab=social'), (success) => { if (success) finishInstagramConnection(); }); }} className="btn-secondary text-xs">
                           Reconnect
                         </button>
                         <button type="button" onClick={handleDisconnectInstagram} disabled={fetchingIG} className="btn-danger text-xs">
@@ -464,7 +465,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-slate-900">Instagram is not connected</p>
                             <p className="text-xs text-slate-500 mt-1">Connect through Facebook OAuth to fetch official profile and reel metrics.</p>
                           </div>
-                          <button type="button" onClick={() => { window.location.href = getInstagramConnectUrl('/settings?tab=social'); }} className="btn-primary whitespace-nowrap">
+                          <button type="button" onClick={() => { securityTab.openSecurityTab(getInstagramConnectUrl('/settings?tab=social'), (success) => { if (success) finishInstagramConnection(); }); }} className="btn-primary whitespace-nowrap">
                             Connect Instagram
                           </button>
                         </div>
@@ -592,6 +593,7 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+      <SecurityTabModal state={securityTab} />
     </motion.div>
   );
 }

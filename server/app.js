@@ -6,7 +6,10 @@ const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map(origin => origin.trim())

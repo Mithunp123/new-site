@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSocialProfiles, upsertSocialProfile } from '../api/creatorApi';
 import { getInstagramConnectUrl, getInstagramProfile, saveCurrentInstagramConnection, disconnectInstagram } from '../api/instagramApi';
+import { useSecurityTab, SecurityTabModal } from '../components/SecurityTabModal';
 
 function extractYouTubeIdentifier(url) {
   if (!url) return null;
@@ -18,6 +19,7 @@ function extractYouTubeIdentifier(url) {
 
 export default function SocialProfilesPage() {
   const navigate = useNavigate();
+  const securityTab = useSecurityTab();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ig, setIg] = useState({ profile_url: '', followers_count: '', avg_views: '', engagement_rate: '', is_verified: false, instagram_connected: false, instagram_username: '', instagram_profile_picture: '' });
@@ -120,7 +122,7 @@ export default function SocialProfilesPage() {
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <button onClick={() => { window.location.href = getInstagramConnectUrl('/social-profiles'); }} disabled={saving}>{ig.instagram_connected ? 'Reconnect' : 'Connect Instagram'}</button>
+          <button onClick={() => { securityTab.openSecurityTab(getInstagramConnectUrl('/social-profiles'), (success) => { if (success) refreshIg().then(() => saveCurrentInstagramConnection()); }); }} disabled={saving}>{ig.instagram_connected ? 'Reconnect' : 'Connect Instagram'}</button>
           {ig.instagram_connected && <button onClick={refreshIg} disabled={saving}>Refresh Stats</button>}
           {ig.instagram_connected && <button onClick={saveIg} disabled={saving}>Save</button>}
           {ig.instagram_connected && <button onClick={disconnectIg} disabled={saving}>Disconnect</button>}
@@ -148,6 +150,7 @@ export default function SocialProfilesPage() {
       </div>
 
       <div style={{ color: '#666', marginTop: 8 }}>{msg}</div>
+      <SecurityTabModal state={securityTab} />
       <div style={{ marginTop: 16 }}>
         <button onClick={() => navigate('/settings')}>Back to Settings</button>
       </div>

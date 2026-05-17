@@ -8,7 +8,8 @@ router.use(verifyToken);
 
 router.get('/conversations', chatController.getConversations);
 router.get('/unread', chatController.getUnreadCount);
-router.get('/:campaignId/messages', chatController.getMessages);
-router.post('/:campaignId/messages', chatController.sendMessage);
+router.post('/conversation', chatController.getOrCreateConversation);
+router.get('/:conversationId/messages', chatController.getMessages);
+router.post('/:conversationId/messages', chatController.sendMessage);
 
 module.exports = router;

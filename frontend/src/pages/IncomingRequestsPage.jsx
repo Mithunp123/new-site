@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Check, X, ArrowRight, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Check, X, ArrowRight, Inbox, ChevronDown, ChevronUp, Calendar, Link2, DollarSign, Target, Film, Package, Clock, AlertTriangle } from 'lucide-react';
 import {
   getRequests,
   acceptCampaign,
@@ -34,6 +34,7 @@ export default function IncomingRequestsPage() {
   const [negotiatingId, setNegotiatingId]   = useState(null);
   const [negotiateAmount, setNegotiateAmount] = useState('');
   const [negotiateMessage, setNegotiateMessage] = useState('');
+  const [confirmAction, setConfirmAction]   = useState(null); // { type: 'accept'|'decline'|'accept_offer', id, data }
   const queryClient = useQueryClient();
   const navigate    = useNavigate();
 
@@ -52,6 +53,7 @@ export default function IncomingRequestsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setConfirmAction(null);
     },
   });
 
@@ -60,6 +62,7 @@ export default function IncomingRequestsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setConfirmAction(null);
     },
   });
 
@@ -82,6 +85,7 @@ export default function IncomingRequestsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setConfirmAction(null);
     },
   });
 
@@ -102,11 +106,77 @@ export default function IncomingRequestsPage() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
 
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmAction && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl"
+            >
+              {confirmAction.type === 'accept' && (
+                <>
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mb-4">
+                    <Check size={24} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">Accept This Campaign?</h3>
+                  <p className="text-sm text-slate-500 mb-5">By accepting, you agree to the campaign terms. The brand will be notified and can proceed to lock escrow.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => acceptMut.mutate(confirmAction.id)} disabled={acceptMut.isPending} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all disabled:opacity-60">
+                      {acceptMut.isPending ? 'Accepting...' : 'Yes, Accept'}
+                    </button>
+                    <button onClick={() => setConfirmAction(null)} className="px-6 py-3 bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200">Cancel</button>
+                  </div>
+                </>
+              )}
+              {confirmAction.type === 'decline' && (
+                <>
+                  <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                    <X size={24} className="text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">Decline This Campaign?</h3>
+                  <p className="text-sm text-slate-500 mb-5">This action cannot be undone. The brand will be notified.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => declineMut.mutate(confirmAction.id)} disabled={declineMut.isPending} className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all disabled:opacity-60">
+                      {declineMut.isPending ? 'Declining...' : 'Yes, Decline'}
+                    </button>
+                    <button onClick={() => setConfirmAction(null)} className="px-6 py-3 bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200">Cancel</button>
+                  </div>
+                </>
+              )}
+              {confirmAction.type === 'accept_offer' && (
+                <>
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
+                    <Check size={24} className="text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">Accept This Offer?</h3>
+                  <p className="text-sm text-slate-500 mb-2">You are accepting the negotiated offer. This will lock the deal.</p>
+                  <p className="text-lg font-bold text-blue-600 mb-5">₹{Number(confirmAction.data?.amount || 0).toLocaleString('en-IN')}</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => acceptOfferMut.mutate(confirmAction.id)} disabled={acceptOfferMut.isPending} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-60">
+                      {acceptOfferMut.isPending ? 'Accepting...' : 'Confirm & Accept'}
+                    </button>
+                    <button onClick={() => setConfirmAction(null)} className="px-6 py-3 bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200">Cancel</button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Collaboration Requests</h1>
-          <p className="page-subtitle">{counts.pending} new requests need your response within 48 hours</p>
+          <p className="page-subtitle">{counts.pending} new requests need your response</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="badge badge-red">{counts.pending} Pending</span>
@@ -123,9 +193,7 @@ export default function IncomingRequestsPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {tab.label}
@@ -137,13 +205,7 @@ export default function IncomingRequestsPage() {
         </div>
         <div className="relative">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search requests..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="input pl-9 w-64"
-          />
+          <input type="text" placeholder="Search requests..." value={search} onChange={e => setSearch(e.target.value)} className="input pl-9 w-64" />
         </div>
       </div>
 
@@ -160,18 +222,13 @@ export default function IncomingRequestsPage() {
 
             const brandName   = c.brand_name || c.brand || 'Brand';
             const deliverable = c.deliverable || c.content_type || '—';
-            
-            // Show negotiate_amount if it exists and we're negotiating
-            const amount      = (isNegotiating && c.negotiate_amount) 
-              ? c.negotiate_amount 
-              : (c.amount ?? c.campaign_amount ?? 0);
-
-            const respondBy   = c.respond_by
-              ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-              : null;
-
-            // Negotiations history (if available from detail query)
+            const amount      = (isNegotiating && c.negotiate_amount) ? c.negotiate_amount : (c.amount ?? c.campaign_amount ?? 0);
+            const respondBy   = c.respond_by ? new Date(c.respond_by).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null;
             const negotiations = c.negotiations || [];
+
+            // Parse content types if available
+            let contentTypes = [];
+            try { contentTypes = c.content_types ? (typeof c.content_types === 'string' ? JSON.parse(c.content_types) : c.content_types) : []; } catch {}
 
             return (
               <motion.div
@@ -187,7 +244,6 @@ export default function IncomingRequestsPage() {
               >
                 <div className="p-5">
                   <div className="flex flex-wrap items-start gap-4">
-                    {/* Avatar */}
                     <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center font-bold text-blue-600 text-sm flex-shrink-0">
                       {c.brand_initials || brandName?.[0]?.toUpperCase() || 'B'}
                     </div>
@@ -201,55 +257,81 @@ export default function IncomingRequestsPage() {
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-xl font-bold text-blue-600">₹{Number(amount).toLocaleString('en-IN')}</p>
-                          {isPending && respondBy && (
-                            <span className="badge badge-red mt-1">Respond by {respondBy}</span>
-                          )}
-                          {isNegotiating && (
-                            <span className="badge badge-orange mt-1">Negotiating</span>
-                          )}
+                          {isPending && respondBy && <span className="badge badge-red mt-1">Respond by {respondBy}</span>}
+                          {isNegotiating && <span className="badge badge-orange mt-1">Negotiating</span>}
                           {isAccepted && <span className="badge badge-green mt-1">Accepted</span>}
                           {isDeclined && <span className="badge badge-red mt-1">Declined</span>}
                         </div>
                       </div>
 
-                      {/* Brief */}
+                      {/* Full Campaign Details — always shown for pending/negotiating, togglable for others */}
                       <AnimatePresence>
-                        {(isPending || isNegotiating || isExpanded) && c.brief && (
+                        {(isPending || isNegotiating || isExpanded) && (
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="bg-slate-50 rounded-xl p-4 mb-3 border border-slate-100"
+                            className="space-y-3 mb-3"
                           >
-                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Campaign Brief</p>
-                            <p className="text-sm text-slate-600 leading-relaxed">{c.brief}</p>
+                            {/* Campaign Brief */}
+                            {c.brief && (
+                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Campaign Brief</p>
+                                <p className="text-sm text-slate-600 leading-relaxed">{c.brief}</p>
+                              </div>
+                            )}
+
+                            {/* Campaign Details Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              {c.platform && (
+                                <DetailCard icon={Target} label="Platform" value={c.platform} />
+                              )}
+                              {c.campaign_goal && (
+                                <DetailCard icon={Target} label="Goal" value={c.campaign_goal} />
+                              )}
+                              {c.start_date && c.deadline && (
+                                <DetailCard icon={Calendar} label="Timeline" value={`${new Date(c.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} → ${new Date(c.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`} />
+                              )}
+                              {c.number_of_posts && (
+                                <DetailCard icon={Package} label="Posts Required" value={`${c.number_of_posts} deliverables`} />
+                              )}
+                            </div>
+
+                            {/* Content Types */}
+                            {contentTypes.length > 0 && (
+                              <div className="bg-purple-50/50 rounded-xl p-4 border border-purple-100/50">
+                                <p className="text-[11px] font-semibold text-purple-600 uppercase tracking-wider mb-2">Required Deliverables</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {contentTypes.map((ct, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-lg text-xs font-semibold text-purple-700 border border-purple-100 shadow-sm">
+                                      <Film size={10} />
+                                      {ct.quantity}x {ct.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Additional details */}
+                            {c.deliverables_required && (
+                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Additional Requirements</p>
+                                <p className="text-sm text-slate-600 leading-relaxed">{c.deliverables_required}</p>
+                              </div>
+                            )}
+
+                            {/* Meta info */}
+                            <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                              {c.tracking_link && (
+                                <span className="flex items-center gap-1"><Link2 size={13} /> Tracking link included</span>
+                              )}
+                              {c.escrow_label && (
+                                <span className="flex items-center gap-1"><DollarSign size={13} /> {c.escrow_label}</span>
+                              )}
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
-
-                      {/* Meta */}
-                      {(isPending || isNegotiating || isExpanded) && (
-                        <div className="flex flex-wrap gap-4 mb-3 text-sm text-slate-500">
-                          {c.timeline_label && (
-                            <span className="flex items-center gap-1">
-                              <LottieIcon name="calendar" size={14} />
-                              {c.timeline_label}
-                            </span>
-                          )}
-                          {c.tracking_label && (
-                            <span className="flex items-center gap-1">
-                              <LottieIcon name="link" size={14} />
-                              {c.tracking_label}
-                            </span>
-                          )}
-                          {c.escrow_label && (
-                            <span className="flex items-center gap-1">
-                              <LottieIcon name="money" size={14} />
-                              {c.escrow_label}
-                            </span>
-                          )}
-                        </div>
-                      )}
 
                       {/* Negotiation history */}
                       {isNegotiating && negotiations.length > 0 && (
@@ -264,7 +346,6 @@ export default function IncomingRequestsPage() {
                               {neg.message && <p className="text-slate-500 text-xs">{neg.message}</p>}
                             </div>
                           ))}
-                          {/* Latest offer amount */}
                           {c.negotiate_amount && (
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
                               <span className="text-amber-700 font-semibold">Current offer: </span>
@@ -284,36 +365,15 @@ export default function IncomingRequestsPage() {
                             className="mb-3 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
                           >
                             <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                              <LottieIcon name="handshake" size={16} />
-                              Submit Counter-Offer
+                              <LottieIcon name="handshake" size={16} /> Submit Counter-Offer
                             </p>
-                            <input
-                              type="number"
-                              placeholder="Proposed amount (₹)"
-                              value={negotiateAmount}
-                              onChange={e => setNegotiateAmount(e.target.value)}
-                              className="input w-full"
-                              min="1"
-                            />
-                            <textarea
-                              placeholder="Message (optional)"
-                              value={negotiateMessage}
-                              onChange={e => setNegotiateMessage(e.target.value)}
-                              className="input w-full resize-none"
-                              rows={2}
-                            />
+                            <input type="number" placeholder="Proposed amount (₹)" value={negotiateAmount} onChange={e => setNegotiateAmount(e.target.value)} className="input w-full" min="1" />
+                            <textarea placeholder="Message (optional)" value={negotiateMessage} onChange={e => setNegotiateMessage(e.target.value)} className="input w-full resize-none" rows={2} />
                             <div className="flex gap-2">
-                              <button
-                                onClick={() => negotiateMut.mutate({ id: c.campaign_id, amount: negotiateAmount, message: negotiateMessage })}
-                                disabled={!negotiateAmount || negotiateMut.isPending}
-                                className="btn-primary flex items-center gap-1"
-                              >
-                                <LottieIcon name="send" size={14} />
-                                {negotiateMut.isPending ? 'Submitting...' : 'Submit Offer'}
+                              <button onClick={() => negotiateMut.mutate({ id: c.campaign_id, amount: negotiateAmount, message: negotiateMessage })} disabled={!negotiateAmount || negotiateMut.isPending} className="btn-primary flex items-center gap-1">
+                                <LottieIcon name="send" size={14} /> {negotiateMut.isPending ? 'Submitting...' : 'Submit Offer'}
                               </button>
-                              <button onClick={() => { setNegotiatingId(null); setNegotiateAmount(''); setNegotiateMessage(''); }} className="btn-ghost">
-                                <X size={14} /> Cancel
-                              </button>
+                              <button onClick={() => { setNegotiatingId(null); setNegotiateAmount(''); setNegotiateMessage(''); }} className="btn-ghost"><X size={14} /> Cancel</button>
                             </div>
                           </motion.div>
                         )}
@@ -323,43 +383,23 @@ export default function IncomingRequestsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         {isPending ? (
                           <>
-                            <button
-                              onClick={() => acceptMut.mutate(c.campaign_id)}
-                              disabled={acceptMut.isPending}
-                              className="btn-primary flex items-center gap-1"
-                            >
-                              <Check size={14} /> {acceptMut.isPending ? 'Accepting...' : 'Accept'}
+                            <button onClick={() => setConfirmAction({ type: 'accept', id: c.campaign_id })} className="btn-primary flex items-center gap-1">
+                              <Check size={14} /> Accept
                             </button>
-                            <button
-                              onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }}
-                              className="btn-secondary flex items-center gap-1"
-                            >
-                              <LottieIcon name="handshake" size={14} />
-                              Negotiate
+                            <button onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }} className="btn-secondary flex items-center gap-1">
+                              <LottieIcon name="handshake" size={14} /> Negotiate
                             </button>
-                            <button
-                              onClick={() => declineMut.mutate(c.campaign_id)}
-                              className="text-sm text-red-500 hover:text-red-600 font-medium px-2 py-1"
-                            >
+                            <button onClick={() => setConfirmAction({ type: 'decline', id: c.campaign_id })} className="text-sm text-red-500 hover:text-red-600 font-medium px-2 py-1">
                               Decline
                             </button>
                           </>
                         ) : isNegotiating ? (
                           <>
-                            <button
-                              onClick={() => acceptOfferMut.mutate(c.campaign_id)}
-                              disabled={acceptOfferMut.isPending}
-                              className="btn-primary flex items-center gap-1"
-                            >
-                              <LottieIcon name="check" size={14} />
-                              {acceptOfferMut.isPending ? 'Accepting...' : 'Accept Offer'}
+                            <button onClick={() => setConfirmAction({ type: 'accept_offer', id: c.campaign_id, data: { amount: c.negotiate_amount } })} className="btn-primary flex items-center gap-1">
+                              <Check size={14} /> Accept Offer
                             </button>
-                            <button
-                              onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }}
-                              className="btn-secondary flex items-center gap-1"
-                            >
-                              <LottieIcon name="handshake" size={14} />
-                              Counter Offer
+                            <button onClick={() => { setNegotiatingId(c.campaign_id); setNegotiateAmount(''); setNegotiateMessage(''); }} className="btn-secondary flex items-center gap-1">
+                              <LottieIcon name="handshake" size={14} /> Counter Offer
                             </button>
                           </>
                         ) : isAccepted ? (
@@ -367,22 +407,16 @@ export default function IncomingRequestsPage() {
                             <button onClick={() => navigate('/campaigns')} className="btn-primary flex items-center gap-1">
                               View Campaign <ArrowRight size={14} />
                             </button>
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                              className="btn-secondary flex items-center gap-1"
-                            >
+                            <button onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)} className="btn-secondary flex items-center gap-1">
                               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                              {isExpanded ? 'Hide Brief' : 'View Brief'}
+                              {isExpanded ? 'Hide Details' : 'View Details'}
                             </button>
                           </>
                         ) : isDeclined ? (
                           <span className="text-sm text-slate-400">This request was declined.</span>
                         ) : (
-                          <button
-                            onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)}
-                            className="btn-secondary flex items-center gap-1"
-                          >
-                            {isExpanded ? 'Hide Brief' : 'View Brief'}
+                          <button onClick={() => setExpandedId(isExpanded ? null : c.campaign_id)} className="btn-secondary flex items-center gap-1">
+                            {isExpanded ? 'Hide Details' : 'View Details'}
                           </button>
                         )}
                       </div>
@@ -403,3 +437,14 @@ export default function IncomingRequestsPage() {
     </motion.div>
   );
 }
+
+// Small detail card component for campaign info
+const DetailCard = ({ icon: Icon, label, value }) => (
+  <div className="bg-white rounded-lg p-3 border border-slate-100">
+    <div className="flex items-center gap-1.5 mb-1">
+      <Icon size={11} className="text-slate-400" />
+      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+    </div>
+    <p className="text-xs font-semibold text-slate-700">{value}</p>
+  </div>
+);

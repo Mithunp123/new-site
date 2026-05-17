@@ -36,6 +36,8 @@ function buildFacebookLoginUrl(state) {
     scope: DEFAULT_SCOPES.join(','),
     response_type: 'code',
     state,
+    auth_type: 'reauthenticate',
+    display: 'popup',
   });
 
   return `${FACEBOOK_OAUTH_URL}?${params.toString()}`;
